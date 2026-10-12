@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>抽象 2048 · ABSTRACT 2048</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{min-height:100%;margin:0;background:#08080c}
+  body{
+    background-image:radial-gradient(900px 700px at 50% 12%, #1c1710 0%, #08080c 68%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#ece7dd;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:100vh;padding:22px 16px 30px;gap:16px;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+  :root{--fs-s:26px;--fs-l:15px}
+
+  header{width:min(440px,88vw);display:flex;align-items:flex-end;gap:12px}
+  .brand{flex:1;min-width:0}
+  .brand .t{font-size:11px;letter-spacing:.4em;color:#7d7a86}
+  .brand h1{margin:4px 0 0;font-size:22px;letter-spacing:.16em;color:#ffb26b;font-weight:800}
+  .brand .s{margin-top:5px;font-size:11.5px;color:#8a8794;letter-spacing:.06em}
+  .stats{display:flex;gap:8px}
+  .stat{
+    background:rgba(24,24,32,.8);border:1px solid rgba(255,255,255,.1);border-radius:12px;
+    padding:7px 14px;text-align:center;min-width:74px;
+  }
+  .stat .k{font-size:9.5px;letter-spacing:.24em;color:#7d7a86}
+  .stat .v{font:800 19px/1.3 ui-monospace,Consolas,monospace;color:#ffd36e;font-variant-numeric:tabular-nums}
+  .stat.best .v{color:#8fd9ff}
+
+  .board{
+    position:relative;width:min(440px,88vw);aspect-ratio:1/1;padding:11px;border-radius:20px;
+    background:linear-gradient(160deg,#1d1d29,#121219);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 34px 74px rgba(0,0,0,.68), inset 0 1px 0 rgba(255,255,255,.06);
+    touch-action:none;
+  }
+  .grid{position:absolute;inset:11px;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr)}
+  .grid i{margin:5px;border-radius:12px;background:rgba(255,255,255,.035)}
+  .tiles{position:absolute;inset:11px;pointer-events:none}
+  .tile{
+    position:absolute;width:calc(25% - 10px);height:calc(25% - 10px);border-radius:12px;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:var(--fs-s);letter-spacing:0;line-height:1;
+    will-change:left,top;
+    transition:left .115s cubic-bezier(.3,.9,.4,1), top .115s cubic-bezier(.3,.9,.4,1),
+               opacity .16s linear, transform .2s ease;
+  }
+  .tile.w4{font-size:var(--fs-l)}
+  @keyframes popin{from{transform:scale(.15);opacity:0}to{transform:scale(1);opacity:1}}
+  .tile.appear{animation:popin .17s ease-out}
+  @keyframes bump{0%{transform:scale(1)}45%{transform:scale(1.22)}100%{transform:scale(1)}}
+  .tile.pop{animation:bump .21s ease-out}
+
+  .bar{width:min(440px,88vw);display:flex;gap:9px;align-items:center}
+  button{
+    font:inherit;font-size:12.5px;color:#ece7dd;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:10px 18px;letter-spacing:.08em;transition:.15s;
+  }
+  button:hover{background:rgba(255,178,107,.16);border-color:rgba(255,178,107,.5);color:#ffd9b8}
+  button.primary{background:linear-gradient(120deg,rgba(255,178,107,.3),rgba(143,217,255,.2));border-color:rgba(255,178,107,.55)}
+  .bar .hint{flex:1;text-align:right;font-size:11px;color:#6f6c79;letter-spacing:.06em;line-height:1.5}
+
+  .over{
+    position:fixed;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:20px;
+    background:rgba(6,6,10,.82);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+  }
+  .over.show{display:flex}
+  .box{
+    width:min(400px,92vw);text-align:center;padding:30px 26px 24px;border-radius:22px;
+    background:linear-gradient(180deg,rgba(30,27,22,.98),rgba(18,17,20,.98));
+    border:1px solid rgba(255,178,107,.24);box-shadow:0 30px 80px rgba(0,0,0,.7);
+  }
+  .box .em{font-size:40px;line-height:1}
+  .box h2{margin:14px 0 6px;font-size:21px;letter-spacing:.14em;color:#ffb26b}
+  .box p{margin:0 0 18px;font-size:12.5px;line-height:1.9;color:#9d9aa6}
+  .box p b{color:#ffd36e;font-family:ui-monospace,Consolas,monospace}
+  .box .row{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
+  footer{font-size:11px;color:#5f5c68;letter-spacing:.14em;text-align:center;line-height:1.9}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="t">CYBER 2048</div>
+    <h1>抽象 2048</h1>
+    <div class="s">把打工人生的七个阶段合出来</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="k">分数</div><div class="v" id="score">0</div></div>
+    <div class="stat best"><div class="k">最高</div><div class="v" id="best">0</div></div>
+  </div>
+</header>
+
+<div class="board" id="board">
+  <div class="grid" id="grid"></div>
+  <div class="tiles" id="tiles"></div>
+</div>
+
+<div class="bar">
+  <button id="restart">重开一局</button>
+  <span class="hint">方向键 / WASD / 手指滑动</span>
+</div>
+
+<footer>摸鱼 → 搬砖 → 加班 → 发薪 → 放假 → 财富自由 → 提前退休<br>合到「提前退休」就算这辈子过完了</footer>
+
+<div class="over" id="over">
+  <div class="box">
+    <div class="em" id="oEmoji">🎉</div>
+    <h2 id="oTitle">提前退休</h2>
+    <p id="oText"></p>
+    <div class="row">
+      <button class="primary" id="oAgain">再来一局</button>
+      <button id="oKeep" style="display:none">接着玩</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 抽象 2048 ========= */
+const $ = id => document.getElementById(id);
+const N = 4, MAXLV = 7;
+
+const WORDS = [null,'摸鱼','搬砖','加班','发薪','放假','财富自由','提前退休'];
+const STYLE = [
+  null,
+  {bg:'#242a38', fg:'#93aecb', glow:0},
+  {bg:'#3a2b1e', fg:'#e8bd8b', glow:0},
+  {bg:'#43203a', fg:'#f2a6da', glow:0},
+  {bg:'#1d3a2c', fg:'#8ee0b4', glow:0},
+  {bg:'#1e3350', fg:'#96c8ff', glow:0},
+  {bg:'linear-gradient(140deg,#ffd76e,#ffa62b)', fg:'#3a2600', glow:1},
+  {bg:'linear-gradient(140deg,#ff9de2,#8ef0c8,#8fd9ff)', fg:'#1a1030', glow:2}
+];
+
+const board = $('board'), layer = $('tiles');
+let tiles = [], nextId = 1, score = 0, best = 0;
+let over = false, finished = false, keepPlaying = false, touchStart = null, gen = 0;
+
+/* ---------- 音效（全部现场合成，无音频文件） ---------- */
+const A = {
+  ctx:null,
+  init(){ if(this.ctx) return; const C=window.AudioContext||window.webkitAudioContext; if(C) this.ctx=new C(); },
+  resume(){ if(this.ctx && this.ctx.state==='suspended') this.ctx.resume(); },
+  tone(f, dur, type, gain, bend, delay){
+    if(!this.ctx) return;
+    const c=this.ctx, t0=c.currentTime+(delay||0);
+    const o=c.createOscillator(); o.type=type||'sine';
+    const g=c.createGain();
+    o.frequency.setValueAtTime(f, t0);
+    if(bend) o.frequency.exponentialRampToValueAtTime(Math.max(40,f*bend), t0+dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(gain, t0+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    o.connect(g).connect(c.destination);
+    o.start(t0); o.stop(t0+dur+0.04);
+  },
+  slide(){ this.tone(150, .07, 'sine', .035, .8); },
+  merge(lv){ this.tone(240*Math.pow(1.17,lv), .17, 'triangle', .09, 1.35); },
+  reject(){ this.tone(120, .09, 'square', .035, .7); },
+  dead(){ [0,.13,.26,.4].forEach((d,i)=> this.tone(300*Math.pow(.78,i), .3, 'sine', .1, .8, d)); },
+  retire(){
+    [0,4,7,12,16,19,24].forEach((n,i)=> this.tone(392*Math.pow(2,n/12), .5, 'triangle', .085, 1, i*.09));
+  }
+};
+
+/* ---------- 渲染 ---------- */
+function fit(){
+  const w = layer.clientWidth || board.clientWidth - 22;
+  const box = w/4 - 10;
+  document.documentElement.style.setProperty('--fs-s', Math.round(box*0.40)+'px');
+  document.documentElement.style.setProperty('--fs-l', Math.round(box*0.215)+'px');
+}
+function place(t){
+  t.el.style.left = `calc(${t.c*25}% + 5px)`;
+  t.el.style.top  = `calc(${t.r*25}% + 5px)`;
+}
+function paint(t){
+  const s = STYLE[t.lv], w = WORDS[t.lv];
+  t.el.textContent = w;
+  t.el.style.background = s.bg;
+  t.el.style.color = s.fg;
+  t.el.style.boxShadow = s.glow ? `0 0 ${8+s.glow*11}px rgba(255,214,130,${.32+s.glow*.18})` : 'none';
+  t.el.classList.toggle('w4', w.length > 2);
+}
+function makeTile(r, c, lv, animate){
+  const t = {id:nextId++, r, c, lv, dead:false, el:document.createElement('div')};
+  t.el.className = 'tile';
+  place(t); paint(t);
+  if(animate) { t.el.classList.add('appear'); setTimeout(()=>t.el.classList.remove('appear'), 200); }
+  layer.appendChild(t.el);
+  tiles.push(t);
+  return t;
+}
+function at(r,c){ for(const t of tiles) if(t.r===r && t.c===c) return t; return null; }
+
+/* ---------- 状态 ---------- */
+function emptyCells(){
+  const out = [];
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(!at(r,c)) out.push([r,c]);
+  return out;
+}
+function spawn(){
+  const cells = emptyCells();
+  if(!cells.length) return null;
+  const [r,c] = cells[(Math.random()*cells.length)|0];
+  return makeTile(r, c, Math.random() < 0.1 ? 2 : 1, true);
+}
+function hasMoves(){
+  if(emptyCells().length) return true;
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const t = at(r,c); if(!t || t.lv >= MAXLV) continue;
+    const rt = at(r,c+1), dn = at(r+1,c);
+    if((rt && rt.lv===t.lv) || (dn && dn.lv===t.lv)) return true;
+  }
+  return false;
+}
+function updateHUD(){
+  $('score').textContent = score;
+  if(score > best){
+    best = score;
+    try{ localStorage.setItem('ut_2048_best', String(best)); }catch(e){}
+  }
+  $('best').textContent = best;
+}
+function showOver(emoji, title, html, keep){
+  $('oEmoji').textContent = emoji;
+  $('oTitle').textContent = title;
+  $('oText').innerHTML = html;
+  $('oKeep').style.display = keep ? '' : 'none';
+  $('over').classList.add('show');
+}
+
+/* ---------- 走一步 ---------- */
+function move(dir){
+  if(over || finished) return;
+  const horiz = (dir==='left' || dir==='right');
+  const fwd   = (dir==='left' || dir==='up');
+
+  const grid = Array.from({length:N}, ()=>Array(N).fill(null));
+  for(const t of tiles) grid[t.r][t.c] = t;
+
+  const dying = [];
+  let moved = false, gained = 0, topLevel = false;
+
+  for(let line=0; line<N; line++){
+    const seq = [];
+    for(let i=0;i<N;i++){
+      const r = horiz ? line : i, c = horiz ? i : line;
+      if(grid[r][c]) seq.push(grid[r][c]);
+    }
+    if(!fwd) seq.reverse();
+
+    const res = [];
+    for(let i=0;i<seq.length;i++){
+      const t = seq[i];
+      if(i+1 < seq.length && seq[i+1].lv === t.lv && t.lv < MAXLV){
+        res.push({t, lv:t.lv+1, gone:seq[i+1]});
+        i++;
+      } else {
+        res.push({t, lv:t.lv, gone:null});
+      }
+    }
+    for(let i=0;i<res.length;i++){
+      const {t, lv, gone} = res[i];
+      const slot = fwd ? i : N-1-i;
+      const nr = horiz ? line : slot, nc = horiz ? slot : line;
+      if(t.r!==nr || t.c!==nc || lv!==t.lv) moved = true;
+      if(gone){
+        moved = true; gone.dead = true;
+        gone.r = nr; gone.c = nc; place(gone);
+        gone.el.style.zIndex = '1';
+        dying.push(gone);
+      }
+      t.r = nr; t.c = nc; place(t);
+      if(lv !== t.lv){
+        t.lv = lv;
+        gained += Math.pow(2, lv);
+        if(lv === MAXLV) topLevel = true;
+        setTimeout(()=>{
+          if(t.dead) return;
+          paint(t);
+          t.el.classList.remove('pop'); void t.el.offsetWidth; t.el.classList.add('pop');
+        }, 108);
+      }
+    }
+  }
+
+  if(!moved){
+    A.resume(); A.reject();
+    board.animate([{transform:'translateX(0)'},{transform:'translateX(-5px)'},{transform:'translateX(5px)'},{transform:'translateX(0)'}], {duration:150});
+    if(!hasMoves()) deadEnd();   // 已经走不动了，就算这一步没推动也要收场
+    return;
+  }
+
+  A.resume(); A.slide();
+
+  if(dying.length){
+    tiles = tiles.filter(t => !t.dead);
+    setTimeout(()=>{
+      for(const g of dying){ g.el.style.opacity = '0'; g.el.style.transform = 'scale(.55)'; }
+      setTimeout(()=>{ for(const g of dying) g.el.remove(); }, 170);
+    }, 122);
+  }
+
+  if(gained){
+    score += gained;
+    A.merge(Math.min(MAXLV-1, Math.round(Math.log2(gained))));
+    updateHUD();
+  }
+
+  spawn();
+
+  if(topLevel && !keepPlaying){
+    finished = true;
+    A.retire();
+    setTimeout(()=> showOver('🎉', '提前退休',
+      `你合出了「<b>提前退休</b>」——这辈子过完了。<br>当前分数 <b>${score}</b>，得分 <b>${best}</b>。`, true), 300);
+    return;
+  }
+  if(!hasMoves()) deadEnd();
+}
+function deadEnd(){
+  if(over || finished) return;
+  over = true;
+  A.dead();
+  const g = gen;
+  setTimeout(()=>{
+    if(g !== gen) return;            // 期间已经重开了就不弹了
+    showOver('📉', '卡住了',
+      `没有能合的了。你这辈子停在「<b>${topWord()}</b>」。<br>本局 <b>${score}</b> 分 · 最高 <b>${best}</b> 分。`, false);
+  }, 240);
+}
+function topWord(){
+  let top = 1;
+  for(const t of tiles) if(t.lv > top) top = t.lv;
+  return WORDS[top];
+}
+
+/* ---------- 开新局 ---------- */
+function reset(){
+  layer.innerHTML = '';
+  tiles = []; score = 0; over = false; finished = false; gen++;
+  $('over').classList.remove('show');
+  spawn(); spawn();
+  updateHUD();
+}
+
+/* ---------- 交互 ---------- */
+const KEYS = {
+  ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down',
+  a:'left', d:'right', w:'up', s:'down', A:'left', D:'right', W:'up', S:'down'
+};
+addEventListener('keydown', e=>{
+  const dir = KEYS[e.key];
+  if(!dir) return;
+  e.preventDefault();
+  move(dir);
+});
+board.addEventListener('pointerdown', e=>{ touchStart = {x:e.clientX, y:e.clientY}; });
+board.addEventListener('pointerup', e=>{
+  if(!touchStart) return;
+  const dx = e.clientX - touchStart.x, dy = e.clientY - touchStart.y;
+  touchStart = null;
+  if(Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+  move(Math.abs(dx) > Math.abs(dy) ? (dx>0?'right':'left') : (dy>0?'down':'up'));
+});
+$('restart').addEventListener('click', ()=>{ A.init(); A.resume(); reset(); });
+$('oAgain').addEventListener('click', ()=>{ A.init(); A.resume(); reset(); });
+$('oKeep').addEventListener('click', ()=>{
+  keepPlaying = true;
+  $('over').classList.remove('show');
+  finished = false;
+  if(!hasMoves()){ over = true; showOver('📉','卡住了','真的没有能合的了。',false); }
+});
+addEventListener('resize', fit);
+
+/* ---------- 启动 ---------- */
+(function boot(){
+  const g = $('grid');
+  for(let i=0;i<N*N;i++) g.appendChild(document.createElement('i'));
+  try{ best = parseInt(localStorage.getItem('ut_2048_best')||'0',10) || 0; }catch(e){ best = 0; }
+  fit(); reset();
+})();
+</script>
+</body>
+</html>

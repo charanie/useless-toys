@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>抽象打砖块 · ABSTRACT BREAKOUT</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{min-height:100%;margin:0;background:#08070b}
+  body{
+    background-image:radial-gradient(900px 720px at 50% 14%, #20161c 0%, #08070b 68%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#ece7ee;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:100vh;padding:18px 16px 24px;gap:12px;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+
+  header{width:min(500px,90vw);display:flex;align-items:flex-end;gap:12px}
+  .brand{flex:1;min-width:0}
+  .brand .t{font-size:11px;letter-spacing:.4em;color:#7e7286}
+  .brand h1{margin:4px 0 0;font-size:21px;letter-spacing:.14em;color:#ff8a5c;font-weight:800}
+  .brand .s{margin-top:5px;font-size:11.5px;color:#8f8595;letter-spacing:.06em}
+  .stats{display:flex;gap:7px}
+  .stat{background:rgba(28,22,30,.82);border:1px solid rgba(255,255,255,.1);border-radius:12px;
+    padding:6px 12px;text-align:center;min-width:60px}
+  .stat .k{font-size:9.5px;letter-spacing:.22em;color:#7e7286}
+  .stat .v{font:800 18px/1.3 ui-monospace,Consolas,monospace;color:#ffd36e;font-variant-numeric:tabular-nums}
+  .stat.lv .v{color:#c86bff}
+  .stat.life .v{color:#ff7a9c;letter-spacing:2px;font-size:15px}
+  .stat.best .v{color:#8fd9ff}
+
+  .wrap{position:relative;border-radius:16px;padding:8px;
+    background:linear-gradient(160deg,#1a1420,#0d0a12);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 30px 66px rgba(0,0,0,.72), inset 0 1px 0 rgba(255,255,255,.05);
+    touch-action:none;line-height:0}
+  canvas{display:block;border-radius:10px;background:#0a0810;cursor:none}
+
+  .bar{width:min(500px,90vw);display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  button{font:inherit;font-size:12.5px;color:#ece7ee;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:10px 18px;letter-spacing:.08em;transition:.15s}
+  button:hover{background:rgba(255,138,92,.16);border-color:rgba(255,138,92,.5);color:#ffd0b8}
+  button.primary{background:linear-gradient(120deg,rgba(255,138,92,.3),rgba(200,107,255,.22));border-color:rgba(255,138,92,.55)}
+  .hint{flex:1;text-align:right;font-size:11px;color:#6b5f74;letter-spacing:.06em;line-height:1.5}
+  .pu{display:none;font-size:11px;letter-spacing:.1em;padding:6px 12px;border-radius:999px;
+    background:rgba(143,217,255,.12);border:1px solid rgba(143,217,255,.35);color:#bfe6ff}
+  .pu.on{display:inline-block}
+
+  .over{position:fixed;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:20px;
+    background:rgba(6,5,9,.84);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+  .over.show{display:flex}
+  .box{width:min(400px,92vw);text-align:center;padding:30px 26px 24px;border-radius:22px;
+    background:linear-gradient(180deg,rgba(32,24,32,.98),rgba(18,14,20,.98));
+    border:1px solid rgba(255,138,92,.24);box-shadow:0 30px 80px rgba(0,0,0,.72)}
+  .box .em{font-size:38px;line-height:1}
+  .box h2{margin:13px 0 6px;font-size:20px;letter-spacing:.14em;color:#ff8a5c}
+  .box p{margin:0 0 18px;font-size:12.5px;line-height:1.95;color:#a094aa}
+  .box p b{color:#ffd36e}
+  .box .row{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
+  footer{font-size:11px;color:#5f5568;letter-spacing:.14em;text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="t">ABSTRACT BREAKOUT</div>
+    <h1>抽象打砖块</h1>
+    <div class="s">把今天的破事一块一块砸碎</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="k">分数</div><div class="v" id="score">0</div></div>
+    <div class="stat lv"><div class="k">关卡</div><div class="v" id="level">1</div></div>
+    <div class="stat life"><div class="k">命</div><div class="v" id="life">♥♥♥</div></div>
+    <div class="stat best"><div class="k">最佳</div><div class="v" id="best">0</div></div>
+  </div>
+</header>
+
+<div class="wrap"><canvas id="c"></canvas></div>
+
+<div class="bar">
+  <button id="restart">重开一局</button>
+  <span class="pu" id="pu"></span>
+  <span class="hint">鼠标 / 手指拖动挡板 · ← → 也行 · 空格发球</span>
+</div>
+
+<footer>挡板接不住的东西，明天还得接着干</footer>
+
+<div class="over" id="over">
+  <div class="box">
+    <div class="em" id="oEmoji">🌙</div>
+    <h2 id="oTitle">下班了</h2>
+    <p id="oText"></p>
+    <div class="row">
+      <button class="primary" id="oAgain">再来一局</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 抽象打砖块 ========= */
+const $ = id => document.getElementById(id);
+const W = 480, H = 620;
+const COLS = 10, BRICK_GAP = 5, BRICK_H = 26, BRICK_TOP = 56;
+const PAD_Y = 566, PAD_H = 13;
+const R = 7.4;
+
+const LABELS = ['早会','周报','需求变更','已读不回','加班','甩锅','对齐','复盘',
+                '催进度','加需求','走流程','发版','联调','排期','拉群','站会',
+                '日报','深夜消息','临时改期','再评估一下'];
+const ROW_HUES = [352, 22, 42, 150, 196, 268, 320, 96];
+
+const cvs = $('c'), ctx = cvs.getContext('2d');
+const cRect = () => cvs.getBoundingClientRect();
+
+let bricks = [], balls = [], parts = [], drops = [];
+let pad = {x:W/2-52, w:104, target:W/2};
+let score = 0, best = 0, level = 1, lives = 3;
+let launched = false, over = false, winPause = 0, slowT = 0;
+let keys = {left:false, right:false};
+let rafLast = 0;
+
+/* ---------- 音效 ---------- */
+const A = {
+  ctx:null,
+  init(){ if(this.ctx) return; const C=window.AudioContext||window.webkitAudioContext; if(C) this.ctx=new C(); },
+  resume(){ if(this.ctx && this.ctx.state==='suspended') this.ctx.resume(); },
+  tone(f, dur, type, gain, bend, delay){
+    if(!this.ctx) return;
+    const c=this.ctx, t0=c.currentTime+(delay||0);
+    const o=c.createOscillator(); o.type=type||'sine';
+    const g=c.createGain();
+    o.frequency.setValueAtTime(f, t0);
+    if(bend) o.frequency.exponentialRampToValueAtTime(Math.max(40,f*bend), t0+dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(gain, t0+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    o.connect(g).connect(c.destination);
+    o.start(t0); o.stop(t0+dur+0.04);
+  },
+  brick(row){ this.tone(320*Math.pow(1.075, 5-row), .10, 'square', .05, 1.25); },
+  wall(){ this.tone(200, .05, 'sine', .03, .85); },
+  paddle(){ this.tone(150, .08, 'triangle', .06, 1.5); },
+  drop(){ [0,.07,.14].forEach((d,i)=> this.tone(660*Math.pow(1.26,i), .14, 'square', .05, 1, d)); },
+  lose(){ [0,.12,.26].forEach((d,i)=> this.tone(300*Math.pow(.72,i), .32, 'sawtooth', .06, .6, d)); },
+  clear(){ [0,4,7,12,16].forEach((n,i)=> this.tone(392*Math.pow(2,n/12), .4, 'triangle', .08, 1, i*.08)); }
+};
+
+/* ---------- 布局 ---------- */
+function resize(){
+  const maxW = Math.min(window.innerWidth*0.9, 500);
+  const maxH = window.innerHeight*0.62;
+  const k = Math.min(maxW/W, maxH/H);
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cvs.width = W*dpr; cvs.height = H*dpr;
+  cvs.style.width = (W*k)+'px'; cvs.style.height = (H*k)+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+function toLogical(clientX){
+  const r = cRect();
+  return (clientX - r.left) / r.width * W;
+}
+
+/* ---------- 关卡 ---------- */
+function brickW(){ return (W - 36 - (COLS-1)*BRICK_GAP) / COLS; }
+function buildLevel(){
+  bricks = []; drops = []; parts = [];
+  const rows = Math.min(8, 4 + level);
+  const bw = brickW();
+  const pool = LABELS.slice();
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<COLS;c++){
+      // 挖几个空洞，盘面不那么死板
+      if(level > 1 && (r*7 + c*3 + level) % 17 === 0) continue;
+      bricks.push({
+        x: 18 + c*(bw + BRICK_GAP),
+        y: BRICK_TOP + r*(BRICK_H + BRICK_GAP),
+        w: bw, h: BRICK_H,
+        row: r,
+        hue: ROW_HUES[r % ROW_HUES.length],
+        label: pool.length ? pool.splice((Math.random()*pool.length)|0,1)[0] : '',
+        hp: 1
+      });
+    }
+  }
+  // 每块砖随机贴一个标签
+  for(const b of bricks){
+    if(!b.label) b.label = LABELS[(Math.random()*LABELS.length)|0];
+  }
+  pad.w = Math.max(76, 104 - (level-1)*4);
+  pad.x = W/2 - pad.w/2; pad.target = W/2;
+  balls = []; slowT = 0;
+  resetBall();
+  launched = false;
+}
+function baseSpeed(){ return 340 * Math.pow(1.07, level-1); }
+function resetBall(){
+  balls = [{x: pad.x + pad.w/2, y: PAD_Y - R - 1, vx:0, vy:0, r:R, stuck:true}];
+  launched = false;   // 丢命之后要能重新发球
+}
+function launch(){
+  if(over || launched) return;
+  for(const b of balls){
+    if(b.stuck){
+      const a = (Math.random()*0.5 - 0.25);
+      const sp = baseSpeed();
+      b.vx = sp*Math.sin(a); b.vy = -sp*Math.cos(a);
+      b.stuck = false;
+    }
+  }
+  launched = true;
+  A.resume(); A.paddle();
+}
+
+/* ---------- HUD ---------- */
+function updateHUD(){
+  $('score').textContent = score;
+  $('level').textContent = level;
+  $('life').textContent = lives > 0 ? '♥'.repeat(lives) : '—';
+  if(score > best){ best = score; try{ localStorage.setItem('ut_breakout_best', String(best)); }catch(e){} }
+  $('best').textContent = best;
+  const pu = $('pu');
+  if(slowT > 0){ pu.classList.add('on'); pu.textContent = '🐌 慢速 ' + slowT.toFixed(1) + 's'; }
+  else pu.classList.remove('on');
+}
+
+/* ---------- 特效 ---------- */
+function burst(x, y, hue, n){
+  for(let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, s = 60 + Math.random()*190;
+    parts.push({x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s,
+      life:1, max:.42 + Math.random()*.4, hue});
+  }
+}
+
+/* ---------- 掉落物 ---------- */
+const DROPS = [
+  {k:'multi', c:'#8fd9ff', ic:'●●●', name:'多球'},
+  {k:'wide',  c:'#8ef0c8', ic:'↔',  name:'加长挡板'},
+  {k:'slow',  c:'#ffd36e', ic:'🐌', name:'慢速'}
+];
+function maybeDrop(x, y){
+  if(Math.random() > 0.14) return;
+  const d = DROPS[(Math.random()*DROPS.length)|0];
+  drops.push({x, y, w:26, h:18, ...d, vy:140});
+}
+function applyDrop(d){
+  A.drop();
+  if(d.k === 'multi'){
+    const src = balls[0];
+    if(src){
+      for(const s of [1,-1]){
+        const sp = Math.hypot(src.vx, src.vy) || baseSpeed();
+        const a = Math.atan2(src.vy, src.vx) + s*0.5;
+        balls.push({x:src.x, y:src.y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, r:R, stuck:false});
+      }
+      launched = true;
+    }
+  } else if(d.k === 'wide'){
+    const old = pad.w;
+    pad.w = Math.min(190, pad.w + 34);
+    pad.x -= (pad.w - old)/2;
+    pad.target = Math.max(pad.w/2, Math.min(W - pad.w/2, pad.target));
+  } else if(d.k === 'slow'){
+    slowT = Math.min(12, slowT + 8);
+  }
+}
+
+/* ---------- 主更新 ---------- */
+function update(dt){
+  if(over) return;
+  if(slowT > 0) slowT = Math.max(0, slowT - dt);
+
+  // 挡板
+  const speed = 620;
+  if(keys.left)  pad.target -= speed*dt;
+  if(keys.right) pad.target += speed*dt;
+  pad.target = Math.max(pad.w/2, Math.min(W - pad.w/2, pad.target));
+  pad.x += (pad.target - pad.w/2 - pad.x) * Math.min(1, dt*18);
+
+  // 砖块行整体下移（关卡越高越往下压）
+  // 球
+  for(let i=balls.length-1;i>=0;i--){
+    const b = balls[i];
+    if(b.stuck){ b.x = pad.x + pad.w/2; b.y = PAD_Y - b.r - 1; continue; }
+
+    const f = (slowT > 0 ? 0.62 : 1);
+    let steps = Math.max(1, Math.ceil(Math.hypot(b.vx,b.vy)*dt*f / (b.r*0.8)));
+    const sub = dt/steps;
+    let gone = false;
+
+    for(let s=0;s<steps && !gone;s++){
+      b.x += b.vx*sub*f; b.y += b.vy*sub*f;
+
+      if(b.x - b.r < 4){ b.x = 4 + b.r; b.vx = Math.abs(b.vx); A.wall(); }
+      if(b.x + b.r > W-4){ b.x = W-4 - b.r; b.vx = -Math.abs(b.vx); A.wall(); }
+      if(b.y - b.r < 4){ b.y = 4 + b.r; b.vy = Math.abs(b.vy); A.wall(); }
+
+      // 挡板
+      if(b.vy > 0 && b.y + b.r > PAD_Y && b.y - b.r < PAD_Y + PAD_H &&
+         b.x > pad.x - b.r && b.x < pad.x + pad.w + b.r){
+        const rel = Math.max(-1, Math.min(1, (b.x - (pad.x + pad.w/2)) / (pad.w/2)));
+        let ang = rel * 1.05;
+        // 正中接球会给一个随机小偏角，否则球会垂直上下无限弹，永远打不到两侧
+        if(Math.abs(rel) < 0.10) ang += (Math.random() < 0.5 ? -1 : 1) * (0.10 + Math.random()*0.09);
+        const sp = Math.hypot(b.vx, b.vy);
+        b.vx = sp*Math.sin(ang); b.vy = -Math.abs(sp*Math.cos(ang));
+        b.y = PAD_Y - b.r - 0.5;
+        A.paddle();
+      }
+
+      // 砖块
+      for(let j=0;j<bricks.length;j++){
+        const k = bricks[j];
+        const nx = Math.max(k.x, Math.min(b.x, k.x + k.w));
+        const ny = Math.max(k.y, Math.min(b.y, k.y + k.h));
+        const dx = b.x - nx, dy = b.y - ny;
+        if(dx*dx + dy*dy > b.r*b.r) continue;
+
+        const ovX = (b.x < k.x + k.w/2) ? (b.x + b.r - k.x) : (k.x + k.w - (b.x - b.r));
+        const ovY = (b.y < k.y + k.h/2) ? (b.y + b.r - k.y) : (k.y + k.h - (b.y - b.r));
+        if(Math.abs(ovX) < Math.abs(ovY)){ b.vx = -b.vx; b.x += (ovX>0?Math.abs(ovX):-Math.abs(ovX)); }
+        else { b.vy = -b.vy; b.y += (ovY>0?Math.abs(ovY):-Math.abs(ovY)); }
+
+        bricks.splice(j,1);
+        score += 10 + level*5;
+        A.brick(k.row);
+        burst(k.x + k.w/2, k.y + k.h/2, k.hue, 12);
+        maybeDrop(k.x + k.w/2, k.y + k.h/2);
+        updateHUD();
+        break;
+      }
+
+      if(b.y - b.r > H){ gone = true; }
+    }
+    if(gone) balls.splice(i,1);
+  }
+
+  // 掉落物
+  for(let i=drops.length-1;i>=0;i--){
+    const d = drops[i];
+    d.y += d.vy*dt;
+    if(d.y > H){ drops.splice(i,1); continue; }
+    if(d.y + d.h > PAD_Y && d.y < PAD_Y + PAD_H + 6 &&
+       d.x + d.w/2 > pad.x && d.x - d.w/2 < pad.x + pad.w){
+      applyDrop(d); drops.splice(i,1);
+    }
+  }
+
+  // 粒子
+  for(let i=parts.length-1;i>=0;i--){
+    const p = parts[i];
+    p.life -= dt/p.max;
+    if(p.life <= 0){ parts.splice(i,1); continue; }
+    p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 380*dt;
+    p.vx *= (1 - 2.2*dt);
+  }
+
+  // 掉球
+  if(!balls.length){
+    if(!over && launched){
+      lives--; updateHUD(); A.lose();
+      if(lives <= 0){ finish(); }
+      else { resetBall(); }
+    }
+  }
+
+  // 过关
+  if(!bricks.length && winPause <= 0 && !over){
+    winPause = 1.1;
+    score += 100*level;
+    updateHUD(); A.clear();
+  }
+  if(winPause > 0){
+    winPause -= dt;
+    if(winPause <= 0){
+      winPause = 0;               // 必须归零，否则下一关的过关判定会被负数的 truthy 卡住
+      level++; buildLevel(); updateHUD();
+    }
+  }
+  if(launched && balls.length && balls.every(b=>b.stuck)) launched = false;
+}
+
+/* ---------- 绘制 ---------- */
+function rr(x,y,w,h,r){
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#0a0810'; ctx.fillRect(0,0,W,H);
+
+  // 背景网格
+  ctx.strokeStyle = 'rgba(255,138,92,.045)'; ctx.lineWidth = 1;
+  for(let x=0;x<W;x+=30){ ctx.beginPath(); ctx.moveTo(x+.5,0); ctx.lineTo(x+.5,H); ctx.stroke(); }
+  for(let y=0;y<H;y+=30){ ctx.beginPath(); ctx.moveTo(0,y+.5); ctx.lineTo(W,y+.5); ctx.stroke(); }
+
+  // 砖块
+  for(const k of bricks){
+    ctx.save();
+    ctx.shadowColor = `hsla(${k.hue},72%,58%,.55)`; ctx.shadowBlur = 10;
+    ctx.fillStyle = `hsl(${k.hue},${58}%,${34}%)`;
+    rr(k.x, k.y, k.w, k.h, 6); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = `hsla(${k.hue},80%,${72}%,.28)`;
+    rr(k.x+1, k.y+1, k.w-2, k.h*0.42, 5); ctx.fill();
+    ctx.strokeStyle = `hsla(${k.hue},75%,66%,.6)`; ctx.lineWidth = 1;
+    rr(k.x+.5, k.y+.5, k.w-1, k.h-1, 6); ctx.stroke();
+
+    const n = k.label.length;
+    const fs = n<=2 ? 12.5 : n===3 ? 10.6 : 9.4;
+    ctx.fillStyle = 'rgba(255,255,255,.9)';
+    ctx.font = `700 ${fs}px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(k.label, k.x + k.w/2, k.y + k.h/2 + .5);
+  }
+
+  // 掉落物
+  for(const d of drops){
+    ctx.save();
+    ctx.shadowColor = d.c; ctx.shadowBlur = 12;
+    ctx.fillStyle = d.c;
+    rr(d.x - d.w/2, d.y, d.w, d.h, 9); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#1a1020';
+    ctx.font = `800 11px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(d.ic, d.x, d.y + d.h/2 + .5);
+  }
+
+  // 挡板
+  ctx.save();
+  ctx.shadowColor = 'rgba(255,138,92,.85)'; ctx.shadowBlur = 16;
+  const g = ctx.createLinearGradient(pad.x, 0, pad.x + pad.w, 0);
+  g.addColorStop(0, '#ff8a5c'); g.addColorStop(.5, '#ffd36e'); g.addColorStop(1, '#ff8a5c');
+  ctx.fillStyle = g;
+  rr(pad.x, PAD_Y, pad.w, PAD_H, 7); ctx.fill();
+  ctx.restore();
+
+  // 球
+  for(const b of balls){
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,255,255,.9)'; ctx.shadowBlur = 14;
+    ctx.fillStyle = '#fff4e0';
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+
+  // 粒子
+  for(const p of parts){
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = `hsl(${p.hue},80%,62%)`;
+    ctx.fillRect(p.x-2, p.y-2, 4, 4);
+  }
+  ctx.globalAlpha = 1;
+
+  // 提示
+  if(!launched && !over && balls.length){
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.font = `700 13px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('点击 / 空格 发球', W/2, PAD_Y - 46);
+  }
+  if(winPause > 0){
+    ctx.fillStyle = 'rgba(8,7,12,.6)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#8ef0c8';
+    ctx.font = `800 30px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('砸完了 · 进入第 ' + (level+1) + ' 关', W/2, H/2);
+  }
+}
+function finish(){
+  over = true; updateHUD();
+  $('oEmoji').textContent = '🌙';
+  $('oTitle').textContent = '下班了';
+  $('oText').innerHTML =
+    CHOPS[(Math.random()*CHOPS.length)|0] +
+    `<br>砸到第 <b>${level}</b> 关 · 总分 <b>${score}</b> · 最佳 <b>${best}</b>`;
+  $('over').classList.add('show');
+}
+const CHOPS = [
+  '今天没砸完的，明天一上班就会长回来。',
+  '你已经尽力了，砖是砸不完的。',
+  '恭喜下班。明天同一时间，这里会重新排满。',
+  '碎掉的都是情绪，剩下的是 KPI。',
+  '三块挡板也挡不住别人的需求。'
+];
+
+/* ---------- 循环 ---------- */
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.045, (ts - rafLast)/1000 || 0.016); rafLast = ts;
+  update(dt); draw();
+}
+
+/* ---------- 交互 ---------- */
+function aim(clientX){
+  const x = toLogical(clientX);
+  pad.target = Math.max(pad.w/2, Math.min(W - pad.w/2, x));
+}
+cvs.addEventListener('pointerdown', e=>{ A.init(); A.resume(); aim(e.clientX); launch(); cvs.setPointerCapture?.(e.pointerId); });
+cvs.addEventListener('pointermove', e=>{ if(e.pointerType==='mouse' || e.buttons) aim(e.clientX); });
+cvs.addEventListener('pointerup', e=>{ aim(e.clientX); });
+addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft' || e.key==='a' || e.key==='A'){ keys.left = true; e.preventDefault(); }
+  if(e.key==='ArrowRight'|| e.key==='d' || e.key==='D'){ keys.right = true; e.preventDefault(); }
+  if(e.key===' '){ e.preventDefault(); A.init(); A.resume(); launch(); }
+});
+addEventListener('keyup', e=>{
+  if(e.key==='ArrowLeft' || e.key==='a' || e.key==='A') keys.left = false;
+  if(e.key==='ArrowRight'|| e.key==='d' || e.key==='D') keys.right = false;
+});
+$('restart').addEventListener('click', ()=>{ A.init(); A.resume(); newGame(); });
+$('oAgain').addEventListener('click', ()=>{ A.init(); A.resume(); newGame(); });
+addEventListener('resize', resize);
+
+function newGame(){
+  score = 0; level = 1; lives = 3; over = false; winPause = 0; parts = [];
+  $('over').classList.remove('show');
+  buildLevel(); updateHUD();
+}
+
+/* ---------- 启动 ---------- */
+(function boot(){
+  try{ best = parseInt(localStorage.getItem('ut_breakout_best')||'0',10) || 0; }catch(e){ best = 0; }
+  resize(); newGame(); requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

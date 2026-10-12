@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>抽象扫雷 · ABSTRACT MINES</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{min-height:100%;margin:0;background:#07080c}
+  body{
+    background-image:radial-gradient(900px 700px at 50% 10%, #131a26 0%, #07080c 68%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#e8ecf2;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:100vh;padding:18px 14px 24px;gap:13px;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+
+  header{width:min(700px,94vw);display:flex;align-items:flex-end;gap:12px}
+  .brand{flex:1;min-width:0}
+  .brand .t{font-size:11px;letter-spacing:.4em;color:#6f7b8c}
+  .brand h1{margin:4px 0 0;font-size:21px;letter-spacing:.14em;color:#8fd9ff;font-weight:800}
+  .brand .s{margin-top:5px;font-size:11.5px;color:#8492a4;letter-spacing:.06em}
+  .tabs{display:flex;gap:6px}
+  .tabs button{font:inherit;font-size:12px;color:#aab6c6;cursor:pointer;padding:8px 13px;letter-spacing:.06em;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:10px;transition:.15s;
+    display:flex;flex-direction:column;gap:1px;align-items:center;line-height:1.25}
+  .tabs button small{font-size:9px;color:#6f7b8c;letter-spacing:.1em}
+  .tabs button:hover{border-color:rgba(143,217,255,.45);color:#cfeaff}
+  .tabs button.on{background:linear-gradient(160deg,rgba(143,217,255,.24),rgba(200,107,255,.16));
+    border-color:rgba(143,217,255,.6);color:#e6f5ff}
+  .tabs button.on small{color:#9fc4de}
+
+  .panel{width:min(700px,94vw);border-radius:18px;padding:12px;
+    background:linear-gradient(160deg,#141a26,#0c1017);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 30px 66px rgba(0,0,0,.72), inset 0 1px 0 rgba(255,255,255,.05)}
+  .hud{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+  .hud .sd{flex:1;display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:12px;
+    background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.07)}
+  .hud .sd .k{font-size:9.5px;letter-spacing:.24em;color:#6f7b8c;white-space:nowrap}
+  .hud .sd .v{font:800 19px/1 ui-monospace,Consolas,monospace;color:#ff8a9c;font-variant-numeric:tabular-nums}
+  .hud .sd.time .v{color:#8fd9ff}
+  #face{font-size:24px;line-height:1;width:52px;height:46px;border-radius:12px;cursor:pointer;flex:0 0 auto;
+    background:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.04));
+    border:1px solid rgba(255,255,255,.14);transition:.12s}
+  #face:hover{filter:brightness(1.2)}
+  #face:active{transform:scale(.94)}
+
+  .scroll{overflow-x:auto;overflow-y:hidden;display:flex;justify-content:center;padding-bottom:2px}
+  .board{--cs:clamp(17px, calc((min(94vw, 700px) - 26px) / var(--cols)), 34px);
+    display:grid;grid-template-columns:repeat(var(--cols), var(--cs));grid-auto-rows:var(--cs);
+    gap:2px;touch-action:manipulation}
+  .c{width:100%;height:100%;padding:0;border:none;border-radius:5px;cursor:pointer;
+    font:800 calc(var(--cs) * .56)/1 ui-monospace,Consolas,monospace;
+    display:flex;align-items:center;justify-content:center;transition:background .09s, transform .06s;
+    background:linear-gradient(180deg,#2d3748,#222a38);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.13), 0 1px 2px rgba(0,0,0,.5)}
+  .c:hover{background:linear-gradient(180deg,#3a465c,#2a3444)}
+  .c:active{transform:scale(.94)}
+  .c.open{cursor:default;background:#111722;box-shadow:inset 0 0 0 1px rgba(255,255,255,.045);transform:none}
+  .c.open:hover{background:#111722}
+  .c.flag{background:linear-gradient(180deg,#4a3040,#33202c);font-size:calc(var(--cs) * .58)}
+  .c.boom{background:linear-gradient(180deg,#8e2130,#5e1520);box-shadow:0 0 14px rgba(255,70,90,.7)}
+  .c.boom,.c.revealed-mine{font-size:calc(var(--cs) * .62)}
+  .c.wrong{background:linear-gradient(180deg,#5a3a2a,#3a251a)}
+  .n1{color:#7fc4ff}.n2{color:#8ef0c8}.n3{color:#ff8a9c}.n4{color:#c86bff}
+  .n5{color:#ffb26b}.n6{color:#6ef0b8}.n7{color:#e8ecf2}.n8{color:#9aa6b6}
+
+  .bar{width:min(700px,94vw);display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  button.b{font:inherit;font-size:12.5px;color:#e8ecf2;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:10px 18px;letter-spacing:.08em;transition:.15s}
+  button.b:hover{background:rgba(143,217,255,.15);border-color:rgba(143,217,255,.5);color:#cfeaff}
+  button.b.primary{background:linear-gradient(120deg,rgba(143,217,255,.28),rgba(200,107,255,.2));border-color:rgba(143,217,255,.55)}
+  .legend{flex:1;text-align:right;font-size:11px;color:#67748a;letter-spacing:.06em;line-height:1.6}
+  footer{font-size:11px;color:#57647a;letter-spacing:.14em;text-align:center;line-height:1.9}
+
+  .over{position:fixed;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:20px;
+    background:rgba(5,7,11,.84);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+  .over.show{display:flex}
+  .box{width:min(400px,92vw);text-align:center;padding:30px 26px 24px;border-radius:22px;
+    background:linear-gradient(180deg,rgba(24,30,42,.98),rgba(13,17,23,.98));
+    border:1px solid rgba(143,217,255,.24);box-shadow:0 30px 80px rgba(0,0,0,.72)}
+  .box .em{font-size:38px;line-height:1}
+  .box h2{margin:13px 0 6px;font-size:20px;letter-spacing:.14em;color:#8fd9ff}
+  .box p{margin:0 0 18px;font-size:12.5px;line-height:1.95;color:#93a2b6}
+  .box p b{color:#ffd36e}
+  .box .row{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="t">ABSTRACT MINES</div>
+    <h1>抽象扫雷</h1>
+    <div class="s">桌上埋着需求、会议、临时加塞和领导找你</div>
+  </div>
+  <div class="tabs" id="tabs"></div>
+</header>
+
+<div class="panel">
+  <div class="hud">
+    <div class="sd"><span class="k">剩余雷</span><span class="v" id="mineLeft">0</span></div>
+    <button id="face" title="重开">🙂</button>
+    <div class="sd time"><span class="k">用时</span><span class="v" id="timer">0.0</span></div>
+  </div>
+  <div class="scroll"><div class="board" id="board"></div></div>
+</div>
+
+<div class="bar">
+  <button class="b" id="restart">重开一局</button>
+  <span class="legend">左键挖 · 右键插旗「已读不回」<br>手机上长按 = 插旗</span>
+</div>
+
+<footer>数字表示周围有几个坑 · 全挖完就算今天圆满</footer>
+
+<div class="over" id="over">
+  <div class="box">
+    <div class="em" id="oEmoji">💥</div>
+    <h2 id="oTitle">炸了</h2>
+    <p id="oText"></p>
+    <div class="row">
+      <button class="b primary" id="oAgain">再来一局</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 抽象扫雷 ========= */
+const $ = id => document.getElementById(id);
+
+const KINDS = [
+  {ic:'📋', name:'需求',      hue:200},
+  {ic:'📅', name:'会议',      hue:268},
+  {ic:'⚡', name:'临时加塞',  hue:40},
+  {ic:'👔', name:'领导找你',  hue:350}
+];
+const LEVELS = [
+  {key:'easy',   name:'摸鱼', sub:'9×9 · 10 雷',      cols:9,  rows:9,  mines:10},
+  {key:'normal', name:'正常', sub:'14×14 · 35 雷',    cols:14, rows:14, mines:35},
+  {key:'hard',   name:'加班', sub:'20×16 · 75 雷',    cols:20, rows:16, mines:75}
+];
+
+let lv = LEVELS[0];
+let cells = [];          // {mine, near, open, flag, kind}
+let els = [];
+let started = false, over = false, won = false, flags = 0, opened = 0;
+let t0 = 0, tickT = null;
+let pressT = null, longPressed = false;
+
+/* ---------- 音效 ---------- */
+const A = {
+  ctx:null,
+  init(){ if(this.ctx) return; const C=window.AudioContext||window.webkitAudioContext; if(C) this.ctx=new C(); },
+  resume(){ if(this.ctx && this.ctx.state==='suspended') this.ctx.resume(); },
+  tone(f, dur, type, gain, bend, delay){
+    if(!this.ctx) return;
+    const c=this.ctx, t=c.currentTime+(delay||0);
+    const o=c.createOscillator(); o.type=type||'sine';
+    const g=c.createGain();
+    o.frequency.setValueAtTime(f, t);
+    if(bend) o.frequency.exponentialRampToValueAtTime(Math.max(40,f*bend), t+dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g).connect(c.destination);
+    o.start(t); o.stop(t+dur+0.04);
+  },
+  dig(){ this.tone(520 + Math.random()*90, .045, 'sine', .028, 1); },
+  flag(){ this.tone(880, .07, 'square', .045, 1.3); },
+  unflag(){ this.tone(440, .06, 'square', .035, .8); },
+  boom(){
+    if(!this.ctx) return;
+    const c = this.ctx, t = c.currentTime;
+    const len = Math.floor(c.sampleRate*0.7);
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, 2.2);
+    const s = c.createBufferSource(); s.buffer = buf;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(1400, t);
+    lp.frequency.exponentialRampToValueAtTime(120, t+0.6);
+    const g = c.createGain(); g.gain.setValueAtTime(.35, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+0.7);
+    s.connect(lp).connect(g).connect(c.destination); s.start(t);
+    this.tone(70, .5, 'sawtooth', .18, .5);
+  },
+  win(){ [0,4,7,12,16,19,24].forEach((n,i)=> this.tone(523*Math.pow(2,n/12), .42, 'triangle', .075, 1, i*.085)); }
+};
+
+/* ---------- 开新局 ---------- */
+function build(){
+  cells = []; els = []; flags = 0; opened = 0;
+  started = false; over = false; won = false; longPressed = false;
+  clearInterval(tickT); tickT = null;
+  $('timer').textContent = '0.0';
+  $('face').textContent = '🙂';
+  $('over').classList.remove('show');
+
+  const board = $('board');
+  board.style.setProperty('--cols', lv.cols);
+  board.innerHTML = '';
+
+  for(let i=0;i<lv.cols*lv.rows;i++){
+    cells.push({mine:false, near:0, open:false, flag:false, kind:0});
+    const b = document.createElement('button');
+    b.className = 'c'; b.dataset.i = i;
+    board.appendChild(b); els.push(b);
+  }
+  updateHUD();
+}
+function neighbors(i){
+  const r = Math.floor(i/lv.cols), c = i%lv.cols, out = [];
+  for(let dr=-1; dr<=1; dr++) for(let dc=-1; dc<=1; dc++){
+    if(!dr && !dc) continue;
+    const nr = r+dr, nc = c+dc;
+    if(nr<0 || nr>=lv.rows || nc<0 || nc>=lv.cols) continue;
+    out.push(nr*lv.cols + nc);
+  }
+  return out;
+}
+function plant(safe){
+  const pool = [];
+  for(let i=0;i<cells.length;i++) if(i !== safe && !neighbors(safe).includes(i)) pool.push(i);
+  // 雷不够就放开邻域限制
+  let cand = pool;
+  if(cand.length < lv.mines){
+    cand = [];
+    for(let i=0;i<cells.length;i++) if(i !== safe) cand.push(i);
+  }
+  for(let n=0;n<lv.mines && cand.length;n++){
+    const k = (Math.random()*cand.length)|0;
+    const idx = cand.splice(k,1)[0];
+    cells[idx].mine = true;
+    cells[idx].kind = (Math.random()*KINDS.length)|0;
+  }
+  for(let i=0;i<cells.length;i++){
+    if(cells[i].mine) continue;
+    cells[i].near = neighbors(i).filter(j=>cells[j].mine).length;
+  }
+  started = true; t0 = performance.now();
+  tickT = setInterval(()=>{ if(!over) $('timer').textContent = ((performance.now()-t0)/1000).toFixed(1); }, 100);
+}
+
+/* ---------- HUD ---------- */
+function updateHUD(){
+  $('mineLeft').textContent = lv.mines - flags;
+}
+function paint(i){
+  const c = cells[i], e = els[i];
+  e.className = 'c';
+  e.textContent = '';
+  if(c.open){
+    e.classList.add('open');
+    if(c.mine){ e.classList.add('boom'); e.textContent = KINDS[c.kind].ic; }
+    else if(c.near > 0){ e.classList.add('n'+c.near); e.textContent = c.near; }
+  } else if(c.flag){
+    e.classList.add('flag'); e.textContent = '🚩';
+  }
+}
+
+/* ---------- 挖 ---------- */
+function open(i){
+  const c = cells[i];
+  if(c.open || c.flag) return;
+  if(!started) plant(i);
+  if(c.mine){ return boom(i); }
+  const stack = [i];
+  while(stack.length){
+    const k = stack.pop();
+    const cc = cells[k];
+    if(cc.open || cc.flag || cc.mine) continue;
+    cc.open = true; opened++;
+    paint(k);
+    if(cc.near === 0) for(const j of neighbors(k)) if(!cells[j].open && !cells[j].flag) stack.push(j);
+  }
+  A.dig();
+  checkWin();
+}
+function boom(i){
+  over = true;
+  cells[i].open = true;
+  for(const c of cells) c.open = true;
+  for(let k=0;k<cells.length;k++){
+    const c = cells[k];
+    if(c.mine && !c.flag){
+      paint(k);
+      if(k !== i){ els[k].classList.add('revealed-mine'); els[k].textContent = KINDS[c.kind].ic; }
+    } else if(!c.mine && c.flag){
+      els[k].className = 'c wrong'; els[k].textContent = '❌';
+    }
+  }
+  els[i].className = 'c boom'; els[i].textContent = KINDS[cells[i].kind].ic;
+  $('face').textContent = '💀';
+  A.boom();
+  clearInterval(tickT);
+  const hit = KINDS[cells[i].kind];
+  setTimeout(()=>{
+    $('oEmoji').textContent = hit.ic;
+    $('oTitle').textContent = '炸了';
+    $('oText').innerHTML = `你挖到了「<b>${hit.name}</b>」。<br>今天的班就上到这里。`;
+    $('over').classList.add('show');
+  }, 520);
+}
+function checkWin(){
+  if(opened === cells.length - lv.mines){
+    over = true; won = true;
+    clearInterval(tickT);
+    $('face').textContent = '😎';
+    for(let i=0;i<cells.length;i++) if(cells[i].mine && !cells[i].flag){ cells[i].flag = true; flags++; paint(i); }
+    updateHUD();
+    const secs = (performance.now()-t0)/1000;
+    const bk = 'ut_mines_best_' + lv.key;
+    let old = null;
+    try{ old = parseFloat(localStorage.getItem(bk)||''); }catch(e){}
+    let rec = '';
+    if(!old || secs < old){
+      try{ localStorage.setItem(bk, secs.toFixed(2)); }catch(e){}
+      rec = '🏆 新纪录！之前最好 <b>' + (old ? old.toFixed(1)+'s' : '—') + '</b>';
+    } else {
+      rec = `本机最好 <b>${old.toFixed(1)}s</b>`;
+    }
+    A.win();
+    setTimeout(()=>{
+      $('oEmoji').textContent = '😎';
+      $('oTitle').textContent = '今天圆满';
+      $('oText').innerHTML = `${lv.name}难度通关，用时 <b>${secs.toFixed(1)}s</b>。<br>${rec}`;
+      $('over').classList.add('show');
+    }, 300);
+  }
+}
+
+/* ---------- 交互 ---------- */
+const board = $('board');
+board.addEventListener('contextmenu', e=> e.preventDefault());
+board.addEventListener('pointerdown', e=>{
+  const b = e.target.closest('.c'); if(!b) return;
+  A.init(); A.resume();
+  if(e.button === 2) return;
+  if(e.pointerType !== 'mouse'){
+    longPressed = false;
+    clearTimeout(pressT);
+    pressT = setTimeout(()=>{ longPressed = true; toggleFlag(+b.dataset.i); }, 320);
+  }
+});
+board.addEventListener('pointerup', e=>{
+  const b = e.target.closest('.c'); if(!b) return;
+  clearTimeout(pressT);
+  if(e.button === 2) return;
+  if(longPressed) return;
+  const i = +b.dataset.i;
+  const c = cells[i];
+  if(over) return;
+  if(c.open){
+    // 和弦：数字周围旗子数够了就一起挖开
+    if(c.near > 0){
+      const nb = neighbors(i);
+      if(nb.filter(j=>cells[j].flag).length === c.near){
+        let bad = false;
+        for(const j of nb) if(!cells[j].flag && !cells[j].open){ if(cells[j].mine) bad = true; }
+        if(bad){ const m = nb.find(j=>!cells[j].flag && !cells[j].open && cells[j].mine); return boom(m); }
+        for(const j of nb) if(!cells[j].flag) open(j);
+      }
+    }
+    return;
+  }
+  open(i);
+});
+board.addEventListener('pointerleave', ()=> clearTimeout(pressT));
+board.addEventListener('pointercancel', ()=> clearTimeout(pressT));
+board.addEventListener('mousedown', e=>{ if(e.button === 2){ e.preventDefault(); const b = e.target.closest('.c'); if(b) toggleFlag(+b.dataset.i); } });
+function toggleFlag(i){
+  if(over) return;
+  const c = cells[i];
+  if(c.open) return;
+  if(!c.flag && flags >= lv.mines) return;
+  c.flag = !c.flag;
+  flags += c.flag ? 1 : -1;
+  paint(i);
+  updateHUD();
+  c.flag ? A.flag() : A.unflag();
+}
+
+/* ---------- 难度 ---------- */
+(function tabs(){
+  const box = $('tabs');
+  LEVELS.forEach((L, k)=>{
+    const b = document.createElement('button');
+    b.innerHTML = `${L.name}<small>${L.sub}</small>`;
+    b.addEventListener('click', ()=>{
+      A.init(); A.resume();
+      lv = L;
+      [...box.children].forEach((x,j)=> x.classList.toggle('on', j===k));
+      build();
+    });
+    if(k === 0) b.classList.add('on');
+    box.appendChild(b);
+  });
+})();
+$('restart').addEventListener('click', ()=>{ A.init(); A.resume(); build(); });
+$('face').addEventListener('click', ()=>{ A.init(); A.resume(); build(); });
+$('oAgain').addEventListener('click', ()=>{ A.init(); A.resume(); build(); });
+
+/* ---------- 启动 ---------- */
+build();
+</script>
+</body>
+</html>

@@ -241,6 +241,71 @@
   .tmp-m3 i:nth-child(7n){background:linear-gradient(180deg,#5fd8ff,#1f7fa8);animation-delay:.72s}
   @keyframes m3pop{0%,100%{transform:scale(1)}45%{transform:scale(.8) rotate(-7deg)}}
 
+  /* 2048 */
+  .tmp-2048{display:grid;grid-template-columns:repeat(4,22px);gap:3px}
+  .tmp-2048 i{width:22px;height:22px;border-radius:5px;background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.05);animation:t2idle 3s ease-in-out infinite}
+  .tmp-2048 i:nth-child(1){background:linear-gradient(160deg,#3a2b1e,#6b4a2a)}
+  .tmp-2048 i:nth-child(6){background:linear-gradient(160deg,#e8bd8b,#a8743c);animation:t2merge 2.4s ease-in-out infinite}
+  .tmp-2048 i:nth-child(7){background:linear-gradient(160deg,#e8bd8b,#a8743c);animation:t2merge 2.4s ease-in-out infinite 1.2s}
+  .tmp-2048 i:nth-child(11){background:linear-gradient(160deg,#f2a6da,#93356f)}
+  .tmp-2048 i:nth-child(16){background:linear-gradient(160deg,#96c8ff,#2f6ba8)}
+  @keyframes t2idle{0%,100%{opacity:1}50%{opacity:.72}}
+  @keyframes t2merge{0%,60%,100%{transform:scale(1)}80%{transform:scale(.42)}}
+
+  /* 贪吃蛇 */
+  .tmp-snake{display:flex;align-items:center;gap:3px;animation:slither 2.4s ease-in-out infinite}
+  .tmp-snake i{display:block;width:15px;height:15px;border-radius:4px;
+    background:linear-gradient(160deg,#6ef0b8,#2f8f68);animation:segpulse 1.8s ease-in-out infinite}
+  .tmp-snake i:nth-child(1){position:relative;background:linear-gradient(160deg,#9dffd4,#4bd39b);
+    box-shadow:0 0 12px rgba(110,240,184,.7)}
+  .tmp-snake i:nth-child(1)::before,.tmp-snake i:nth-child(1)::after{content:'';position:absolute;top:3px;
+    width:3px;height:3px;border-radius:50%;background:#06231a}
+  .tmp-snake i:nth-child(1)::before{left:3px}.tmp-snake i:nth-child(1)::after{left:9px}
+  .tmp-snake i:nth-child(2){animation-delay:.1s}
+  .tmp-snake i:nth-child(3){animation-delay:.2s}
+  .tmp-snake i:nth-child(4){animation-delay:.3s}
+  .tmp-snake i:nth-child(5){animation-delay:.4s}
+  .tmp-snake .f{position:relative;width:17px;height:17px;border-radius:5px;background:#ffb26b;
+    box-shadow:0 0 12px rgba(255,178,107,.85);animation:foodb 1.4s ease-in-out infinite}
+  .tmp-snake .f::after{content:'KPI';position:absolute;inset:0;font:800 6px/17px ui-monospace,Consolas,monospace;
+    color:#3a2408;text-align:center;letter-spacing:-.04em}
+  @keyframes slither{0%,100%{transform:translateX(-4px)}50%{transform:translateX(4px)}}
+  @keyframes segpulse{0%,100%{transform:scale(1)}50%{transform:scale(.82)}}
+  @keyframes foodb{0%,100%{transform:scale(1)}50%{transform:scale(1.16)}}
+
+  /* 打砖块 */
+  .tmp-breakout{position:relative;width:112px;height:78px}
+  .tmp-breakout .bs{position:absolute;top:0;left:2px;display:grid;grid-template-columns:repeat(5,18px);gap:3px}
+  .tmp-breakout .bs i{display:block;height:9px;border-radius:2px;background:linear-gradient(180deg,#ff8a9c,#a8324a)}
+  .tmp-breakout .bs i:nth-child(3n){background:linear-gradient(180deg,#c86bff,#6d2fb8)}
+  .tmp-breakout .bs i:nth-child(4n){background:linear-gradient(180deg,#8fd9ff,#2f78a8)}
+  .tmp-breakout .pd{position:absolute;bottom:3px;left:34px;width:44px;height:6px;border-radius:4px;
+    background:linear-gradient(90deg,#ff8a5c,#ffd36e,#ff8a5c);box-shadow:0 0 12px rgba(255,138,92,.8)}
+  .tmp-breakout .bl{position:absolute;width:8px;height:8px;border-radius:50%;background:#fff4e0;
+    box-shadow:0 0 10px rgba(255,255,255,.9);animation:bkball 2.4s ease-in-out infinite}
+  @keyframes bkball{
+    0%{left:52px;bottom:13px}22%{left:20px;bottom:46px}45%{left:80px;bottom:30px}
+    68%{left:36px;bottom:52px}100%{left:52px;bottom:13px}}
+
+  /* 扫雷 */
+  .tmp-mines{display:grid;grid-template-columns:repeat(5,19px);gap:3px}
+  .tmp-mines i{display:block;width:19px;height:19px;border-radius:4px;
+    background:linear-gradient(180deg,#2d3748,#222a38);box-shadow:inset 0 1px 0 rgba(255,255,255,.13)}
+  .tmp-mines i:nth-child(3){background:#111722;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+  .tmp-mines i:nth-child(3)::after{content:'2';display:block;font:800 11px/19px ui-monospace,Consolas,monospace;
+    color:#8ef0c8;text-align:center}
+  .tmp-mines i:nth-child(8){background:#111722;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+  .tmp-mines i:nth-child(8)::after{content:'1';display:block;font:800 11px/19px ui-monospace,Consolas,monospace;
+    color:#7fc4ff;text-align:center}
+  .tmp-mines i:nth-child(14){background:linear-gradient(180deg,#4a3040,#33202c)}
+  .tmp-mines i:nth-child(14)::after{content:'🚩';display:block;font-size:9px;line-height:19px;text-align:center;
+    animation:flagw 2.2s ease-in-out infinite}
+  .tmp-mines i:nth-child(17){background:linear-gradient(180deg,#8e2130,#5e1520);
+    box-shadow:0 0 12px rgba(255,70,90,.75);animation:boomflash 2.4s ease-in-out infinite}
+  @keyframes flagw{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+  @keyframes boomflash{0%,62%,100%{filter:brightness(1)}74%{filter:brightness(2.1)}}
+
   footer{margin-top:56px;text-align:center;color:var(--dim);font-size:12px;letter-spacing:.18em;line-height:2}
   footer b{color:#ff9a72;font-weight:600}
   footer .sep{opacity:.4;margin:0 10px}
@@ -249,9 +314,9 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="kicker">Useless Toys · 21 件</div>
+    <div class="kicker">Useless Toys · 25 件</div>
     <h1>抽 象 玩 具 铺</h1>
-    <p>二十一件毫无用途、但停不下来的小东西</p>
+    <p>二十五件毫无用途、但停不下来的小东西</p>
     <div class="warn">⚠ 本铺所有商品均无任何用途，打开即视为自愿</div>
   </header>
 
@@ -419,6 +484,45 @@
       <h2>抽象消消乐</h2>
       <p>正经做了一遍的三消：连锁翻倍、火箭 / 炸弹 / 彩虹三种特殊方块、关卡目标与步数、闲置提示、死局自动重排。<b>另有每日挑战（人人同一副牌）和联网排行榜。</b>主题是摸鱼、搬砖、加班、发薪、放假。</p>
       <div class="tags"><span class="tag">可玩</span><span class="tag">每日挑战</span><span class="tag">联网排行榜</span></div>
+    </a>
+  </div>
+
+  <div class="shelf"><span class="label"><b>VOL.6</b> · 能玩的</span><span class="rule"></span></div>
+  <div class="grid">
+    <a class="card" href="cyber-2048/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-2048"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+      <h2>抽象 2048</h2>
+      <p>四方格里合出打工人生的七个阶段：摸鱼 → 搬砖 → 加班 → 发薪 → 放假 → 财富自由 → 提前退休。
+         合成最高的那块会弹一句「提前退休」，然后你可以选择接着合。方向键、WASD、手机滑动都能玩。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">会合并</span><span class="tag">有最高分</span></div>
+    </a>
+    <a class="card" href="cyber-snake/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-snake"><i></i><i></i><i></i><i></i><i></i><div class="f"></div></div></div>
+      <h2>KPI 贪吃蛇</h2>
+      <p>吃 KPI 变长，越吃越快。撞墙＝主动离职，咬到自己＝内耗。
+         <b>蛇身每一节都是一个汉字，整条蛇从左往右读出来是一句话</b>——而且越长越离谱。死的时候会把那句话裱给你看。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">会念句子</span><span class="tag">音效</span></div>
+    </a>
+    <a class="card" href="cyber-breakout/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-breakout">
+        <div class="bs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="bl"></div><div class="pd"></div>
+      </div></div>
+      <h2>抽象打砖块</h2>
+      <p>本铺吉祥物当主角。砖块上写着早会、周报、需求变更、已读不回，一块一块砸穿。
+         三种掉落道具：多球、加长挡板、慢速。砸完一面进下一关，砖越来越多，球越来越快。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">三种道具</span><span class="tag">手感爽</span></div>
+    </a>
+    <a class="card" href="cyber-mines/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-mines"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+      <h2>抽象扫雷</h2>
+      <p>经典扫雷的底子，格子底下埋的是需求、会议、临时加塞和领导找你。
+         数字表示周围有几个坑，插旗就是「已读不回」。三档难度，各自记最快通关时间。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">三档难度</span><span class="tag">记纪录</span></div>
     </a>
   </div>
 
