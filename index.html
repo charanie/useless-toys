@@ -18,8 +18,8 @@
     font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
     -webkit-font-smoothing:antialiased;
   }
-  .wrap{max-width:900px;margin:0 auto;padding:70px 22px 60px}
-  header{text-align:center;margin-bottom:52px}
+  .wrap{max-width:900px;margin:0 auto;padding:68px 22px 60px}
+  header{text-align:center;margin-bottom:46px}
   .kicker{font-size:11px;letter-spacing:.44em;color:var(--dim);text-transform:uppercase;margin-bottom:16px}
   h1{
     margin:0;font-size:clamp(34px,7vw,62px);font-weight:800;letter-spacing:.06em;line-height:1.08;
@@ -29,6 +29,11 @@
   header p{margin:18px 0 0;color:var(--dim);font-size:14px;letter-spacing:.2em}
   header .warn{margin-top:10px;font-size:12px;color:#ff9a72;letter-spacing:.14em}
 
+  .shelf{display:flex;align-items:center;gap:14px;margin:44px 0 18px}
+  .shelf .label{font-size:12px;letter-spacing:.3em;color:var(--dim);white-space:nowrap}
+  .shelf .label b{color:#ffb26b}
+  .shelf .rule{flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
   a.card{
     position:relative;display:block;text-decoration:none;color:inherit;overflow:hidden;
@@ -37,7 +42,7 @@
     transition:transform .2s ease, border-color .2s ease, box-shadow .25s ease;
   }
   a.card:hover{transform:translateY(-4px);border-color:rgba(255,140,90,.5);box-shadow:0 24px 60px rgba(0,0,0,.55)}
-  a.card::after{ /* 悬停高光 */
+  a.card::after{
     content:'';position:absolute;inset:0;border-radius:20px;pointer-events:none;opacity:0;transition:opacity .25s;
     background:radial-gradient(420px 200px at 20% 0%, rgba(255,140,90,.18), transparent 70%);
   }
@@ -85,6 +90,47 @@
   .tmp-fish::after{content:'';position:absolute;left:32%;top:52%;width:36%;height:9px;border-radius:50%;
     background:rgba(40,20,8,.9);box-shadow:0 0 0 2px rgba(40,20,8,.5)}
   @keyframes tap{0%,70%,100%{transform:scale(1,1)}78%{transform:scale(1.06,.9)}}
+  /* 无限加载 */
+  .tmp-load{display:flex;flex-direction:column;align-items:center;gap:14px}
+  .tmp-load .ring{width:40px;height:40px;border-radius:50%;border:3px solid rgba(255,255,255,.10);
+    border-top-color:#5fd8ff;animation:sp .9s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .tmp-load .pbar{width:104px;height:7px;border-radius:9px;background:rgba(255,255,255,.08);overflow:hidden}
+  .tmp-load .pbar i{display:block;height:100%;width:0;border-radius:9px;background:linear-gradient(90deg,#5fd8ff,#8f7bff);
+    animation:crawl 3.2s ease-in-out infinite}
+  @keyframes crawl{0%{width:4%}55%{width:97%}70%{width:97%}80%{width:52%}100%{width:4%}}
+  /* 打字砖 */
+  .tmp-typer{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .tmp-typer .tb{width:56px;height:32px;border-radius:7px;position:relative;
+    background:linear-gradient(180deg,#e0755a,#b24629);box-shadow:inset 0 3px 0 rgba(255,255,255,.25);
+    animation:tbob .5s ease-in-out infinite}
+  @keyframes tbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  .tmp-typer .tb::before,.tmp-typer .tb::after{content:'';position:absolute;top:9px;width:4px;height:4px;border-radius:50%;background:#181820}
+  .tmp-typer .tb::before{left:16px}.tmp-typer .tb::after{left:33px}
+  .tmp-typer .tk{display:flex;gap:3px}
+  .tmp-typer .tk i{width:13px;height:11px;border-radius:2px;background:#26272e;border-top:1px solid rgba(255,255,255,.14);
+    animation:klit .5s steps(2) infinite}
+  .tmp-typer .tk i:nth-child(2n){animation-delay:.12s}
+  .tmp-typer .tk i:nth-child(3n){animation-delay:.24s}
+  @keyframes klit{0%,100%{background:#26272e}50%{background:#6b4a3a}}
+  /* 求签机 */
+  .tmp-fortune{position:relative;width:96px;height:104px;display:flex;align-items:flex-end;justify-content:center}
+  .tmp-fortune .tube{width:52px;height:66px;border-radius:8px 8px 12px 12px;position:relative;
+    background:linear-gradient(90deg,#5c3a1e,#c98a4a 45%,#6b431f);box-shadow:0 10px 20px rgba(0,0,0,.5);
+    animation:wob 1.8s ease-in-out infinite}
+  .tmp-fortune .tube::after{content:'';position:absolute;left:0;right:0;top:22px;height:7px;background:rgba(176,52,42,.9)}
+  .tmp-fortune .st{position:absolute;bottom:58px;width:7px;height:38px;border-radius:3px;background:#e6d9bb;
+    border-top:7px solid #b0342a;animation:wob 1.8s ease-in-out infinite}
+  .tmp-fortune .st.a{left:30px}
+  .tmp-fortune .st.b{left:44px;height:30px;bottom:62px}
+  .tmp-fortune .st.c{left:58px;height:44px}
+  @keyframes wob{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
+  /* 杠精 */
+  .tmp-nit{position:relative;width:130px;height:78px}
+  .tmp-nit i{position:absolute;height:22px;border-radius:11px;display:block}
+  .tmp-nit i.a{right:0;top:6px;width:74px;background:linear-gradient(140deg,#2a3f6b,#1f3055);animation:sl 2.4s ease-in-out infinite}
+  .tmp-nit i.b{left:0;top:40px;width:88px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);animation:sl 2.4s ease-in-out .5s infinite}
+  @keyframes sl{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
 
   footer{margin-top:56px;text-align:center;color:var(--dim);font-size:12px;letter-spacing:.18em;line-height:2}
   footer b{color:#ff9a72;font-weight:600}
@@ -94,12 +140,13 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="kicker">Useless Toys · Vol.1</div>
+    <div class="kicker">Useless Toys · 8 件</div>
     <h1>抽 象 玩 具 铺</h1>
-    <p>四件毫无用途、但停不下来的小东西</p>
-    <div class="warn">⚠ 本铺所有商品均无任何用途，购买即视为自愿</div>
+    <p>八件毫无用途、但停不下来的小东西</p>
+    <div class="warn">⚠ 本铺所有商品均无任何用途，打开即视为自愿</div>
   </header>
 
+  <div class="shelf"><span class="label"><b>VOL.1</b> · 初代四件</span><span class="rule"></span></div>
   <div class="grid">
     <a class="card" href="cyber-brick/">
       <span class="go">进入 →</span>
@@ -108,7 +155,6 @@
       <p>一块毫无用途的砖。拖它、甩它、听它撞墙，它还会念人生哲理，并且一直盯着你的鼠标看。</p>
       <div class="tags"><span class="tag">物理</span><span class="tag">哲理</span><span class="tag">会进化</span></div>
     </a>
-
     <a class="card" href="cyber-sign/">
       <span class="go">进入 →</span>
       <div class="thumb"><div class="tmp-sign"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
@@ -116,7 +162,6 @@
       <p>复古机场分屏翻牌机，用咔哒咔哒的声音，播报一系列永远晚点的离站信息。也可以打你自己的字。</p>
       <div class="tags"><span class="tag">分屏翻牌</span><span class="tag">音效</span><span class="tag">可打字</span></div>
     </a>
-
     <a class="card" href="cyber-gallery/">
       <span class="go">进入 →</span>
       <div class="thumb"><div class="tmp-art"><i></i></div></div>
@@ -124,13 +169,44 @@
       <p>一键生成当代艺术真迹，并附上一本正经胡说八道的评论、荒谬的估价和一纸鉴定书。看不懂就对了。</p>
       <div class="tags"><span class="tag">生成艺术</span><span class="tag">可下载</span><span class="tag">胡说八道</span></div>
     </a>
-
     <a class="card" href="cyber-merit/">
       <span class="go">进入 →</span>
       <div class="thumb"><div class="tmp-fish"></div></div>
       <h2>赛博功德 Pro</h2>
       <p>敲木鱼积功德，境界一路升到「砖」。功德越高，世界越抽象——弹幕、故障、佛光，全都来了。</p>
       <div class="tags"><span class="tag">电子木鱼</span><span class="tag">会失控</span><span class="tag">自动敲</span></div>
+    </a>
+  </div>
+
+  <div class="shelf"><span class="label"><b>VOL.2</b> · 新鲜出炉</span><span class="rule"></span></div>
+  <div class="grid">
+    <a class="card" href="cyber-loading/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-load"><div class="ring"></div><div class="pbar"><i></i></div></div></div>
+      <h2>无限加载</h2>
+      <p>一个永远加载不完的页面。进度条会涨、会退、会卡在 99%，「取消」按钮还会自己跑掉。</p>
+      <div class="tags"><span class="tag">进度条谎言</span><span class="tag">假弹窗</span><span class="tag">加载音效</span></div>
+    </a>
+    <a class="card" href="cyber-typer/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-typer"><div class="tb"></div><div class="tk"><i></i><i></i><i></i><i></i><i></i><i></i></div></div></div>
+      <h2>打字砖</h2>
+      <p>你敲键盘，砖头就跟着你敲。敲得越多它越累、越出汗，最后会睡着。它还会数你敲了多少下。</p>
+      <div class="tags"><span class="tag">键盘可视化</span><span class="tag">会累</span><span class="tag">敲击音</span></div>
+    </a>
+    <a class="card" href="cyber-fortune/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-fortune"><div class="st a"></div><div class="st b"></div><div class="st c"></div><div class="tube"></div></div></div>
+      <h2>赛博求签机</h2>
+      <p>按住签筒左右摇，或点「摇 签」。抽一支出来，看看上上签配的是一首怎样一本正经的胡说八道，外加宜忌。</p>
+      <div class="tags"><span class="tag">摇一摇</span><span class="tag">签诗</span><span class="tag">宜忌</span></div>
+    </a>
+    <a class="card" href="cyber-nitpick/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-nit"><i class="a"></i><i class="b"></i></div></div>
+      <h2>杠精生成器</h2>
+      <p>你说一句正常的话，它抬一句。你越是讲道理，它越有角度。抬满五轮它会宣布：本回合，杠精获胜。</p>
+      <div class="tags"><span class="tag">对话</span><span class="tag">会升级</span><span class="tag">别较真</span></div>
     </a>
   </div>
 

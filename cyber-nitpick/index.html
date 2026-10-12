@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>杠精生成器 · CYBER NITPICK</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:#0a0a0d}
+  body{
+    background-image:radial-gradient(900px 640px at 50% 0%, #1c1720 0%, #0a0a0d 66%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    color:#e9e6df;display:flex;align-items:center;justify-content:center;padding:22px;
+    -webkit-user-select:none;user-select:none;
+  }
+  .app{
+    width:min(620px,100%);height:min(760px,92vh);display:flex;flex-direction:column;
+    background:rgba(20,20,26,.7);border:1px solid rgba(255,255,255,.12);border-radius:20px;
+    overflow:hidden;box-shadow:0 40px 90px rgba(0,0,0,.7);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  }
+  header{
+    display:flex;align-items:center;gap:12px;padding:15px 18px;
+    border-bottom:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);
+  }
+  .av{
+    width:38px;height:38px;border-radius:50%;flex:0 0 auto;position:relative;
+    background:linear-gradient(140deg,#ff6a45,#c33c8f);
+    display:flex;align-items:center;justify-content:center;font-size:19px;
+  }
+  .av::after{content:'';position:absolute;right:0;bottom:0;width:11px;height:11px;border-radius:50%;background:#3fd06a;border:2px solid #14141a}
+  .who{line-height:1.25;flex:1;min-width:0}
+  .who b{font-size:15px;letter-spacing:.06em}
+  .who div{font-size:11.5px;color:#8f887c;margin-top:2px;letter-spacing:.06em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lvl{text-align:right;font-size:11px;color:#8f887c;line-height:1.5;flex:0 0 auto}
+  .lvl b{color:#ff8a5c;font-size:13px}
+
+  .log{flex:1;overflow-y:auto;padding:18px 16px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
+  .log::-webkit-scrollbar{width:8px}
+  .log::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:9px}
+  .msg{max-width:82%;padding:11px 15px;border-radius:15px;font-size:14.5px;line-height:1.65;white-space:pre-wrap;word-break:break-word;animation:in .25s ease both}
+  @keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .me{align-self:flex-end;background:linear-gradient(140deg,#2a3f6b,#1f3055);border:1px solid rgba(120,170,255,.25);border-bottom-right-radius:5px}
+  .you{align-self:flex-start;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);border-bottom-left-radius:5px}
+  .you.sys{background:rgba(255,255,255,.03);color:#8f887c;font-size:12.5px;border-style:dashed}
+
+  .typing{align-self:flex-start;display:flex;gap:5px;padding:13px 16px;background:rgba(255,255,255,.07);border-radius:15px;border-bottom-left-radius:5px}
+  .typing i{width:7px;height:7px;border-radius:50%;background:#8f887c;animation:bl 1s infinite}
+  .typing i:nth-child(2){animation-delay:.15s}
+  .typing i:nth-child(3){animation-delay:.3s}
+  @keyframes bl{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+
+  .chips{display:flex;gap:8px;padding:10px 16px 0;flex-wrap:wrap}
+  .chip{
+    font-size:12px;color:#b9b2a6;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+    border-radius:999px;padding:6px 12px;cursor:pointer;transition:.15s;white-space:nowrap;
+  }
+  .chip:hover{background:rgba(255,106,69,.16);border-color:rgba(255,106,69,.5);color:#ffb59a}
+
+  .inrow{display:flex;gap:10px;padding:14px 16px 16px;align-items:center}
+  input{
+    flex:1;font:inherit;font-size:14.5px;color:#e9e6df;background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:12px 18px;outline:none;
+  }
+  input:focus{border-color:rgba(255,106,69,.55)}
+  input::placeholder{color:#6f6a62}
+  .send{
+    flex:0 0 auto;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,106,69,.5);
+    background:linear-gradient(140deg,#ff6a45,#c33c8f);color:#fff;font-size:17px;cursor:pointer;transition:.15s;
+  }
+  .send:hover{filter:brightness(1.1);transform:translateY(-1px)}
+  .send:disabled{opacity:.4;cursor:default;transform:none}
+  .tools{display:flex;gap:8px;align-items:center;padding:0 16px 12px}
+  .tools button{
+    font:inherit;font-size:12px;color:#8f887c;background:transparent;border:1px solid rgba(255,255,255,.12);
+    border-radius:999px;padding:5px 12px;cursor:pointer;transition:.15s;
+  }
+  .tools button:hover{color:#e9e6df;border-color:rgba(255,255,255,.3)}
+  .meter{flex:1;height:4px;border-radius:9px;background:rgba(255,255,255,.08);overflow:hidden}
+  .meter i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#ff6a45,#c33c8f);transition:width .4s}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="av">🥊</div>
+    <div class="who">
+      <b>杠精</b>
+      <div id="status">在线 · 正在寻找你话里的破绽</div>
+    </div>
+    <div class="lvl">杠精等级<br><b id="lv">Lv.1 抬杠学徒</b></div>
+  </header>
+
+  <div class="log" id="log"></div>
+
+  <div class="chips" id="chips"></div>
+
+  <div class="tools">
+    <span style="font-size:11px;color:#8f887c;letter-spacing:.1em">杀伤力</span>
+    <div class="meter"><i id="meter"></i></div>
+    <button id="muteBtn">🔊</button>
+    <button id="clearBtn">清空</button>
+  </div>
+
+  <div class="inrow">
+    <input id="msg" maxlength="120" placeholder="说一句正常的话，让它来杠你…" autocomplete="off">
+    <button class="send" id="send">➤</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 杠精生成器 ========= */
+const $=id=>document.getElementById(id);
+const log=$('log'), input=$('msg'), sendBtn=$('send');
+
+/* ---- 音效 ---- */
+const A={
+  ctx:null,muted:false,
+  init(){ if(this.ctx)return; const C=window.AudioContext||window.webkitAudioContext; if(C)this.ctx=new C(); },
+  resume(){ if(this.ctx&&this.ctx.state==='suspended')this.ctx.resume(); },
+  send(){ this.tone(620,0.06,'square'); },
+  reply(){ this.tone(880,0.09,'triangle'); },
+  ding(){
+    if(this.muted||!this.ctx)return;
+    const c=this.ctx,t=c.currentTime;
+    [784,1046.5].forEach((f,i)=>{
+      const o=c.createOscillator(); o.type='sine'; o.frequency.value=f;
+      const g=c.createGain(); const st=t+i*0.08;
+      g.gain.setValueAtTime(0.0001,st); g.gain.exponentialRampToValueAtTime(0.12,st+0.02); g.gain.exponentialRampToValueAtTime(0.0001,st+0.6);
+      o.connect(g).connect(c.destination); o.start(st); o.stop(st+0.65);
+    });
+  },
+  tone(f,d,type){
+    if(this.muted||!this.ctx)return;
+    const c=this.ctx,t=c.currentTime;
+    const o=c.createOscillator(); o.type=type||'sine'; o.frequency.setValueAtTime(f,t);
+    const g=c.createGain();
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.06,t+0.004); g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+d+0.03);
+  }
+};
+
+/* ---- 杠精词库 ---- */
+const T_TEXT = [
+  "你这句话就有问题。",
+  "那可不一定，我朋友就是反例。",
+  "你凭什么这么说？有数据吗？",
+  "先别急，这个得分情况讨论。",
+  "有没有一种可能，是你想多了？",
+  "你这话放在别的语境里就不成立了。",
+  "所以呢？",
+  "难道只有我一个人觉得不是这样吗？",
+  "道理我都懂，但是……",
+  "你这个例子，恰恰说明了我的观点。",
+  "你不觉得你自己的逻辑有点问题吗？",
+  "我不同意，但我也懒得解释。",
+  "那按你这么说，岂不是所有人都别活了？",
+  "你开心就好。",
+  "不完全同意，但尊重（并不）。",
+  "你说话能不能严谨一点。",
+  "这个结论下得太早了吧。",
+  "我觉得你根本没理解我在说什么。"
+];
+const T_QUOTE = [
+  "「{X}」是什么意思？麻烦你先定义一下。",
+  "首先，你说的「{X}」就已经错了。",
+  "「{X}」？那你说说，{X}的标准是什么？",
+  "你前面说「{X}」，后面又说别的，前后矛盾。",
+  "照你这么说，「{X}」这件事根本不存在。",
+  "「{X}」这种话，也就能在这种场合说说。",
+  "别拿「{X}」说事，那是两码事。",
+  "你说「{X}」的时候，考虑过别人的感受吗？"
+];
+const T_END_QM = [
+  "反问句？那你自己怎么想的，你先说。",
+  "你这是在问我吗？我怎么知道。",
+  "你问这句话的时候，心里已经有答案了，何必问我。"
+];
+const T_END_EX = [
+  "太绝对了。凡事都有例外。",
+  "你别激动，激动解决不了问题。",
+  "呵。"
+];
+const T_MID = [
+  "你只说了「{X}」，那然后呢？",
+  "「{X}」之后呢？你倒是往下说啊。"
+];
+const T_SELF = [
+  "我先杠我自己：我上一句也不严谨。但这轮不到你说。",
+  "顺便，你这个「」用得不规范，我作为杠精必须指出。",
+  "我刚才那句其实可以反驳，但我不会给你机会。"
+];
+const T_WIN = [
+  "本回合，杠精获胜。",
+  "你被我说服了，只是你不肯承认。",
+  "这一局我赢了。下一局我也不会输。",
+  "（对方已无法反驳，杠精获得胜利）"
+];
+
+/* ---- 状态 ---- */
+let lv=1, round=0, thinking=false;
+const LVN=["抬杠学徒","抬杠熟练工","杠上开花","杠精本精","杠精之王","宇宙级杠精"];
+const SAMPLE_OPEN=["今天天气真好","我觉得努力就会有回报","我喜欢吃火锅","周末我要好好休息","这个方案我觉得可行"];
+
+function pick(a){ return a[(Math.random()*a.length)|0]; }
+function fragment(t){
+  // 取最长的一个分句，去掉标点，避免从词中间截断
+  const clauses = t.split(/[，。！？,.!?、；;：:\s]+/).filter(Boolean);
+  let best = (clauses.sort((a,b)=>b.length-a.length)[0] || t).replace(/[^一-龥\w]/g,'');
+  if(!best) return t.replace(/\s/g,'').slice(0,6);
+  return best.length <= 12 ? best : best.slice(0,10);
+}
+function reply(t){
+  const X = fragment(t);
+  const r = Math.random();
+  let s;
+  if(t.trim().endsWith('？') || t.trim().endsWith('?')) s = pick(T_END_QM);
+  else if(t.trim().endsWith('！') || t.trim().endsWith('!')) s = pick(T_END_EX);
+  else if(/因为/.test(t)) s = "你只说了「因为」，「所以」呢？说一半不说了？";
+  else if(lv>=3 && r<0.14) s = pick(T_SELF);
+  else if(r < 0.42) s = pick(T_QUOTE);
+  else if(r < 0.52 && /，|,/.test(t)) s = pick(T_MID);
+  else s = pick(T_TEXT);
+  s = s.replace(/\{X\}/g, X);
+  if(lv>=4 && Math.random()<0.28) s += "\n" + pick(["顺便，你的标点也用错了。","而且你这个说法，任何人都能说。","我建议你重新组织一下语言。"]);
+  return s;
+}
+
+/* ---- 气泡 ---- */
+function bubble(text, who){
+  const d=document.createElement('div');
+  d.className='msg '+(who||'me');
+  d.textContent=text;
+  log.appendChild(d); log.scrollTop=log.scrollHeight;
+  return d;
+}
+function typing(){
+  const d=document.createElement('div');
+  d.className='typing'; d.innerHTML='<i></i><i></i><i></i>';
+  log.appendChild(d); log.scrollTop=log.scrollHeight;
+  return d;
+}
+function typeOut(el, text){
+  return new Promise(res=>{
+    let i=0;
+    const step=()=>{
+      el.textContent = text.slice(0, ++i);
+      log.scrollTop=log.scrollHeight;
+      if(i<text.length) setTimeout(step, 22 + Math.random()*26);
+      else res();
+    };
+    step();
+  });
+}
+
+/* ---- 主流程 ---- */
+async function ask(text){
+  if(thinking || !text.trim()) return;
+  thinking=true; sendBtn.disabled=true; input.disabled=true;
+  A.init(); A.resume(); A.send();
+  bubble(text, 'me');
+  round++;
+
+  const t=typing();
+  await new Promise(r=>setTimeout(r, 500 + Math.random()*600));
+  t.remove();
+  A.reply();
+  const el = bubble('', 'you');
+  const s = reply(text);
+  await typeOut(el, s);
+
+  // 升级
+  const newLv = Math.min(LVN.length, 1 + Math.floor(round/3));
+  if(newLv > lv){
+    lv = newLv;
+    $('lv').textContent = 'Lv.'+lv+' '+LVN[lv-1];
+    A.ding();
+    setTimeout(()=>bubble('【升级】'+LVN[lv-1]+'（杀伤力提升）','you sys'), 260);
+  }
+  $('meter').style.width = Math.min(100, round*12) + '%';
+  $('status').textContent = '在线 · 已找到 '+(2+round)+' 处破绽';
+  if(round%5===0){ setTimeout(()=>bubble(pick(T_WIN),'you sys'), 300); }
+
+  thinking=false; sendBtn.disabled=false; input.disabled=false; input.focus();
+}
+
+/* ---- 输入 ---- */
+sendBtn.addEventListener('click', ()=>{ const v=input.value; input.value=''; ask(v); });
+input.addEventListener('keydown', e=>{ if(e.key==='Enter'){ const v=input.value; input.value=''; ask(v); } });
+
+/* ---- 示例 chips ---- */
+SAMPLE_OPEN.forEach(s=>{
+  const c=document.createElement('div');
+  c.className='chip'; c.textContent=s;
+  c.addEventListener('click', ()=>ask(s));
+  $('chips').appendChild(c);
+});
+
+/* ---- 工具 ---- */
+$('muteBtn').addEventListener('click', ()=>{ A.init(); A.muted=!A.muted; $('muteBtn').textContent=A.muted?'🔇':'🔊'; });
+$('clearBtn').addEventListener('click', ()=>{
+  log.innerHTML=''; round=0; lv=1; $('lv').textContent='Lv.1 '+LVN[0];
+  $('meter').style.width='0%'; $('status').textContent='在线 · 正在寻找你话里的破绽';
+  bubble('（对话已清空。杠精已经重新加载，并准备继续杠你。）','you sys');
+});
+
+/* ---- 开场 ---- */
+bubble('你好。不管你说什么，我都会找到角度杠你。来吧。','you');
+input.focus();
+</script>
+</body>
+</html>

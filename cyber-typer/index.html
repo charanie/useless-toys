@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>打字砖 · TYPING BRICK</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;overflow:hidden;background:#0b0b0f}
+  body{
+    background-image:radial-gradient(900px 620px at 50% 26%, #191922 0%, #0b0b0f 70%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    color:#e9e6df;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+  #c{position:fixed;inset:0;display:block}
+  #ui{position:fixed;inset:0;pointer-events:none}
+  .hud{position:absolute;top:26px;left:30px;line-height:1.3}
+  .hud .n{font:800 44px/1 ui-monospace,Consolas,monospace;color:#ff8a5c;font-variant-numeric:tabular-nums}
+  .hud .cap{font-size:12px;letter-spacing:.34em;color:#8f887c;margin-top:4px}
+  .hud .meta{margin-top:12px;font-size:12px;color:#8f887c;letter-spacing:.08em;font-family:ui-monospace,Consolas,monospace}
+  .btns{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);display:flex;gap:10px;pointer-events:auto}
+  button{
+    font:inherit;font-size:13px;color:#e9e6df;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:9px 18px;letter-spacing:.08em;transition:.15s;
+  }
+  button:hover{background:rgba(255,138,92,.18);border-color:rgba(255,138,92,.5)}
+  .hint{position:absolute;left:50%;bottom:76px;transform:translateX(-50%);font-size:12px;color:#8f887c;letter-spacing:.14em;transition:opacity .6s;white-space:nowrap}
+  .hint.hide{opacity:0}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div class="hud">
+    <div class="n" id="n">0</div>
+    <div class="cap">你 敲 了 这 么 多 下</div>
+    <div class="meta" id="meta">砖头状态：精神 · 每分钟 0 下</div>
+  </div>
+  <div class="hint" id="hint">点一下页面，然后开始打字（砖头会跟着你敲）</div>
+  <div class="btns">
+    <button data-act="mute" id="muteBtn">🔊</button>
+    <button data-act="reset">重置</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 打字砖 ========= */
+const cvs=document.getElementById('c'), ctx=cvs.getContext('2d');
+const $=id=>document.getElementById(id);
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR=Math.min(devicePixelRatio||1,2);
+  W=innerWidth; H=innerHeight;
+  cvs.width=W*DPR|0; cvs.height=H*DPR|0;
+  cvs.style.width=W+'px'; cvs.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  layout();
+}
+addEventListener('resize', resize);
+
+/* ---- 音效 ---- */
+const A={
+  ctx:null, muted:false,
+  init(){ if(this.ctx) return; const C=window.AudioContext||window.webkitAudioContext; if(C) this.ctx=new C(); },
+  resume(){ if(this.ctx&&this.ctx.state==='suspended') this.ctx.resume(); },
+  click(){
+    if(this.muted||!this.ctx) return;
+    const c=this.ctx,t=c.currentTime;
+    const o=c.createOscillator(); o.type='square';
+    const f=900+Math.random()*700;
+    o.frequency.setValueAtTime(f,t);
+    o.frequency.exponentialRampToValueAtTime(f*0.5,t+0.02);
+    const g=c.createGain();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.045,t+0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.035);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+0.05);
+    // 木质敲击
+    const o2=c.createOscillator(); o2.type='sine'; o2.frequency.value=220+Math.random()*80;
+    const g2=c.createGain();
+    g2.gain.setValueAtTime(0.0001,t);
+    g2.gain.exponentialRampToValueAtTime(0.05,t+0.003);
+    g2.gain.exponentialRampToValueAtTime(0.0001,t+0.07);
+    o2.connect(g2).connect(c.destination); o2.start(t); o2.stop(t+0.08);
+  },
+  yawn(){ if(this.muted||!this.ctx) return; const c=this.ctx,t=c.currentTime;
+    const o=c.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(420,t); o.frequency.exponentialRampToValueAtTime(180,t+0.6);
+    const g=c.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.09,t+0.1); g.gain.exponentialRampToValueAtTime(0.0001,t+0.7);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+0.75);
+  }
+};
+
+/* ---- 键盘 ---- */
+const ROWS=["1234567890","QWERTYUIOP","ASDFGHJKL","ZXCVBNM"];
+let keys=[], kb={x:0,y:0,w:0,h:0};
+function layout(){
+  const kw=Math.min(600, W*0.72);
+  kb.w = kw;
+  kb.h = 150;
+  kb.x = W/2 - kw/2;
+  kb.y = H*0.66;
+  keys=[];
+  const keyH=32, gap=7;
+  const colW=(kw-28)/10;
+  ROWS.forEach((row,ri)=>{
+    const rowW = row.length*colW;
+    const startX = kb.x + (kw-rowW)/2 + colW/2;
+    for(let i=0;i<row.length;i++){
+      keys.push({
+        x:startX + i*colW, y: kb.y+20 + ri*(keyH+gap),
+        w: colW-gap, h: keyH, ch: row[i], lit:0, ri, ci:i
+      });
+    }
+  });
+}
+
+/* ---- 砖头 & 手臂 ---- */
+const brick={ x:0, y:0, w:132, h:78, squash:0, blink:0, nextBlink:2, tired:0 };
+const arms=[{side:-1,cur:{x:0,y:0},tgt:{x:0,y:0},press:0,hit:0},
+            {side: 1,cur:{x:0,y:0},tgt:{x:0,y:0},press:0,hit:0}];
+function placeBrick(){
+  brick.x = W/2; brick.y = kb.y - 118;
+  arms.forEach(a=>{
+    a.cur = { x: brick.x + a.side*brick.w*0.45, y: brick.y + brick.h*0.3 };
+    a.tgt = { ...a.cur };
+  });
+}
+let count=0, lastKey=0, lastInteract=performance.now(), sleeping=false, recent=[];
+const pointer={x:0,y:0};
+
+const LINES_EARLY=["你手速好快。","继续，我在听。","这一下敲得不错。","你在写什么？","我跟着你敲。","别停，我还能跟上。"];
+const LINES_MID=["我有点累了。","还有多久下班？","我只是一块砖，不是键盘。","敲慢点，我跟不上。","喝水了吗你？"];
+const LINES_LATE=["我记不住这么多字。","（砖头敲得比你还起劲）","要不……歇会儿？","你已经敲了很久了。","这就是打工的滋味吗。"];
+
+function press(ch){
+  A.init(); A.resume();
+  const now=performance.now();
+  lastInteract=now; sleeping=false;
+  count++;
+  recent.push(now);
+  recent = recent.filter(t=> now-t < 60000);
+  $('n').textContent = count;
+
+  // 找一个按键
+  let k = null;
+  if(ch && /^[a-z0-9]$/i.test(ch)) k = keys.find(x=>x.ch===ch.toUpperCase());
+  if(!k){ const armSide = count%2? 1:-1; const pool=keys.filter(x=>(x.x<W/2?-1:1)===armSide); k = pool[(Math.random()*pool.length)|0] || keys[0]; }
+  if(k) k.lit = 1;
+
+  // 手臂：按目标键所在的半边选手，避免左右交叉
+  const side = k ? (k.x < W/2 ? -1 : 1) : (count%2 ? 1 : -1);
+  const a = arms[side < 0 ? 0 : 1];
+  if(k) a.tgt = { x: k.x, y: k.y + k.h*0.5 };
+  a.press = 1;
+  brick.squash = Math.min(1, brick.squash + 0.5);
+  A.click();
+
+  // 说话
+  const tired = count>=200 ? 2 : count>=60 ? 1 : 0;
+  brick.tired = tired;
+  if(count % (tired?37:24) === 0 && now - lastTalk > 4000){
+    lastTalk = now;
+    say(pick(tired===2?LINES_LATE:tired===1?LINES_MID:LINES_EARLY));
+    if(tired===2) A.yawn();
+  }
+  updateMeta();
+}
+let lastTalk=0, curLine="", lineT=-1e9;
+function say(s){ curLine=s; lineT=performance.now(); }
+function pick(a){ return a[(Math.random()*a.length)|0]; }
+
+function updateMeta(){
+  const perMin = recent.length;
+  const st = sleeping ? "睡着了" : brick.tired===2 ? "透支" : brick.tired===1 ? "有点累" : "精神";
+  $('meta').textContent = `砖头状态：${st} · 每分钟 ${perMin} 下`;
+}
+
+/* ---- 输入 ---- */
+addEventListener('keydown', e=>{
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
+  if(e.key===' ' || e.key.length===1) e.preventDefault();
+  hideHint();
+  press(e.key);
+});
+cvs.addEventListener('pointerdown', e=>{
+  pointer.x=e.clientX; pointer.y=e.clientY;
+  hideHint(); press(null);
+});
+cvs.addEventListener('pointermove', e=>{ pointer.x=e.clientX; pointer.y=e.clientY; });
+function hideHint(){ $('hint').classList.add('hide'); }
+setTimeout(hideHint, 9000);
+
+const muteBtn=$('muteBtn');
+muteBtn.addEventListener('click', ()=>{ A.init(); A.muted=!A.muted; muteBtn.textContent=A.muted?'🔇':'🔊'; });
+document.querySelector('[data-act="reset"]').addEventListener('click', ()=>{
+  count=0; brick.tired=0; recent=[]; $('n').textContent=0; updateMeta();
+});
+
+/* ---- 绘制 ---- */
+function rr(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+function drawKeyboard(){
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,.6)'; ctx.shadowBlur=40; ctx.shadowOffsetY=18;
+  rr(kb.x, kb.y, kb.w, kb.h, 16);
+  ctx.fillStyle='#14151a'; ctx.fill(); ctx.shadowBlur=0; ctx.shadowOffsetY=0;
+  ctx.strokeStyle='rgba(255,255,255,.07)'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.restore();
+
+  for(const k of keys){
+    const lit = k.lit;
+    ctx.save();
+    if(lit>0){ ctx.shadowColor='rgba(255,138,92,'+(lit*0.8)+')'; ctx.shadowBlur=16*lit; }
+    rr(k.x, k.y + lit*2, k.w, k.h, 6);
+    const g=ctx.createLinearGradient(0,k.y,0,k.y+k.h);
+    g.addColorStop(0, lit>0 ? '#4a3a33' : '#26272e');
+    g.addColorStop(1, lit>0 ? '#2e2622' : '#1b1c22');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,'+(0.06+lit*0.35)+')'; ctx.lineWidth=1; ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = lit>0 ? 'rgba(255,190,150,'+(0.6+lit*0.4)+')' : 'rgba(255,255,255,.34)';
+    ctx.font='700 13px ui-monospace,Consolas,monospace';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(k.ch, k.x+k.w/2, k.y+k.h/2 + lit*2 + 1);
+  }
+}
+
+function drawArm(a, now){
+  // 平滑跟手
+  a.cur.x += (a.tgt.x - a.cur.x)*0.28;
+  a.cur.y += (a.tgt.y - a.cur.y)*0.28;
+  const sx = brick.x + a.side*brick.w*0.42, sy = brick.y + brick.h*0.18;
+  const ex = a.cur.x, ey = a.cur.y - a.press*8;
+  const cx = sx + (ex-sx)*0.30 + a.side*50, cy = sy + (ey-sy)*0.65;
+  ctx.save();
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.strokeStyle='#8a3a24'; ctx.lineWidth=16;
+  ctx.beginPath(); ctx.moveTo(sx,sy); ctx.quadraticCurveTo(cx,cy,ex,ey); ctx.stroke();
+  ctx.strokeStyle='#c14e33'; ctx.lineWidth=10;
+  ctx.beginPath(); ctx.moveTo(sx,sy); ctx.quadraticCurveTo(cx,cy,ex,ey); ctx.stroke();
+  // 手
+  ctx.beginPath(); ctx.arc(ex,ey,9,0,7);
+  const g=ctx.createRadialGradient(ex-3,ey-3,1,ex,ey,10);
+  g.addColorStop(0,'#e0755a'); g.addColorStop(1,'#a83f2a');
+  ctx.fillStyle=g; ctx.fill();
+  ctx.restore();
+}
+
+function drawBrick(now){
+  const sq=brick.squash;
+  ctx.save();
+  ctx.translate(brick.x, brick.y);
+  ctx.scale(1+sq*0.10, 1-sq*0.10);
+  const w=brick.w, h=brick.h;
+
+  // 影子
+  ctx.save(); ctx.globalAlpha=.3; ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.ellipse(0, h*0.82, w*0.5, 12, 0, 0, 7); ctx.fill(); ctx.restore();
+
+  // 身体
+  rr(-w/2,-h/2,w,h,12);
+  const g=ctx.createLinearGradient(0,-h/2,0,h/2);
+  g.addColorStop(0, brick.tired===2?'#b06a52':'#e0755a');
+  g.addColorStop(0.55, brick.tired===2?'#8d4a34':'#c14e33');
+  g.addColorStop(1, brick.tired===2?'#5f2f1e':'#8a3a24');
+  ctx.fillStyle=g; ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,.45)'; ctx.lineWidth=2.5; ctx.stroke();
+  // 高光
+  ctx.save(); rr(-w/2,-h/2,w,h,12); ctx.clip();
+  ctx.fillStyle='rgba(255,255,255,.20)';
+  ctx.beginPath(); ctx.moveTo(-w/2,-h/2); ctx.lineTo(w/2,-h/2); ctx.lineTo(w/2,-h/2+12); ctx.lineTo(-w/2,-h/2+18); ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  // 眼睛
+  if(now/1000 > brick.nextBlink){ brick.blink=0.13; brick.nextBlink=now/1000+1.4+Math.random()*3; }
+  brick.blink=Math.max(0, brick.blink-1/60);
+  const asleep = sleeping;
+  const open = asleep ? 0 : (brick.blink>0 ? 0.12 : 1);
+  const cos=1, sin=0;
+  for(const ex of [-22,22]){
+    const ey=-6;
+    const dx=pointer.x-brick.x, dy=pointer.y-brick.y;
+    const d=Math.hypot(dx,dy)||1;
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.ellipse(ex,ey,10,11*open,0,0,7); ctx.fill();
+    if(open>0.5){
+      ctx.fillStyle='#181820';
+      ctx.beginPath(); ctx.arc(ex+dx/d*3.6, ey+dy/d*3, 4.6,0,7); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,.9)';
+      ctx.beginPath(); ctx.arc(ex+dx/d*3.6-1.5, ey+dy/d*3-1.6, 1.5,0,7); ctx.fill();
+    } else {
+      ctx.strokeStyle='#181820'; ctx.lineWidth=2.4;
+      ctx.beginPath(); ctx.moveTo(ex-8,ey); ctx.lineTo(ex+8,ey); ctx.stroke();
+    }
+  }
+  // 累：汗
+  if(brick.tired>0 && !asleep){
+    ctx.fillStyle='rgba(150,220,255,.85)';
+    const t=now/1000;
+    for(let i=0;i<brick.tired;i++){
+      const yy = -h/2 - 2 + ((t*30 + i*40) % 26);
+      const xx = (i%2? 1:-1) * (w*0.34);
+      ctx.beginPath(); ctx.ellipse(xx, yy, 4, 5.5, 0, 0, 7); ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  // 睡着的气泡
+  if(asleep){
+    const t=now/1000;
+    for(let i=0;i<3;i++){
+      const k=((t*0.6 + i*0.33)%1);
+      ctx.globalAlpha = (1-k)*0.8;
+      ctx.fillStyle='#cfe8ff';
+      ctx.font = (14+k*16)+'px "PingFang SC",sans-serif';
+      ctx.textAlign='left'; ctx.textBaseline='middle';
+      ctx.fillText('z', brick.x + brick.w*0.5 + 10 + k*40, brick.y - brick.h*0.4 - k*60);
+    }
+    ctx.globalAlpha=1;
+  }
+  // 说话气泡
+  const tnow=performance.now();
+  if(curLine && tnow-lineT < 3600){
+    ctx.font='600 15px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    const tw=ctx.measureText(curLine).width;
+    const bw=tw+34, bh=40, bx=brick.x, by=brick.y - brick.h/2 - 44;
+    ctx.globalAlpha=1;
+    ctx.fillStyle='rgba(20,20,26,.94)';
+    rr(bx-bw/2, by-bh/2, bw, bh, 12); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.16)'; ctx.lineWidth=1.2; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx-7, by+bh/2); ctx.lineTo(bx+7, by+bh/2); ctx.lineTo(bx, by+bh/2+8); ctx.closePath();
+    ctx.fillStyle='rgba(20,20,26,.94)'; ctx.fill();
+    ctx.fillStyle='#f3f0ea'; ctx.fillText(curLine, bx, by);
+  }
+}
+
+let last=performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  ctx.clearRect(0,0,W,H);
+
+  // 衰减
+  for(const k of keys) k.lit=Math.max(0, k.lit - dt*5);
+  brick.squash=Math.max(0, brick.squash - dt*5);
+  for(const a of arms) a.press=Math.max(0, a.press - dt*6);
+
+  // 睡眠
+  if(now-lastInteract > 9000 && !sleeping){ sleeping=true; curLine=""; updateMeta(); A.yawn(); }
+
+  // 空闲时手臂回位
+  if(sleeping){
+    for(const a of arms){ a.tgt={ x: brick.x + a.side*brick.w*0.55, y: brick.y + brick.h*0.55 }; }
+  }
+
+  drawKeyboard();
+  for(const a of arms) drawArm(a, now);
+  drawBrick(now);
+}
+resize(); placeBrick(); updateMeta();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

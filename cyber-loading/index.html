@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>无限加载 · NEVER NEVER LOAD</title>
+<style>
+  :root{ --ink:#e8e6e1; --dim:#7d7a74; --acc:#5fd8ff; }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;overflow:hidden;background:#0b0c10}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    color:var(--ink); -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent;
+  }
+  #bg{position:fixed;inset:0;z-index:0;display:block}
+  main{
+    position:fixed;inset:0;z-index:2;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:22px;padding:24px;
+  }
+  .spin{
+    width:54px;height:54px;border-radius:50%;
+    border:3px solid rgba(255,255,255,.10);border-top-color:var(--acc);
+    animation:sp 0.9s linear infinite;
+  }
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .pct{
+    font:800 clamp(46px,11vw,92px)/1 ui-monospace,Consolas,"Courier New",monospace;
+    letter-spacing:.02em;font-variant-numeric:tabular-nums;
+    color:#fff;text-shadow:0 0 40px rgba(95,216,255,.25);
+  }
+  .bar{width:min(560px,84vw);height:10px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;position:relative}
+  .bar > i{
+    display:block;height:100%;width:0%;border-radius:99px;
+    background:linear-gradient(90deg,#5fd8ff,#8f7bff);
+    box-shadow:0 0 18px rgba(95,216,255,.7);transition:width .18s ease;
+  }
+  .bar.glitch > i{background:linear-gradient(90deg,#ff6a45,#ffd36e)}
+  .status{font-size:15px;color:#cfd3d8;letter-spacing:.06em;min-height:22px;text-align:center;transition:opacity .3s}
+  .tip{font-size:12px;color:var(--dim);letter-spacing:.14em}
+  .row{display:flex;gap:10px;margin-top:6px}
+  button{
+    font:inherit;font-size:13px;color:var(--ink);cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:9px 18px;letter-spacing:.08em;transition:.15s;
+  }
+  button:hover{background:rgba(95,216,255,.16);border-color:rgba(95,216,255,.5)}
+  #cancel{position:fixed;transition:left .18s ease, top .18s ease}
+  .small{position:fixed;left:20px;bottom:16px;font-size:11px;color:#4e4c48;letter-spacing:.14em;z-index:3}
+
+  .dlg{
+    position:fixed;z-index:5;width:min(340px,84vw);
+    background:#1b1d22;border:1px solid rgba(255,255,255,.16);border-radius:12px;
+    box-shadow:0 30px 70px rgba(0,0,0,.6);overflow:hidden;
+    animation:pop .22s cubic-bezier(.2,1.4,.4,1) both;
+  }
+  @keyframes pop{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
+  .dlg .h{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.05);font-size:12.5px;color:#cfd3d8;letter-spacing:.1em}
+  .dlg .h .dot{width:10px;height:10px;border-radius:50%;background:var(--acc)}
+  .dlg .b{padding:16px 14px;font-size:13.5px;line-height:1.7;color:#dcdfe4}
+  .dlg .f{padding:10px 14px;display:flex;justify-content:flex-end}
+  .dlg .f button{padding:6px 16px;font-size:12.5px}
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+
+<main>
+  <div class="spin" id="spin"></div>
+  <div class="pct" id="pct">0%</div>
+  <div class="bar" id="bar"><i id="fill"></i></div>
+  <div class="status" id="status">正在加载…</div>
+  <div class="row">
+    <button id="sound">🔊 开启加载音效</button>
+    <button id="hint">这要加载多久？</button>
+  </div>
+  <div class="tip" id="tip">提示：耐心是一种美德，但我们并不需要你有美德。</div>
+</main>
+<div id="dialogs"></div>
+<button id="cancel">取消</button>
+<div class="small">本页面永远不会加载完成 · 这是设计如此</div>
+
+<script>
+"use strict";
+/* ========= 无限加载 ========= */
+const $ = id => document.getElementById(id);
+const pctEl=$('pct'), fillEl=$('fill'), statusEl=$('status'), tipEl=$('tip'), barEl=$('bar');
+
+const STATUS = [
+  "正在加载…",
+  "正在加载资源…",
+  "正在连接服务器…",
+  "正在重新连接服务器…",
+  "正在道歉…",
+  "正在加载道歉的文案…",
+  "正在加载「加载中」这个模块…",
+  "正在下载更多的进度条…",
+  "进度条正在加载它自己…",
+  "正在说服服务器…",
+  "服务器正在装忙…",
+  "正在把 99% 四舍五入到 100%…",
+  "正在计算「四舍五入」…",
+  "重新计算中，因为刚才算错了…",
+  "正在加载一个更小的加载器…",
+  "该加载器已完成，正在加载它的加载器…",
+  "正在等待一个永远不会到来的响应…",
+  "正在加载你的耐心…",
+  "耐心余额不足，正在降级…",
+  "正在加载降级方案…",
+  "正在把失败包装成「即将完成」…",
+  "正在与用户保持距离…",
+  "就快了。",
+  "真的就快了。",
+  "……",
+  "正在重新开始（为了你的体验）"
+];
+const TIPS = [
+  "提示：关了再开，也一样。",
+  "提示：换网络也没用，问题不在你。",
+  "提示：进度条是一种装饰。",
+  "提示：你已经等了很久了，说明你很适合这份工作。",
+  "提示：本页面加载成功之日，就是你下班之时。",
+  "提示：其实没有服务器。",
+  "提示：99% 之后还有 1%，这 1% 是留给你的。"
+];
+const DLGS = [
+  {h:"提示", b:"你们的网络没有问题，是我们的。"},
+  {h:"警告", b:"检测到你在等待。请继续等待。"},
+  {h:"错误 0x00000000", b:"没有错误，但就是不加载。"},
+  {h:"提示", b:"再等一下就好了。（不保证）"},
+  {h:"系统消息", b:"加载器想跟你说点事，但它忘了要说什么。点「确定」继续等。"},
+  {h:"隐私政策", b:"我们不会收集你的数据，因为我们连自己都加载不出来。"},
+  {h:"提示", b:"你可以点「取消」。我们只是说说。"}
+];
+
+let p = 0, stalled = false, weird = 0, startedAt = performance.now(), gaveUp = false;
+const bar = { mode:'normal' };
+
+/* ---- 背景飘字 ---- */
+const bg = $('bg'), bctx = bg.getContext('2d');
+let W=0,H=0,DPR=1, flakes=[];
+const GLYPH = "加载中loading…%0123456789".split('');
+function bgResize(){
+  DPR = Math.min(devicePixelRatio||1,2);
+  W = innerWidth; H = innerHeight;
+  bg.width = W*DPR|0; bg.height = H*DPR|0;
+  bg.style.width=W+'px'; bg.style.height=H+'px';
+  bctx.setTransform(DPR,0,0,DPR,0,0);
+  const n = Math.round(W*H/26000);
+  flakes = Array.from({length: Math.min(160, n)}, ()=> ({
+    x: Math.random()*W, y: Math.random()*H,
+    v: 14 + Math.random()*46, s: 10 + Math.random()*16,
+    c: GLYPH[(Math.random()*GLYPH.length)|0], a: 0.05 + Math.random()*0.16
+  }));
+}
+function bgDraw(){
+  bctx.clearRect(0,0,W,H);
+  bctx.textAlign='center';
+  for(const f of flakes){
+    f.y += f.v/60;
+    if(f.y > H+20){ f.y = -20; f.x = Math.random()*W; f.c = GLYPH[(Math.random()*GLYPH.length)|0]; }
+    bctx.globalAlpha = f.a;
+    bctx.fillStyle = '#8fd9ff';
+    bctx.font = f.s+'px ui-monospace,Consolas,monospace';
+    bctx.fillText(f.c, f.x, f.y);
+  }
+  bctx.globalAlpha = 1;
+  requestAnimationFrame(bgDraw);
+}
+
+/* ---- 音效 ---- */
+const A = {
+  ctx:null, on:false, master:null, oscs:[], phase:0, timer:null,
+  init(){
+    if(this.ctx) return;
+    const C = window.AudioContext||window.webkitAudioContext; if(!C) return;
+    this.ctx = new C();
+    this.master = this.ctx.createGain(); this.master.gain.value = 0;
+    this.master.connect(this.ctx.destination);
+  },
+  start(){
+    this.init(); if(!this.ctx) return;
+    this.ctx.resume(); this.on = true;
+    this.master.gain.setTargetAtTime(0.10, this.ctx.currentTime, 0.4);
+    if(!this.oscs.length){
+      const n = 7, base = 30;
+      for(let i=0;i<n;i++){
+        const o=this.ctx.createOscillator(); o.type='sine';
+        const g=this.ctx.createGain(); g.gain.value=0;
+        o.connect(g).connect(this.master); o.start();
+        this.oscs.push({o,g,i,n,base});
+      }
+      this.timer = setInterval(()=>{
+        this.phase = (this.phase + 0.004) % 1;
+        for(const s of this.oscs){
+          s.o.frequency.value = s.base * Math.pow(2, s.i + this.phase);
+          const u = (s.i + this.phase)/s.n;
+          s.g.gain.value = Math.sin(Math.PI*u)**2 * 0.5;
+        }
+      }, 60);
+    }
+  },
+  stop(){ this.on=false; if(this.ctx) this.master.gain.setTargetAtTime(0, this.ctx.currentTime, 0.3); },
+  blip(f){
+    if(!this.ctx || !this.on) return;
+    const c=this.ctx, t=c.currentTime;
+    const o=c.createOscillator(); o.type='triangle';
+    o.frequency.value = f || (600 + Math.random()*400);
+    const g=c.createGain();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.06,t+0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.12);
+    o.connect(g).connect(this.master); o.start(t); o.stop(t+0.14);
+  }
+};
+
+/* ---- 主循环 ---- */
+let lastStatus = 0;
+function tick(){
+  const now = performance.now();
+  if(stalled){
+    // 卡在 99%
+    p = 99 + Math.sin(now/220)*0.5;
+    if(now - lastStatus > 900){
+      setStatus(pick(["正在把 99% 四舍五入到 100%…","正在计算「四舍五入」…","99.99%…","99.999%…","就差一点点了。"]));
+      lastStatus = now;
+    }
+    return;
+  }
+  // 正常爬升
+  let step = 0.25 + Math.random()*1.5;
+  if(Math.random() < 0.05) step += 6 + Math.random()*14;   // 突然加速
+  if(Math.random() < 0.06) step = -step*2.5;               // 回退
+  p += step;
+  if(p < 0) p = 0;
+  if(p >= 99.2){
+    p = 99;
+    stalled = true;
+    lastStatus = 0;
+    barEl.classList.add('glitch');
+    A.blip(300);
+    // 卡住时偶尔弹窗
+    setTimeout(()=>{ if(Math.random()<0.7) dialog(); }, 900);
+  }
+  if(now - lastStatus > (1600 + Math.random()*2200)){
+    setStatus(pick(STATUS));
+    lastStatus = now;
+    A.blip();
+  }
+  if(Math.random() < 0.012) dialog();
+}
+function pick(a){ return a[(Math.random()*a.length)|0]; }
+function setStatus(s){ statusEl.style.opacity = 0; setTimeout(()=>{ statusEl.textContent = s; statusEl.style.opacity = 1; }, 160); }
+
+/* ---- 卡住之后：重启 ---- */
+function loop(){
+  if(!stalled) tick();
+  else if(performance.now() - stallAt > stallDelay){ restart(); }
+  render();
+  requestAnimationFrame(loop);
+}
+let stallAt = 0, stallDelay = 6000;
+const _tick = tick;
+function restart(){
+  stalled = false;
+  barEl.classList.remove('glitch');
+  p = Math.random()*8;
+  weird++;
+  setStatus(pick([
+    "正在重新开始…（为了你的体验）",
+    "发现问题：进度太顺利了，已修复。",
+    "上一轮加载作废，本轮的会更慢。",
+    "已为你申请了新的进度条。",
+    "重新加载中…这次一定。"
+  ]));
+  lastStatus = performance.now();
+  A.blip(220);
+  if(weird >= 4 && !gaveUp){ gaveUp = true; setTimeout(giveUpOnce, 2600); }
+}
+function giveUpOnce(){
+  setStatus("加载失败。");
+  setTimeout(()=>{ setStatus("但其实它本来也没打算成功。"); }, 1800);
+  setTimeout(()=>{ weird = 0; gaveUp = false; }, 4200);
+}
+
+function render(){
+  if(stalled && !stallAt) stallAt = performance.now();
+  if(!stalled && stallAt) stallAt = 0;
+  pctEl.textContent = (stalled ? (99 + (Math.random()<0.5?0.9:0.4)) : p).toFixed(1) + '%';
+  fillEl.style.width = Math.min(100, p) + '%';
+  document.title = (stalled ? "加载中… 99%" : "加载中… " + Math.round(p) + "%");
+}
+
+/* ---- 假弹窗 ---- */
+let dlgCount = 0, lastDlg = -1;
+function dialog(){
+  if(dlgCount >= 4) return;
+  dlgCount++;
+  let i; do { i = (Math.random()*DLGS.length)|0; } while(i === lastDlg && DLGS.length > 1);
+  lastDlg = i;
+  const d = DLGS[i];
+  const el = document.createElement('div');
+  el.className = 'dlg';
+  el.innerHTML = '<div class="h"><span class="dot"></span>'+d.h+'</div><div class="b">'+d.b+'</div><div class="f"><button>确定</button></div>';
+  el.style.left = (14 + Math.random()*Math.max(0, innerWidth-380)) + 'px';
+  el.style.top  = (40 + dlgCount*30 + Math.random()*Math.max(0, innerHeight-330)) + 'px';
+  $('dialogs').appendChild(el);
+  A.blip(880);
+  el.querySelector('button').addEventListener('click', ()=>{
+    el.remove(); dlgCount--;
+    if(Math.random() < 0.5){ setTimeout(dialog, 500); }
+    else { setStatus("问题已解决。（并没有）"); lastStatus = performance.now(); }
+  });
+}
+
+/* ---- 捣乱：取消按钮会跑 ---- */
+const cancel = $('cancel');
+function placeCancel(){
+  cancel.style.left = (innerWidth/2 - 40) + 'px';
+  cancel.style.top  = 'auto';
+  cancel.style.bottom = '90px';
+}
+cancel.addEventListener('pointerenter', ()=>{
+  const r = cancel.getBoundingClientRect();
+  cancel.style.bottom = 'auto';
+  cancel.style.left = (10 + Math.random()*Math.max(0, innerWidth - r.width - 20)) + 'px';
+  cancel.style.top  = (10 + Math.random()*Math.max(0, innerHeight - r.height - 20)) + 'px';
+  A.blip(1400);
+});
+cancel.addEventListener('click', ()=>{
+  setStatus(pick(["取消中…","取消取消中…","取消请求已加入队列（队列长度：∞）","取消失败，因为加载还没成功，没法取消。"]));
+  lastStatus = performance.now();
+  A.blip(520);
+});
+
+/* ---- 按钮 ---- */
+$('sound').addEventListener('click', e=>{
+  A.init();
+  if(A.on){ A.stop(); e.target.textContent = '🔊 开启加载音效'; }
+  else { A.start(); e.target.textContent = '🔇 关闭加载音效'; }
+});
+$('hint').addEventListener('click', ()=>{
+  tipEl.textContent = pick(TIPS);
+  A.blip(700);
+});
+
+/* ---- 启动 ---- */
+bgResize(); addEventListener('resize', bgResize); bgDraw();
+placeCancel();
+setStatus(pick(STATUS));
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
