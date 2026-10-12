@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>抽象打地鼠 · WHACK THE WORK</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{min-height:100%;margin:0;background:#08070b}
+  body{
+    background-image:radial-gradient(900px 700px at 50% 14%, #1c1620 0%, #08070b 68%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#ece7ee;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:100vh;padding:18px 14px 24px;gap:12px;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+
+  header{width:min(560px,94vw);display:flex;align-items:flex-end;gap:12px}
+  .brand{flex:1;min-width:0}
+  .brand .t{font-size:11px;letter-spacing:.4em;color:#7e7286}
+  .brand h1{margin:4px 0 0;font-size:21px;letter-spacing:.14em;color:#ff8a9c;font-weight:800}
+  .brand .s{margin-top:5px;font-size:11.5px;color:#918799}
+  .stats{display:flex;gap:7px}
+  .stat{background:rgba(28,22,32,.82);border:1px solid rgba(255,255,255,.1);border-radius:12px;
+    padding:6px 13px;text-align:center;min-width:62px}
+  .stat .k{font-size:9.5px;letter-spacing:.22em;color:#7e7286}
+  .stat .v{font:800 18px/1.3 ui-monospace,Consolas,monospace;color:#ffd36e;font-variant-numeric:tabular-nums}
+  .stat.tm .v{color:#8fd9ff}
+  .stat.cb .v{color:#ff8a9c}
+  .stat.best .v{color:#8ef0c8}
+
+  .wrap{position:relative;border-radius:16px;padding:8px;
+    background:linear-gradient(160deg,#1a1420,#0d0a12);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 30px 66px rgba(0,0,0,.72), inset 0 1px 0 rgba(255,255,255,.05);
+    touch-action:none;line-height:0}
+  canvas{display:block;border-radius:10px;background:#0c0910;cursor:crosshair}
+
+  .bar{width:min(560px,94vw);display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  button.b{font:inherit;font-size:12.5px;color:#ece7ee;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:10px 18px;letter-spacing:.08em;transition:.15s}
+  button.b:hover{background:rgba(255,138,156,.16);border-color:rgba(255,138,156,.5);color:#ffd0d8}
+  button.b.primary{background:linear-gradient(120deg,rgba(255,138,156,.3),rgba(255,211,110,.2));border-color:rgba(255,138,156,.55)}
+  .hint{flex:1;text-align:right;font-size:11px;color:#6b5f74;letter-spacing:.06em;line-height:1.6}
+  footer{font-size:11px;color:#5f5568;letter-spacing:.14em;text-align:center;line-height:1.9}
+  footer b{color:#ff8a9c}
+
+  .over{position:fixed;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:20px;
+    background:rgba(6,5,9,.84);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+  .over.show{display:flex}
+  .box{width:min(400px,92vw);text-align:center;padding:30px 26px 24px;border-radius:22px;
+    background:linear-gradient(180deg,rgba(32,24,32,.98),rgba(18,14,20,.98));
+    border:1px solid rgba(255,138,156,.24);box-shadow:0 30px 80px rgba(0,0,0,.72)}
+  .box .em{font-size:38px;line-height:1}
+  .box h2{margin:13px 0 6px;font-size:20px;letter-spacing:.14em;color:#ff8a9c}
+  .box p{margin:0 0 18px;font-size:12.5px;line-height:1.95;color:#a094aa}
+  .box p b{color:#ffd36e}
+  .box .row{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="t">WHACK THE WORK</div>
+    <h1>抽象打地鼠</h1>
+    <div class="s">从洞里冒出来的是加班、催进度、临时会议</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="k">分数</div><div class="v" id="score">0</div></div>
+    <div class="stat cb"><div class="k">连击</div><div class="v" id="combo">0</div></div>
+    <div class="stat tm"><div class="k">剩余</div><div class="v" id="time">45</div></div>
+    <div class="stat best"><div class="k">最佳</div><div class="v" id="best">0</div></div>
+  </div>
+</header>
+
+<div class="wrap"><canvas id="c"></canvas></div>
+
+<div class="bar">
+  <button class="b primary" id="start">开始 (空格)</button>
+  <span class="hint">鼠标 / 手指点地鼠 · 空格开始</span>
+</div>
+
+<footer><b>领导不能砸</b> —— 砸到扣分并清空连击 · 漏掉一只正常地鼠也会断连击</footer>
+
+<div class="over" id="over">
+  <div class="box">
+    <div class="em" id="oEmoji">🔨</div>
+    <h2 id="oTitle">下班了</h2>
+    <p id="oText"></p>
+    <div class="row">
+      <button class="b primary" id="oAgain">再来一局</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 抽象打地鼠 ========= */
+const $ = id => document.getElementById(id);
+const G = 3;                       // 3×3 个洞
+const W = 560, H = 560;
+const ROUND = 45;                  // 一局多少秒
+
+const WORDS  = ['加班','催进度','临时会议','拉个群','改一版','对齐一下','走个流程','再同步'];
+const BOSS   = '领导';
+
+const cvs = $('c'), ctx = cvs.getContext('2d');
+let slots = [], fx = [];
+let score = 0, combo = 0, bestCombo = 0, best = 0;
+let running = false, over = true;
+let timeLeft = ROUND, spawnT = 0, spawnEvery = 620;
+let last = 0, hitCount = 0, bossHit = 0;
+let geo = {};
+
+/* ---------- 音效 ---------- */
+const A = {
+  ctx:null,
+  init(){ if(this.ctx) return; const C=window.AudioContext||window.webkitAudioContext; if(C) this.ctx=new C(); },
+  resume(){ if(this.ctx && this.ctx.state==='suspended') this.ctx.resume(); },
+  tone(f, dur, type, gain, bend, delay){
+    if(!this.ctx) return;
+    const c=this.ctx, t0=c.currentTime+(delay||0);
+    const o=c.createOscillator(); o.type=type||'sine';
+    const g=c.createGain();
+    o.frequency.setValueAtTime(f, t0);
+    if(bend) o.frequency.exponentialRampToValueAtTime(Math.max(40,f*bend), t0+dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(gain, t0+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    o.connect(g).connect(c.destination);
+    o.start(t0); o.stop(t0+dur+0.04);
+  },
+  whack(mult){
+    this.tone(180 * Math.pow(1.09, mult), .11, 'square', .065, .55);
+    this.tone(90, .09, 'sine', .05, .8, .01);
+  },
+  boss(){ [0,.07,.14].forEach((d,i)=> this.tone(150*Math.pow(.8,i), .18, 'sawtooth', .06, .6, d)); },
+  miss(){ this.tone(120, .06, 'triangle', .025, .8); },
+  start(){ [0,5,9].forEach((n,i)=> this.tone(392*Math.pow(2,n/12), .22, 'triangle', .06, 1, i*.07)); },
+  end(){ [0,.13,.26,.4].forEach((d,i)=> this.tone(330*Math.pow(.8,i), .3, 'sine', .07, .75, d)); }
+};
+
+/* ---------- 布局 ---------- */
+function resize(){
+  const avail = Math.min(window.innerWidth*0.94, window.innerHeight*0.62, 560);
+  const size = Math.max(270, Math.floor(avail));
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cvs.width = size*dpr; cvs.height = size*dpr;
+  cvs.style.width = size+'px'; cvs.style.height = size+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+
+  const pad = size*0.06;
+  const cellW = (size - pad*2) / G;
+  const cellH = (size - pad*2) / G;
+  const holes = [];
+  for(let r=0;r<G;r++) for(let c=0;c<G;c++){
+    holes.push({
+      x: pad + cellW*(c + 0.5),
+      y: pad + cellH*(r + 0.72),
+      rw: cellW*0.38,
+      rh: cellH*0.15,
+      scale: size/560
+    });
+  }
+  geo = { size, holes, s: size/560 };
+  draw();
+}
+function holeAt(px, py){
+  // 判定区要盖住「洞 + 冒出来的头」，否则点脑袋点不到
+  for(let i=0;i<geo.holes.length;i++){
+    const h = geo.holes[i];
+    const dx = (px - h.x) / (h.rw*1.25);
+    const dy = (py - (h.y - h.rw*0.55)) / (h.rw*1.20);
+    if(dx*dx + dy*dy <= 1) return i;
+  }
+  return -1;
+}
+
+/* ---------- 一局 ---------- */
+function reset(){
+  slots = new Array(G*G).fill(null);
+  fx = [];
+  score = 0; combo = 0; bestCombo = 0;
+  timeLeft = ROUND; spawnT = 0; spawnEvery = 620;
+  hitCount = 0; bossHit = 0;
+  running = false; over = true;
+  $('over').classList.remove('show');
+  updateHUD(); draw();
+}
+function begin(){
+  reset();
+  running = true; over = false;
+  A.init(); A.resume(); A.start();
+  last = 0;
+}
+function finish(){
+  running = false; over = true;
+  A.end();
+  if(score > best){ best = score; try{ localStorage.setItem('ut_mole_best', String(best)); }catch(e){} }
+  updateHUD();
+  const rate = hitCount ? Math.round(bossHit / hitCount * 100) : 0;
+  let chop;
+  if(score >= 1500) chop = '你砸出了本层的年度最高产出。';
+  else if(score >= 800) chop = '手速不错，可惜砸完明天还会有。';
+  else if(score >= 300) chop = '勉强及格，明天继续。';
+  else chop = '你今天好像不太想上班。';
+  setTimeout(()=>{
+    $('oEmoji').textContent = '🔨';
+    $('oTitle').textContent = '下班了';
+    $('oText').innerHTML = `${chop}<br>砸中 <b>${hitCount}</b> 只 · 最高连击 <b>${bestCombo}</b> · 误伤领导 <b>${bossHit}</b> 次<br>本局 <b>${score}</b> 分 · 最佳 <b>${best}</b> 分`;
+    $('over').classList.add('show');
+  }, 260);
+}
+function updateHUD(){
+  $('score').textContent = score;
+  $('combo').textContent = combo;
+  $('time').textContent = Math.max(0, Math.ceil(timeLeft));
+  if(score > best){ best = score; try{ localStorage.setItem('ut_mole_best', String(best)); }catch(e){} }
+  $('best').textContent = best;
+}
+
+/* ---------- 地鼠 ---------- */
+function spawn(){
+  const free = [];
+  for(let i=0;i<slots.length;i++) if(!slots[i]) free.push(i);
+  if(!free.length) return;
+  const i = free[(Math.random()*free.length)|0];
+  const t = 1 - timeLeft/ROUND;                     // 0 → 1 难度进度
+  const bossChance = 0.06 + t*0.20;
+  const boss = Math.random() < bossChance;
+  const life = boss ? (900 + Math.random()*350) : (1250 - t*560 + Math.random()*180);
+  slots[i] = {
+    kind: boss ? 'boss' : 'normal',
+    word: boss ? BOSS : WORDS[(Math.random()*WORDS.length)|0],
+    age: 0, life, hit: false, shake: 0
+  };
+}
+function mult(){ return Math.min(5, 1 + Math.floor(combo/5)); }
+function popup(holeIdx, text, color){
+  const h = geo.holes[holeIdx];
+  fx.push({x: h.x, y: h.y - h.rw*1.15, text, color, life: 1});   // 飘在脑袋上方，别糊脸上
+}
+function whack(i){
+  if(!running || over) return;
+  const h = geo.holes[i];
+  const s = slots[i];
+  if(!s){ combo = 0; A.miss(); updateHUD(); draw(); return; }
+  if(s.hit) return;
+  const prog = riseOf(s);
+  if(prog < 0.45){ combo = 0; A.miss(); updateHUD(); return; }
+
+  s.hit = true; s.shake = 1;
+  if(s.kind === 'boss'){
+    score = Math.max(0, score - 20);
+    combo = 0; bossHit++;
+    A.boss();
+    popup(i, '−20 领导不能砸', '#ff7a6b');
+  } else {
+    combo++; hitCount++;
+    if(combo > bestCombo) bestCombo = combo;
+    const m = mult();
+    const gain = 10 * m;
+    score += gain;
+    A.whack(m);
+    popup(i, '+' + gain + (m>1 ? ' ×'+m : ''), m>1 ? '#ffd36e' : '#8ef0c8');
+  }
+  updateHUD();
+}
+function riseOf(s){
+  if(s.hit) return Math.max(0, 1 - s.age/120);
+  if(s.age < 130) return s.age/130;
+  if(s.age > s.life - 170) return Math.max(0, (s.life - s.age)/170);
+  return 1;
+}
+
+/* ---------- 主循环 ---------- */
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt = Math.min(60, ts - last || 16); last = ts;
+  if(running && !over){
+    timeLeft -= dt/1000;
+    if(timeLeft <= 0){ timeLeft = 0; finish(); }
+    spawnEvery = 620 - (1 - timeLeft/ROUND) * 350;
+    spawnT += dt;
+    if(spawnT >= spawnEvery){ spawnT = 0; spawn(); }
+
+    for(let i=0;i<slots.length;i++){
+      const s = slots[i];
+      if(!s) continue;
+      s.age += dt;
+      if(s.shake > 0) s.shake = Math.max(0, s.shake - dt/220);
+      if(s.age >= s.life + 120){
+        if(!s.hit && s.kind === 'normal') combo = 0;   // 漏掉一只正常地鼠 → 断连击
+        slots[i] = null;
+        updateHUD();
+      }
+    }
+    for(let i=fx.length-1;i>=0;i--){
+      const f = fx[i];
+      f.life -= dt/850; f.y -= dt*0.045;
+      if(f.life <= 0) fx.splice(i,1);
+    }
+  }
+  draw();
+}
+
+/* ---------- 绘制 ---------- */
+function rr(x,y,w,h,r){
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function draw(){
+  const size = geo.size || W, s = geo.s || 1;
+  ctx.clearRect(0,0,size,size);
+  ctx.fillStyle = '#0c0910'; ctx.fillRect(0,0,size,size);
+
+  // 地毯格子
+  ctx.strokeStyle = 'rgba(255,138,156,.05)'; ctx.lineWidth = 1;
+  for(let i=0;i<=G;i++){
+    const p = size*0.06 + (size-size*0.12)/G*i;
+    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(size, p); ctx.stroke();
+  }
+
+  // 洞（后半）
+  for(const h of geo.holes){
+    ctx.fillStyle = '#07050a';
+    ctx.beginPath(); ctx.ellipse(h.x, h.y, h.rw, h.rh, 0, 0, 7); ctx.fill();
+  }
+
+  // 地鼠（裁剪到洞底之上，做出「从洞里冒出来」）
+  ctx.save();
+  for(let i=0;i<slots.length;i++){
+    const sl = slots[i]; if(!sl) continue;
+    const h = geo.holes[i];
+    const rise = riseOf(sl);
+    if(rise <= 0) continue;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(h.x - h.rw*1.4, 0, h.rw*2.8, h.y - h.rh*0.15);
+    ctx.clip();
+    drawMole(h, sl, rise, s);
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // 洞（前半的沿）
+  for(const h of geo.holes){
+    const g = ctx.createLinearGradient(h.x, h.y-h.rh, h.x, h.y+h.rh);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(.55, 'rgba(0,0,0,0)');
+    g.addColorStop(.56, 'rgba(255,255,255,.07)');
+    g.addColorStop(1, 'rgba(255,255,255,.02)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(h.x, h.y, h.rw, h.rh, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,138,156,.16)'; ctx.lineWidth = Math.max(1, s*1.4);
+    ctx.beginPath(); ctx.ellipse(h.x, h.y, h.rw, h.rh, 0, 0, 7); ctx.stroke();
+  }
+
+  // 飘字
+  for(const f of fx){
+    ctx.globalAlpha = Math.max(0, f.life);
+    ctx.fillStyle = f.color;
+    ctx.font = `800 ${Math.round(16*s)}px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(f.text, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+
+  // 倒计时条
+  const bw = size*0.84, bh = Math.max(4, 6*s), bx = (size-bw)/2, by = size*0.035;
+  ctx.fillStyle = 'rgba(255,255,255,.09)';
+  rr(bx, by, bw, bh, bh/2); ctx.fill();
+  const k = Math.max(0, timeLeft/ROUND);
+  ctx.fillStyle = k > .3 ? '#8fd9ff' : '#ff7a6b';
+  rr(bx, by, Math.max(bh, bw*k), bh, bh/2); ctx.fill();
+
+  if(!running){
+    ctx.fillStyle = 'rgba(10,7,14,.72)'; ctx.fillRect(0,0,size,size);
+    ctx.fillStyle = '#ff8a9c';
+    ctx.font = `800 ${Math.round(26*s)}px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('点「开始」砸它', size/2, size*0.47);
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.font = `600 ${Math.round(13*s)}px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.fillText('领导混进来的时候千万别砸', size/2, size*0.47 + 30*s);
+  }
+}
+function drawMole(h, sl, rise, s){
+  const R = h.rw * 0.72;                       // 头别比洞还宽
+  const boss = sl.kind === 'boss';
+  // rise=0 时整个头压在洞里（正好被裁掉），rise=1 时抬到洞上方
+  const cy = h.y + R - rise * R * 1.9;
+  const cx = h.x + (sl.shake ? Math.sin(sl.shake*38)*5*s*sl.shake : 0);
+
+  ctx.save();
+  ctx.shadowColor = boss ? 'rgba(255,90,90,.75)' : 'rgba(0,0,0,.6)';
+  ctx.shadowBlur = boss ? 16*s : 10*s;
+  const g = ctx.createLinearGradient(cx, cy-R, cx, cy+R);
+  if(boss){ g.addColorStop(0, '#ff8a7a'); g.addColorStop(1, '#a8283a'); }
+  else { g.addColorStop(0, '#d8ab72'); g.addColorStop(1, '#8a6034'); }
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill();
+  ctx.restore();
+
+  // 耳朵
+  ctx.fillStyle = boss ? '#8e2233' : '#7a5228';
+  for(const sgn of [-1,1]){
+    ctx.beginPath(); ctx.arc(cx + sgn*R*0.64, cy - R*0.58, R*0.22, 0, 7); ctx.fill();
+  }
+
+  // 眼睛
+  const eyeY = cy - R*0.32, eyeX = R*0.33, er = R*0.19;
+  ctx.fillStyle = '#fff';
+  for(const sgn of [-1,1]){
+    ctx.beginPath(); ctx.arc(cx + sgn*eyeX, eyeY, er, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = '#161016';
+  for(const sgn of [-1,1]){
+    ctx.beginPath(); ctx.arc(cx + sgn*eyeX, eyeY + er*0.12, er*0.52, 0, 7); ctx.fill();
+  }
+  // 领导皱个眉，一眼就能认出来
+  if(boss){
+    ctx.strokeStyle = '#5e1420'; ctx.lineWidth = Math.max(2, R*0.10); ctx.lineCap = 'round';
+    for(const sgn of [-1,1]){
+      ctx.beginPath();
+      ctx.moveTo(cx + sgn*(eyeX - er), eyeY - er*1.5);
+      ctx.lineTo(cx + sgn*(eyeX + er), eyeY - er*2.1);
+      ctx.stroke();
+    }
+  }
+
+  // 字
+  const n = sl.word.length;
+  const fs = Math.round(R * (n<=2 ? 0.50 : n===3 ? 0.38 : 0.30));
+  ctx.fillStyle = boss ? 'rgba(48,8,14,.95)' : 'rgba(20,10,6,.9)';
+  ctx.font = `800 ${fs}px "PingFang SC","Microsoft YaHei",sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(sl.word, cx, cy + R*0.36);
+}
+
+/* ---------- 交互 ---------- */
+cvs.addEventListener('pointerdown', e=>{
+  if($('over').classList.contains('show')) return;
+  if(!running){ return; }
+  const r = cvs.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width * geo.size;
+  const y = (e.clientY - r.top) / r.height * geo.size;
+  const i = holeAt(x, y);
+  if(i >= 0) whack(i);
+});
+addEventListener('keydown', e=>{
+  if(e.key === ' '){
+    e.preventDefault();
+    if(!running) begin();
+  }
+});
+$('start').addEventListener('click', ()=>{ if(!running) begin(); });
+$('oAgain').addEventListener('click', ()=>{ begin(); });
+addEventListener('resize', resize);
+
+/* ---------- 启动 ---------- */
+(function boot(){
+  try{ best = parseInt(localStorage.getItem('ut_mole_best')||'0',10) || 0; }catch(e){ best = 0; }
+  resize(); reset(); updateHUD();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

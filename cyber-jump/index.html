@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>一键跳 KPI · ONE-TAP KPI JUMP</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{min-height:100%;margin:0;background:#07080c}
+  body{
+    background-image:radial-gradient(900px 700px at 50% 14%, #131b26 0%, #07080c 68%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#e8ecf2;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:100vh;padding:18px 14px 24px;gap:12px;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+
+  header{width:min(560px,94vw);display:flex;align-items:flex-end;gap:12px}
+  .brand{flex:1;min-width:0}
+  .brand .t{font-size:11px;letter-spacing:.4em;color:#6f7b8c}
+  .brand h1{margin:4px 0 0;font-size:21px;letter-spacing:.14em;color:#8fd9ff;font-weight:800}
+  .brand .s{margin-top:5px;font-size:11.5px;color:#8492a4}
+  .stats{display:flex;gap:7px}
+  .stat{background:rgba(20,26,36,.82);border:1px solid rgba(255,255,255,.1);border-radius:12px;
+    padding:6px 13px;text-align:center;min-width:62px}
+  .stat .k{font-size:9.5px;letter-spacing:.22em;color:#6f7b8c}
+  .stat .v{font:800 18px/1.3 ui-monospace,Consolas,monospace;color:#8fd9ff;font-variant-numeric:tabular-nums}
+  .stat.pf .v{color:#ffd36e}
+  .stat.best .v{color:#8ef0c8}
+
+  .wrap{position:relative;border-radius:16px;padding:8px;
+    background:linear-gradient(160deg,#141a26,#0b0f16);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 30px 66px rgba(0,0,0,.72), inset 0 1px 0 rgba(255,255,255,.05);
+    touch-action:none;line-height:0}
+  canvas{display:block;border-radius:10px;background:#080c13;cursor:pointer}
+
+  .bar{width:min(560px,94vw);display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  button.b{font:inherit;font-size:12.5px;color:#e8ecf2;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:10px 18px;letter-spacing:.08em;transition:.15s}
+  button.b:hover{background:rgba(143,217,255,.15);border-color:rgba(143,217,255,.5);color:#cfeaff}
+  button.b.primary{background:linear-gradient(120deg,rgba(143,217,255,.28),rgba(142,240,200,.2));border-color:rgba(143,217,255,.55)}
+  .hint{flex:1;text-align:right;font-size:11px;color:#67748a;letter-spacing:.06em;line-height:1.6}
+  footer{font-size:11px;color:#57647a;letter-spacing:.14em;text-align:center;line-height:1.9}
+  footer b{color:#ffd36e}
+
+  .over{position:fixed;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:20px;
+    background:rgba(5,7,11,.84);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+  .over.show{display:flex}
+  .box{width:min(400px,92vw);text-align:center;padding:30px 26px 24px;border-radius:22px;
+    background:linear-gradient(180deg,rgba(24,30,42,.98),rgba(13,17,23,.98));
+    border:1px solid rgba(143,217,255,.24);box-shadow:0 30px 80px rgba(0,0,0,.72)}
+  .box .em{font-size:38px;line-height:1}
+  .box h2{margin:13px 0 6px;font-size:20px;letter-spacing:.14em;color:#8fd9ff}
+  .box p{margin:0 0 18px;font-size:12.5px;line-height:1.95;color:#93a2b6}
+  .box p b{color:#ffd36e}
+  .box .row{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="t">ONE-TAP KPI JUMP</div>
+    <h1>一键跳 KPI</h1>
+    <div class="s">按住蓄力，松手起跳，落在下一个工位上</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="k">工位</div><div class="v" id="score">0</div></div>
+    <div class="stat pf"><div class="k">完美</div><div class="v" id="perfect">0</div></div>
+    <div class="stat best"><div class="k">最佳</div><div class="v" id="best">0</div></div>
+  </div>
+</header>
+
+<div class="wrap"><canvas id="c"></canvas></div>
+
+<div class="bar">
+  <button class="b primary" id="start">开始 (空格)</button>
+  <span class="hint">按住蓄力 · 松手起跳 · 落在正中间算「完美」</span>
+</div>
+
+<footer>只用一个键 · 但距离和宽度都会越来越刻薄</footer>
+
+<div class="over" id="over">
+  <div class="box">
+    <div class="em" id="oEmoji">🕳</div>
+    <h2 id="oTitle">掉下去了</h2>
+    <p id="oText"></p>
+    <div class="row">
+      <button class="b primary" id="oAgain">再来一次</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 一键跳 KPI ========= */
+const $ = id => document.getElementById(id);
+const W = 560, H = 560;
+const GROUND = 452;          // 地面线
+const PLAT_H = 104;          // 工位高度
+const MIN_D = 86;            // 最短跳跃距离
+const MAX_D = 344;           // 满蓄力距离
+const CHARGE_MS = 950;       // 蓄满需要的时间
+const PERFECT = 8;           // 落在中心多少 px 内算完美
+
+const ROOMS = ['工位','会议室','茶水间','打印区','电梯口','楼梯间','天台','食堂','前台','财务室','机房','休息区'];
+
+const cvs = $('c'), ctx = cvs.getContext('2d');
+let plats = [];              // {x, w, room}
+let cur = 0;                 // 当前站在第几个工位上
+let score = 0, perfect = 0, perfectStreak = 0, best = 0;
+let camX = 0, camTarget = 0;
+let charging = false, chargeStart = 0, power = 0;
+let phase = 'idle';          // idle | charging | jumping | falling | over
+let jump = null, fall = null;
+let fx = [];
+let last = 0, s = 1;
+let player = {x:0, y:0, rot:0};
+
+/* ---------- 音效 ---------- */
+const A = {
+  ctx:null, chargeOsc:null, chargeGain:null,
+  init(){ if(this.ctx) return; const C=window.AudioContext||window.webkitAudioContext; if(C) this.ctx=new C(); },
+  resume(){ if(this.ctx && this.ctx.state==='suspended') this.ctx.resume(); },
+  tone(f, dur, type, gain, bend, delay){
+    if(!this.ctx) return;
+    const c=this.ctx, t0=c.currentTime+(delay||0);
+    const o=c.createOscillator(); o.type=type||'sine';
+    const g=c.createGain();
+    o.frequency.setValueAtTime(f, t0);
+    if(bend) o.frequency.exponentialRampToValueAtTime(Math.max(40,f*bend), t0+dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(gain, t0+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    o.connect(g).connect(c.destination);
+    o.start(t0); o.stop(t0+dur+0.04);
+  },
+  chargeOn(){
+    this.init(); this.resume();
+    if(!this.ctx || this.chargeOsc) return;
+    const c = this.ctx, t = c.currentTime;
+    const o = c.createOscillator(); o.type = 'triangle';
+    const g = c.createGain();
+    o.frequency.setValueAtTime(180, t);
+    o.frequency.linearRampToValueAtTime(760, t + CHARGE_MS/1000);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.05, t+0.05);
+    o.connect(g).connect(c.destination);
+    o.start(t);
+    this.chargeOsc = o; this.chargeGain = g;
+  },
+  chargeOff(){
+    if(!this.ctx || !this.chargeOsc) return;
+    const c = this.ctx, t = c.currentTime;
+    try{
+      this.chargeGain.gain.cancelScheduledValues(t);
+      this.chargeGain.gain.setValueAtTime(Math.max(0.0001, this.chargeGain.gain.value), t);
+      this.chargeGain.gain.exponentialRampToValueAtTime(0.0001, t+0.05);
+      this.chargeOsc.stop(t+0.08);
+    }catch(e){}
+    this.chargeOsc = null; this.chargeGain = null;
+  },
+  jump(){ this.tone(520, .22, 'sine', .07, .35); },
+  land(){ this.tone(150, .14, 'triangle', .08, .7); },
+  perfect(){ [0,7,12].forEach((n,i)=> this.tone(880*Math.pow(2,n/12), .22, 'triangle', .065, 1, i*.06)); },
+  fail(){ [0,.1,.22,.36,.52].forEach((d,i)=> this.tone(300*Math.pow(.82,i), .3, 'sine', .075, .7, d)); }
+};
+
+/* ---------- 关卡生成 ---------- */
+function randRange(a, b){ return a + Math.random()*(b - a); }
+function makePlat(x, w, i){ return {x, w, room: ROOMS[i % ROOMS.length]}; }
+function nextPlat(){
+  const t = Math.min(1, score/22);
+  const w = randRange(104 - t*58, 118 - t*56);          // 越来越窄
+  const gap = randRange(64 + t*18, 132 + t*104);        // 越来越远
+  const last_ = plats[plats.length-1];
+  // 保证满蓄力够得着（留一点余量，免得出现必死题）
+  const maxGap = MAX_D - w - 26;
+  const g = Math.min(gap, Math.max(46, maxGap));
+  plats.push(makePlat(last_.x + last_.w + g, w, plats.length));
+}
+function reset(){
+  plats = [makePlat(0, 118, 0)];
+  nextPlat();
+  cur = 0; score = 0; perfect = 0; perfectStreak = 0;
+  charging = false; power = 0; phase = 'idle';
+  jump = null; fall = null; fx = [];
+  camX = -W*0.18; camTarget = camX;
+  placePlayer();
+  $('over').classList.remove('show');
+  updateHUD();
+}
+function placePlayer(){
+  const p = plats[cur];
+  player.x = p.x + p.w/2;
+  player.y = GROUND - PLAT_H;
+  player.rot = 0;
+}
+function updateHUD(){
+  $('score').textContent = score;
+  $('perfect').textContent = perfect;
+  $('best').textContent = best;
+}
+
+/* ---------- 蓄力 / 起跳 ---------- */
+function startCharge(){
+  if(phase !== 'idle') return;
+  charging = true; phase = 'charging'; chargeStart = performance.now(); power = 0;
+  A.chargeOn();
+}
+function release(){
+  if(phase !== 'charging') return;
+  charging = false;
+  A.chargeOff();
+  const p = Math.max(0, Math.min(1, power));
+  const dist = MIN_D + p*(MAX_D - MIN_D);
+  const from = player.x;
+  const to = from + dist;
+  const nxt = plats[cur+1];
+  jump = {
+    t: 0,
+    dur: 0.30 + dist/900,
+    x0: from, x1: to,
+    y0: GROUND - PLAT_H,
+    apex: 92 + power*54
+  };
+  phase = 'jumping';
+  A.jump();
+}
+function land(){
+  const lx = jump.x1;
+  const next = plats[cur+1];
+  if(lx < next.x || lx > next.x + next.w){
+    // 掉下去
+    phase = 'falling';
+    fall = { t: 0, x: lx, y: GROUND - PLAT_H, vx: 0, vy: 0, target: lx };
+    A.fail();
+    updateHUD();
+    return;
+  }
+  // 站上去
+  cur++;
+  const center = next.x + next.w/2;
+  const off = Math.abs(lx - center);
+  let gain = 1, msg = null;
+  if(off <= PERFECT){
+    perfect++; perfectStreak++;
+    gain = 1 + Math.min(4, perfectStreak);
+    A.perfect();
+    msg = perfectStreak > 1 ? `完美 ×${perfectStreak}  +${gain}` : '完美 +2';
+  } else {
+    perfectStreak = 0;
+    A.land();
+    msg = '+1';
+  }
+  score += gain;
+  player.x = clamp(lx, next.x + 10, next.x + next.w - 10);
+  player.y = GROUND - PLAT_H;
+  player.rot = 0;
+  phase = 'idle';
+  fx.push({x: player.x, y: player.y - 46, text: msg, life: 1, gold: off <= PERFECT});
+  if(score > best){ best = score; try{ localStorage.setItem('ut_jump_best', String(best)); }catch(e){} }
+  updateHUD();
+  nextPlat();                       // 前面再造一个
+}
+function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+
+/* ---------- 主循环 ---------- */
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt = Math.min(60, ts - last || 16) / 1000; last = ts;
+
+  if(phase === 'charging'){
+    power = Math.min(1, (performance.now() - chargeStart) / CHARGE_MS);
+  }
+  if(phase === 'jumping' && jump){
+    jump.t += dt / jump.dur;
+    if(jump.t >= 1){ jump.t = 1; land(); }
+    if(phase === 'jumping'){
+      player.x = jump.x0 + (jump.x1 - jump.x0) * jump.t;
+      player.y = jump.y0 - 4*jump.apex*jump.t*(1 - jump.t);
+      player.rot = jump.t * Math.PI * 2;
+    }
+  }
+  if(phase === 'falling' && fall){
+    fall.t += dt;
+    // 掉出工位边缘，往下坠
+    const nx = plats[cur+1];
+    const edge = fall.x < nx.x ? nx.x : nx.x + nx.w;
+    fall.x += (edge - fall.x) * Math.min(1, dt*4);
+    fall.vy += 1500*dt;
+    fall.y += fall.vy*dt;
+    player.x = fall.x; player.y = fall.y;
+    player.rot += dt*4;
+    if(fall.y > H + 160) finish();
+  }
+
+  // 相机
+  const p = plats[cur];
+  camTarget = p.x + p.w/2 - W*0.34;
+  camX += (camTarget - camX) * Math.min(1, dt*7);
+
+  for(let i=fx.length-1;i>=0;i--){
+    const f = fx[i];
+    f.life -= dt*1.25; f.y -= dt*46;
+    if(f.life <= 0) fx.splice(i,1);
+  }
+  draw();
+}
+function finish(){
+  if(phase === 'over') return;
+  phase = 'over';
+  const chop = score >= 40 ? '你跳完了整层楼，前面还有一层。'
+            : score >= 20 ? '跳得不错，但工位是无限的。'
+            : score >= 8  ? '还行，手别抖。'
+            : '刚起步就摔了，今天不宜上班。';
+  $('oEmoji').textContent = score >= 20 ? '🏢' : '🕳';
+  $('oTitle').textContent = score >= 20 ? '跳穿了' : '掉下去了';
+  $('oText').innerHTML = `${chop}<br>跳过 <b>${score}</b> 个工位 · 完美落点 <b>${perfect}</b> 次<br>最高 <b>${best}</b>`;
+  $('over').classList.add('show');
+}
+
+/* ---------- 绘制 ---------- */
+function rr(x,y,w,h,r){
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function resize(){
+  const avail = Math.min(window.innerWidth*0.94, window.innerHeight*0.62, 560);
+  const size = Math.max(270, Math.floor(avail));
+  s = size/W;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cvs.width = size*dpr; cvs.height = size*dpr;
+  cvs.style.width = size+'px'; cvs.style.height = size+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.scale(s, s);
+  draw();
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // 背景
+  const bg = ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0, '#0b1119'); bg.addColorStop(1, '#070a0f');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+
+  // 窗外格子
+  ctx.strokeStyle = 'rgba(143,217,255,.045)'; ctx.lineWidth = 1;
+  for(let x=-200; x<W+400; x+=40){
+    ctx.beginPath(); ctx.moveTo(x - camX*0.35, 0); ctx.lineTo(x - camX*0.35, H); ctx.stroke();
+  }
+  for(let y=0;y<H;y+=40){
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  ctx.save();
+  ctx.translate(-camX, 0);
+
+  // 工位
+  for(let i=0;i<plats.length;i++){
+    const p = plats[i];
+    if(p.x + p.w < camX - 60 || p.x > camX + W + 60) continue;
+    const top = GROUND - PLAT_H;
+    const g = ctx.createLinearGradient(p.x, top, p.x, GROUND);
+    g.addColorStop(0, i === cur ? '#2c4a63' : '#22303f');
+    g.addColorStop(1, '#141c26');
+    ctx.fillStyle = g;
+    rr(p.x, top, p.w, PLAT_H, 8); ctx.fill();
+    ctx.strokeStyle = i === cur ? 'rgba(143,217,255,.55)' : 'rgba(143,217,255,.18)';
+    ctx.lineWidth = 2;
+    rr(p.x+1, top+1, p.w-2, PLAT_H-2, 8); ctx.stroke();
+    // 桌面高光
+    ctx.fillStyle = i === cur ? 'rgba(143,217,255,.28)' : 'rgba(143,217,255,.10)';
+    rr(p.x+2, top+2, p.w-4, 6, 4); ctx.fill();
+
+    // 房间名
+    const n = p.room.length;
+    ctx.fillStyle = 'rgba(200,225,245,.5)';
+    ctx.font = `700 ${n>3 ? 11 : 13}px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(p.room, p.x + p.w/2, top + 34);
+    // 中心刻度
+    ctx.strokeStyle = 'rgba(255,211,110,.32)'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(p.x + p.w/2, top + 6); ctx.lineTo(p.x + p.w/2, top + 18);
+    ctx.stroke();
+  }
+
+  // 人物（在跳就不画脚下的影子）
+  if(phase !== 'over' || fall){
+    drawChar(player.x, player.y, player.rot);
+  }
+
+  ctx.restore();
+
+  // 飘字
+  for(const f of fx){
+    ctx.globalAlpha = Math.max(0, f.life);
+    ctx.fillStyle = f.gold ? '#ffd36e' : '#8ef0c8';
+    ctx.font = `800 16px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(f.text, f.x - camX, f.y);
+  }
+  ctx.globalAlpha = 1;
+
+  // 蓄力条
+  const bw = W*0.5, bh = 9, bx = (W-bw)/2, by = H - 34;
+  ctx.fillStyle = 'rgba(255,255,255,.08)';
+  rr(bx, by, bw, bh, bh/2); ctx.fill();
+  if(power > 0){
+    const g = ctx.createLinearGradient(bx, 0, bx+bw, 0);
+    g.addColorStop(0, '#8ef0c8'); g.addColorStop(.6, '#8fd9ff'); g.addColorStop(1, '#ff8a5c');
+    ctx.fillStyle = g;
+    rr(bx, by, Math.max(bh, bw*power), bh, bh/2); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  ctx.font = `600 11px "PingFang SC","Microsoft YaHei",sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText(phase === 'charging' ? '松手！' : '按住蓄力', W/2, by - 12);
+
+  if(phase === 'idle' && score === 0){
+    ctx.fillStyle = 'rgba(8,12,19,.55)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#8fd9ff';
+    ctx.font = `800 26px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('按住蓄力 · 松手起跳', W/2, H*0.44);
+    ctx.fillStyle = 'rgba(255,255,255,.42)';
+    ctx.font = `600 13px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.fillText('落在工位正中间算「完美」', W/2, H*0.44 + 30);
+  }
+}
+function drawChar(x, y, rot){
+  ctx.save();
+  ctx.translate(x, y - 13);
+  ctx.rotate(rot);
+  ctx.shadowColor = 'rgba(143,217,255,.6)'; ctx.shadowBlur = 14;
+  const g = ctx.createLinearGradient(0,-13,0,13);
+  g.addColorStop(0, '#bfe6ff'); g.addColorStop(1, '#4f9ed6');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, 0, 13, 0, 7); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#0b1119';
+  ctx.beginPath(); ctx.arc(-4.4, -2, 2.4, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc( 4.4, -2, 2.4, 0, 7); ctx.fill();
+  ctx.strokeStyle = 'rgba(11,17,25,.7)'; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.arc(0, 3.5, 4, 0.2*Math.PI, 0.8*Math.PI); ctx.stroke();
+  ctx.restore();
+}
+
+/* ---------- 交互 ---------- */
+cvs.addEventListener('pointerdown', e=>{ e.preventDefault(); if(phase==='idle') startCharge(); });
+addEventListener('pointerup', ()=>{ if(phase==='charging') release(); });
+cvs.addEventListener('pointercancel', ()=>{ if(phase==='charging') release(); });
+addEventListener('keydown', e=>{
+  if(e.key === ' '){
+    e.preventDefault();
+    if(phase === 'idle' && e.repeat === false) startCharge();
+  }
+});
+addEventListener('keyup', e=>{
+  if(e.key === ' '){ e.preventDefault(); if(phase === 'charging') release(); }
+});
+$('start').addEventListener('click', ()=>{ A.init(); A.resume(); reset(); });
+$('oAgain').addEventListener('click', ()=>{ A.init(); A.resume(); reset(); });
+addEventListener('resize', resize);
+
+/* ---------- 启动 ---------- */
+(function boot(){
+  try{ best = parseInt(localStorage.getItem('ut_jump_best')||'0',10) || 0; }catch(e){ best = 0; }
+  reset(); resize();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

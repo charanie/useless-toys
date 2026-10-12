@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>五子棋 vs 杠精 · GOMOKU vs THE NITPICKER</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{min-height:100%;margin:0;background:#08070b}
+  body{
+    background-image:radial-gradient(900px 700px at 50% 10%, #1b1622 0%, #08070b 68%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#ece7ee;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:100vh;padding:16px 14px 22px;gap:11px;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+
+  header{width:min(600px,94vw);display:flex;align-items:flex-end;gap:12px}
+  .brand{flex:1;min-width:0}
+  .brand .t{font-size:11px;letter-spacing:.4em;color:#7e7286}
+  .brand h1{margin:4px 0 0;font-size:20px;letter-spacing:.14em;color:#c86bff;font-weight:800}
+  .brand .s{margin-top:5px;font-size:11.5px;color:#918799}
+  .stats{display:flex;gap:7px}
+  .stat{background:rgba(28,22,32,.82);border:1px solid rgba(255,255,255,.1);border-radius:12px;
+    padding:6px 12px;text-align:center;min-width:58px}
+  .stat .k{font-size:9.5px;letter-spacing:.22em;color:#7e7286}
+  .stat .v{font:800 17px/1.3 ui-monospace,Consolas,monospace;color:#8ef0c8;font-variant-numeric:tabular-nums}
+  .stat.l .v{color:#ff8a9c}
+  .stat.d .v{color:#ffd36e}
+  .stat.d .v{font-size:13px;letter-spacing:.04em}
+
+  .say{width:min(600px,94vw);display:flex;gap:11px;align-items:flex-start;
+    background:linear-gradient(160deg,rgba(40,28,48,.92),rgba(22,16,28,.92));
+    border:1px solid rgba(200,107,255,.2);border-radius:14px;padding:11px 14px;min-height:62px}
+  .say .av{flex:0 0 38px;height:38px;border-radius:11px;position:relative;
+    background:linear-gradient(160deg,#c86bff,#6d2fb8);box-shadow:0 0 16px rgba(200,107,255,.45)}
+  .say .av::before,.say .av::after{content:'';position:absolute;top:12px;width:6px;height:6px;border-radius:50%;background:#1b1224}
+  .say .av::before{left:9px}.say .av::after{left:22px}
+  .say .tx{flex:1;min-width:0}
+  .say .who{font-size:10px;letter-spacing:.26em;color:#a58;color:#b07dd8}
+  .say .ln{margin-top:4px;font-size:13.5px;line-height:1.65;color:#e2d6ee;letter-spacing:.04em}
+
+  .wrap{position:relative;border-radius:16px;padding:8px;
+    background:linear-gradient(160deg,#1a1420,#0d0a12);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 30px 66px rgba(0,0,0,.72), inset 0 1px 0 rgba(255,255,255,.05);
+    touch-action:none;line-height:0}
+  canvas{display:block;border-radius:10px;background:#150f1c;cursor:pointer}
+
+  .bar{width:min(600px,94vw);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button.b{font:inherit;font-size:12.5px;color:#ece7ee;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:9px 16px;letter-spacing:.08em;transition:.15s}
+  button.b:hover{background:rgba(200,107,255,.16);border-color:rgba(200,107,255,.5);color:#e8ccff}
+  button.b.primary{background:linear-gradient(120deg,rgba(200,107,255,.3),rgba(142,240,200,.18));border-color:rgba(200,107,255,.55)}
+  button.b.on{background:linear-gradient(160deg,rgba(200,107,255,.3),rgba(200,107,255,.12));border-color:rgba(200,107,255,.6);color:#eed6ff}
+  .grp{display:flex;gap:5px;align-items:center}
+  .grp .lb{font-size:10px;letter-spacing:.2em;color:#7e7286;margin-right:2px}
+  footer{font-size:11px;color:#5f5568;letter-spacing:.14em;text-align:center;line-height:1.9}
+
+  .over{position:fixed;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:20px;
+    background:rgba(6,5,9,.84);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+  .over.show{display:flex}
+  .box{width:min(400px,92vw);text-align:center;padding:30px 26px 24px;border-radius:22px;
+    background:linear-gradient(180deg,rgba(32,24,38,.98),rgba(18,14,22,.98));
+    border:1px solid rgba(200,107,255,.24);box-shadow:0 30px 80px rgba(0,0,0,.72)}
+  .box .em{font-size:38px;line-height:1}
+  .box h2{margin:13px 0 6px;font-size:20px;letter-spacing:.14em;color:#c86bff}
+  .box p{margin:0 0 18px;font-size:12.5px;line-height:1.95;color:#a094aa}
+  .box p b{color:#ffd36e}
+  .box .row{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="t">GOMOKU vs NITPICKER</div>
+    <h1>五子棋 vs 杠精</h1>
+    <div class="s">它会认真下棋，也会嘴你</div>
+  </div>
+  <div class="stats">
+    <div class="stat d"><div class="k">棋力</div><div class="v" id="diffLab">普通</div></div>
+    <div class="stat"><div class="k">你赢</div><div class="v" id="wins">0</div></div>
+    <div class="stat l"><div class="k">它赢</div><div class="v" id="losses">0</div></div>
+  </div>
+</header>
+
+<div class="say">
+  <div class="av"></div>
+  <div class="tx">
+    <div class="who">杠 精</div>
+    <div class="ln" id="line">来吧，你先下。我让你先手。</div>
+  </div>
+</div>
+
+<div class="wrap"><canvas id="c"></canvas></div>
+
+<div class="bar">
+  <div class="grp"><span class="lb">棋力</span>
+    <button class="b" data-diff="easy">随意</button>
+    <button class="b on" data-diff="normal">普通</button>
+    <button class="b" data-diff="hard">较真</button>
+  </div>
+  <div class="grp"><span class="lb">先后</span>
+    <button class="b on" data-side="1">我先</button>
+    <button class="b" data-side="2">它先</button>
+  </div>
+  <button class="b primary" id="again">重开一局</button>
+  <button class="b" id="undo">悔棋</button>
+</div>
+
+<footer>五子连珠即胜 · 悔棋会把它的那一手也一起收回</footer>
+
+<div class="over" id="over">
+  <div class="box">
+    <div class="em" id="oEmoji">🏆</div>
+    <h2 id="oTitle">你赢了</h2>
+    <p id="oText"></p>
+    <div class="row">
+      <button class="b primary" id="oAgain">再来一局</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 五子棋 vs 杠精 ========= */
+const $ = id => document.getElementById(id);
+const N = 15;
+const EMPTY = 0, HUMAN = 1, AI = 2;
+const DIRS = [[0,1],[1,0],[1,1],[1,-1]];
+
+const DIFF_LABEL = { easy:'随意', normal:'普通', hard:'较真' };
+
+/* 杠精台词 */
+const L_GENERIC = [
+  '就这？我闭着眼都能下。',
+  '你这手棋，属于是「想了，但没完全想」。',
+  '嗯，很有想法的下法——我说的想法是「没有想法」。',
+  '行吧，我先假装没看见。',
+  '你确定？算了，反正你也不会改。',
+  '这步棋的胜率，我说了你可能不太高兴。',
+  '我数了一下，你刚才大概犹豫了四秒，下了个这。',
+  '你有没有考虑过，把棋子放在别的地方？任何地方。',
+  '这一步很稳，稳得像我周五下午的工作状态。',
+  '挺好的，很有个人风格，可惜不是好棋。'
+];
+const L_THREE = [
+  '哦？凑了个三。行，我挡。',
+  '三了是吧。行行行，你厉害，我堵。',
+  '有进步，居然会连三个了。',
+  '我承认我多看了你一眼——就一眼。'
+];
+const L_FOUR = [
+  '四了！你这手棋我确实没料到……才怪。',
+  '冲四了？别急，我这儿正好有地方放。',
+  '哎哟，四连了。我挡。挡住之后你还是输。'
+];
+const L_BLOCK = [
+  '挡一下。不是我怕你，是规则要求。',
+  '堵上了。你看，我也可以很有礼貌。',
+  '就这？我随便放一个都能挡住。'
+];
+const L_AI_WIN = [
+  '五子了。本回合，杠精获胜。',
+  '连成五个了，谢谢配合。',
+  '赢之前我还想客套一下，算了，直接赢。'
+];
+const L_YOU_WIN = [
+  '……行，你赢了。但我不服。',
+  '这局不算，我状态不好。再来。',
+  '恭喜。不过我提醒你，赢一盘说明不了任何问题。',
+  '你赢了。下棋而已，你至于这么高兴吗。'
+];
+const L_EARLY = [
+  '来吧，你先下。我让你先手。',
+  '棋盘是空的，你的人生也是。请下。',
+  '我准备好了。你准备好面对结果了吗。'
+];
+
+const cvs = $('c'), ctx = cvs.getContext('2d');
+// 先铺好空盘：resize() 会在 newGame() 之前就调一次 draw()
+let board = Array.from({length:N}, ()=> new Array(N).fill(EMPTY));
+let hist = [], cur = HUMAN, moves = 0;
+let diff = 'normal', humanSide = HUMAN;
+let over = false, winLine = null, lastMove = null, hover = null;
+let wins = 0, losses = 0, thinking = false;
+let geom = {};
+
+/* ---------- 音效 ---------- */
+const A = {
+  ctx:null,
+  init(){ if(this.ctx) return; const C=window.AudioContext||window.webkitAudioContext; if(C) this.ctx=new C(); },
+  resume(){ if(this.ctx && this.ctx.state==='suspended') this.ctx.resume(); },
+  tone(f, dur, type, gain, bend, delay){
+    if(!this.ctx) return;
+    const c=this.ctx, t0=c.currentTime+(delay||0);
+    const o=c.createOscillator(); o.type=type||'sine';
+    const g=c.createGain();
+    o.frequency.setValueAtTime(f, t0);
+    if(bend) o.frequency.exponentialRampToValueAtTime(Math.max(40,f*bend), t0+dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(gain, t0+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    o.connect(g).connect(c.destination);
+    o.start(t0); o.stop(t0+dur+0.04);
+  },
+  place(role){ this.tone(role === HUMAN ? 520 : 380, .09, 'triangle', .06, .72); },
+  blocked(){ this.tone(150, .13, 'square', .05, .7); },
+  win(){ [0,4,7,12,16,19,24].forEach((n,i)=> this.tone(523*Math.pow(2,n/12), .4, 'triangle', .075, 1, i*.08)); },
+  lose(){ [0,.14,.28,.44].forEach((d,i)=> this.tone(320*Math.pow(.8,i), .34, 'sine', .07, .7, d)); }
+};
+
+/* ---------- 棋盘 ---------- */
+function newGame(keepScore){
+  board = Array.from({length:N}, ()=> new Array(N).fill(EMPTY));
+  hist = []; moves = 0; over = false; winLine = null; lastMove = null; hover = null;
+  $('over').classList.remove('show');
+  $('diffLab').textContent = DIFF_LABEL[diff];
+  if(!keepScore){ wins = 0; losses = 0; }
+  $('wins').textContent = wins;
+  $('losses').textContent = losses;
+  if(humanSide === AI){ cur = AI; say(rand(L_EARLY)); setTimeout(aiTurn, 420); }
+  else { cur = HUMAN; say(rand(L_EARLY)); }
+  draw();
+}
+function inside(r,c){ return r>=0 && r<N && c>=0 && c<N; }
+function place(r, c, role){
+  board[r][c] = role;
+  hist.push({r, c, role});
+  lastMove = {r, c};
+  moves++;
+  A.resume(); A.place(role);
+}
+function checkWin(r, c, role){
+  for(const [dr,dc] of DIRS){
+    const line = [{r,c}];
+    for(const s of [1,-1]){
+      for(let i=1;i<5;i++){
+        const rr = r+dr*i*s, cc = c+dc*i*s;
+        if(!inside(rr,cc) || board[rr][cc] !== role) break;
+        s === 1 ? line.push({r:rr,c:cc}) : line.unshift({r:rr,c:cc});
+      }
+    }
+    if(line.length >= 5) return line.slice(0, 5);
+  }
+  return null;
+}
+function boardFull(){ return moves >= N*N; }
+
+/* ---------- 棋型打分 ---------- */
+const PATTERNS = [
+  ['11111', 5000000],
+  ['011110', 500000],
+  ['011112', 40000], ['211110', 40000],
+  ['11011', 40000], ['10111', 40000], ['11101', 40000],
+  ['01110', 30000],
+  ['010110', 12000], ['011010', 12000],
+  ['001110', 9000], ['011100', 9000],
+  ['211100', 3000], ['001112', 3000],
+  ['01010', 2400], ['001100', 1800],
+  ['001010', 900], ['010100', 900],
+  ['00100', 300],
+  ['000100', 120], ['001000', 120],
+  ['000010', 40], ['010000', 40]
+];
+function lineScore(r, c, dr, dc, role){
+  let line = '';
+  for(let i=-4;i<=4;i++){
+    if(i === 0){ line += '1'; continue; }
+    const rr = r + dr*i, cc = c + dc*i;
+    if(!inside(rr,cc)){ line += '2'; continue; }        // 出界视同被堵
+    const v = board[rr][cc];
+    line += v === EMPTY ? '0' : (v === role ? '1' : '2');
+  }
+  let best = 0;
+  for(let i=0;i<PATTERNS.length;i++){
+    if(PATTERNS[i][1] > best && line.indexOf(PATTERNS[i][0]) >= 0) best = PATTERNS[i][1];
+  }
+  return best;
+}
+function scorePoint(r, c, role){
+  let t = 0;
+  for(const [dr,dc] of DIRS) t += lineScore(r, c, dr, dc, role);
+  return t;
+}
+function candidates(){
+  const out = [], seen = new Set();
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    if(board[r][c] !== EMPTY) continue;
+    let near = false;
+    for(let dr=-2;dr<=2 && !near;dr++) for(let dc=-2;dc<=2;dc++){
+      const rr = r+dr, cc = c+dc;
+      if(inside(rr,cc) && board[rr][cc] !== EMPTY){ near = true; break; }
+    }
+    if(near) out.push({r, c});
+  }
+  if(!out.length) out.push({r:7, c:7});
+  return out;
+}
+function bestReply(role, cands){
+  let best = 0;
+  for(const m of cands){
+    const s = scorePoint(m.r, m.c, role);
+    if(s > best) best = s;
+  }
+  return best;
+}
+
+/* ---------- AI ---------- */
+function aiChoose(){
+  const cands = candidates();
+  const scored = cands.map(m => ({
+    r: m.r, c: m.c,
+    atk: scorePoint(m.r, m.c, AI),
+    def: scorePoint(m.r, m.c, HUMAN)
+  }));
+  // 能赢就赢
+  let win = scored.filter(m => m.atk >= 5000000);
+  if(win.length) return win[(Math.random()*win.length)|0];
+  // 必须挡
+  let block = scored.filter(m => m.def >= 5000000);
+  if(block.length){
+    block.sort((a,b)=> b.atk - a.atk);
+    return block[0];
+  }
+
+  if(diff === 'easy'){
+    const v = scored.map(m => ({...m, v: m.atk + m.def*0.40 + Math.random()*16000}));
+    v.sort((a,b)=> b.v - a.v);
+    return v[Math.min(v.length-1, (Math.random()*4)|0)];
+  }
+
+  const W = diff === 'hard' ? 0.94 : 0.84;
+  const v = scored.map(m => ({...m, v: m.atk + m.def*W}));
+  v.sort((a,b)=> b.v - a.v);
+
+  if(diff === 'hard'){
+    const top = v.slice(0, 8);
+    for(const m of top){
+      board[m.r][m.c] = AI;
+      m.v -= bestReply(HUMAN, candidates()) * 0.85;
+      board[m.r][m.c] = EMPTY;
+    }
+    top.sort((a,b)=> b.v - a.v);
+    return top[0];
+  }
+  return v[0];
+}
+function aiTurn(){
+  if(over) return;
+  thinking = true;
+  setTimeout(()=>{
+    if(over){ thinking = false; return; }
+    const m = aiChoose();
+    thinking = false;
+    if(!m) return;
+    place(m.r, m.c, AI);
+    const w = checkWin(m.r, m.c, AI);
+    draw();
+    if(w){ winLine = w; endGame(AI); return; }
+    if(boardFull()){ endGame(0); return; }
+    cur = HUMAN;
+    // 挡完嘴一句
+    const humanThreat = scorePoint(m.r, m.c, HUMAN);
+    say(humanThreat >= 40000 ? rand(L_BLOCK) : rand(L_GENERIC));
+    draw();
+  }, diff === 'hard' ? 260 : 180);
+}
+
+/* ---------- 落子 ---------- */
+function humanPlay(r, c){
+  if(over || cur !== HUMAN || board[r][c] !== EMPTY || thinking) return;
+  const before = scorePoint(r, c, HUMAN);
+  place(r, c, HUMAN);
+  const w = checkWin(r, c, HUMAN);
+  draw();
+  if(w){ winLine = w; endGame(HUMAN); return; }
+  if(boardFull()){ endGame(0); return; }
+  cur = AI;
+  if(before >= 40000) say(rand(L_FOUR));
+  else if(before >= 30000) say(rand(L_THREE));
+  else if(Math.random() < 0.28) say(rand(L_GENERIC));
+  draw();
+  aiTurn();
+}
+function endGame(winner){
+  over = true;
+  if(winner === HUMAN){ wins++; A.win(); }
+  else if(winner === AI){ losses++; A.lose(); }
+  $('wins').textContent = wins;
+  $('losses').textContent = losses;
+  draw();
+  setTimeout(()=>{
+    if(winner === HUMAN){
+      $('oEmoji').textContent = '🏆';
+      $('oTitle').textContent = '你赢了';
+      $('oText').innerHTML = rand(L_YOU_WIN) + `<br>你 <b>${wins}</b> 胜 · 它 <b>${losses}</b> 胜`;
+    } else if(winner === AI){
+      $('oEmoji').textContent = '🥊';
+      $('oTitle').textContent = '杠精获胜';
+      $('oText').innerHTML = rand(L_AI_WIN) + `<br>你 <b>${wins}</b> 胜 · 它 <b>${losses}</b> 胜`;
+    } else {
+      $('oEmoji').textContent = '🤝';
+      $('oTitle').textContent = '平局';
+      $('oText').innerHTML = '棋盘满了。它还意犹未尽。';
+    }
+    say(winner === HUMAN ? '……' : (winner === AI ? '本回合，杠精获胜。' : '没下完，不算。'));
+    $('over').classList.add('show');
+  }, 420);
+}
+function undo(){
+  if(thinking || over || !hist.length) return;
+  // 往回撤到（并包括）自己最近的那一手，它后手跟的那步也一并收回
+  let popped = 0;
+  while(hist.length && popped < 4){
+    const h = hist.pop();
+    board[h.r][h.c] = EMPTY;
+    moves--; popped++;
+    if(h.role === humanSide) break;
+  }
+  cur = humanSide;
+  winLine = null;
+  lastMove = hist.length ? {r:hist[hist.length-1].r, c:hist[hist.length-1].c} : null;
+  say('悔棋？行，我当你没下过。');
+  A.resume(); A.place(HUMAN);
+  draw();
+}
+
+/* ---------- 台词 ---------- */
+function rand(a){ return a[(Math.random()*a.length)|0]; }
+function say(t){ $('line').textContent = t; }
+
+/* ---------- 绘制 ---------- */
+function resize(){
+  const avail = Math.min(window.innerWidth*0.94, window.innerHeight*0.60, 600);
+  const size = Math.max(280, Math.floor(avail));
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cvs.width = size*dpr; cvs.height = size*dpr;
+  cvs.style.width = size+'px'; cvs.style.height = size+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const pad = size*0.055;
+  const gap = (size - pad*2) / (N - 1);
+  geom = { size, pad, gap, rr: Math.min(gap*0.44, size*0.019) };
+  draw();
+}
+function xy(r, c){ return [geom.pad + c*geom.gap, geom.pad + r*geom.gap]; }
+function nearPoint(px, py){
+  const c = Math.round((px - geom.pad) / geom.gap);
+  const r = Math.round((py - geom.pad) / geom.gap);
+  if(!inside(r,c)) return null;
+  const [x, y] = xy(r, c);
+  if(Math.hypot(px-x, py-y) > geom.gap*0.62) return null;
+  return {r, c};
+}
+function draw(){
+  const size = geom.size || 400, g = geom;
+  ctx.clearRect(0,0,size,size);
+  const bg = ctx.createLinearGradient(0,0,size,size);
+  bg.addColorStop(0, '#1a1224'); bg.addColorStop(1, '#120c1a');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,size,size);
+
+  // 网格
+  ctx.strokeStyle = 'rgba(200,107,255,.20)'; ctx.lineWidth = 1;
+  for(let i=0;i<N;i++){
+    const p = g.pad + i*g.gap;
+    ctx.beginPath(); ctx.moveTo(g.pad, p); ctx.lineTo(g.pad + (N-1)*g.gap, p); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p, g.pad); ctx.lineTo(p, g.pad + (N-1)*g.gap); ctx.stroke();
+  }
+  // 星位
+  ctx.fillStyle = 'rgba(200,107,255,.45)';
+  for(const [r,c] of [[3,3],[3,11],[11,3],[11,11],[7,7]]){
+    const [x,y] = xy(r,c);
+    ctx.beginPath(); ctx.arc(x, y, Math.max(2, g.gap*0.09), 0, 7); ctx.fill();
+  }
+
+  // 悬停提示
+  if(hover && !over && cur === HUMAN && board[hover.r][hover.c] === EMPTY){
+    const [x,y] = xy(hover.r, hover.c);
+    ctx.strokeStyle = 'rgba(142,240,200,.6)'; ctx.lineWidth = 1.6;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.arc(x, y, g.rr*0.95, 0, 7); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // 棋子
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const v = board[r][c];
+    if(v === EMPTY) continue;
+    drawStone(r, c, v);
+  }
+
+  // 最后一手
+  if(lastMove){
+    const [x,y] = xy(lastMove.r, lastMove.c);
+    ctx.strokeStyle = board[lastMove.r][lastMove.c] === HUMAN ? 'rgba(142,240,200,.9)' : 'rgba(255,138,156,.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, g.rr*0.42, 0, 7); ctx.stroke();
+  }
+
+  // 连五高亮
+  if(winLine){
+    const a = xy(winLine[0].r, winLine[0].c);
+    const b = xy(winLine[winLine.length-1].r, winLine[winLine.length-1].c);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,211,110,.95)';
+    ctx.lineWidth = Math.max(3, g.gap*0.16);
+    ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(255,211,110,.9)'; ctx.shadowBlur = 16;
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    ctx.restore();
+  }
+
+  if(thinking){
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.font = `600 12px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('杠精思考中…', size/2, size - 8);
+  }
+}
+function drawStone(r, c, role){
+  const [x,y] = xy(r, c), rad = geom.rr;
+  ctx.save();
+  ctx.shadowColor = role === HUMAN ? 'rgba(142,240,200,.5)' : 'rgba(255,138,156,.5)';
+  ctx.shadowBlur = 9; ctx.shadowOffsetY = 2;
+  const g = ctx.createRadialGradient(x-rad*0.35, y-rad*0.4, rad*0.1, x, y, rad*1.15);
+  if(role === HUMAN){ g.addColorStop(0, '#d8fff0'); g.addColorStop(.45, '#7fe3bd'); g.addColorStop(1, '#25795a'); }
+  else { g.addColorStop(0, '#ffd9e2'); g.addColorStop(.45, '#ff8a9c'); g.addColorStop(1, '#9c2942'); }
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.stroke();
+}
+
+/* ---------- 交互 ---------- */
+cvs.addEventListener('pointermove', e=>{
+  const rect = cvs.getBoundingClientRect();
+  const px = (e.clientX - rect.left) / rect.width * geom.size;
+  const py = (e.clientY - rect.top) / rect.height * geom.size;
+  const p = nearPoint(px, py);
+  const changed = (!!p !== !!hover) || (p && hover && (p.r !== hover.r || p.c !== hover.c));
+  hover = p;
+  if(changed) draw();
+});
+cvs.addEventListener('pointerleave', ()=>{ hover = null; draw(); });
+cvs.addEventListener('pointerdown', e=>{
+  A.init(); A.resume();
+  const rect = cvs.getBoundingClientRect();
+  const px = (e.clientX - rect.left) / rect.width * geom.size;
+  const py = (e.clientY - rect.top) / rect.height * geom.size;
+  const p = nearPoint(px, py);
+  if(!p) return;
+  if(over) return;
+  if(cur !== HUMAN){ say('急什么，我还没下完呢。'); return; }
+  if(board[p.r][p.c] !== EMPTY){ say('那儿有子了，你眼神不好？'); return; }
+  humanPlay(p.r, p.c);
+});
+$('again').addEventListener('click', ()=>{ A.init(); A.resume(); newGame(true); });
+$('oAgain').addEventListener('click', ()=>{ A.init(); A.resume(); newGame(true); });
+$('undo').addEventListener('click', ()=>{ A.init(); A.resume(); undo(); });
+document.querySelectorAll('[data-diff]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    diff = b.dataset.diff;
+    document.querySelectorAll('[data-diff]').forEach(x=> x.classList.toggle('on', x === b));
+    $('diffLab').textContent = DIFF_LABEL[diff];
+    say(diff === 'easy' ? '行吧，我随便下下。' : diff === 'hard' ? '较真是吧？那我可不客气了。' : '正常下，不糊弄你。');
+  });
+});
+document.querySelectorAll('[data-side]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    humanSide = parseInt(b.dataset.side, 10);
+    document.querySelectorAll('[data-side]').forEach(x=> x.classList.toggle('on', x === b));
+    A.init(); A.resume(); newGame(true);
+  });
+});
+addEventListener('resize', resize);
+
+/* ---------- 启动 ---------- */
+(function boot(){
+  resize(); newGame(false);
+})();
+</script>
+</body>
+</html>
