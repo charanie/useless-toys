@@ -80,6 +80,37 @@
     20%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}
     75%{opacity:1;transform:translate(-50%,-50%) scale(1)}
     100%{opacity:0;transform:translate(-50%,-56%) scale(1)}}
+  /* 排行榜 / 提交 */
+  .saveRow{display:flex;gap:8px;justify-content:center;margin:0 0 12px;flex-wrap:wrap}
+  .saveRow input{font:inherit;font-size:14px;color:#ece7dd;background:rgba(255,255,255,.07);
+    border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:10px 14px;width:150px;outline:none;text-align:center}
+  .saveRow input:focus{border-color:rgba(142,240,200,.6)}
+  .saved-note{font-size:12.5px;color:#8ef0c8;min-height:18px;margin-bottom:14px;letter-spacing:.06em}
+  .actrow{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  .daily-note{margin-top:14px;font-size:11.5px;color:#7d7a86;letter-spacing:.06em;line-height:1.9}
+  .box.wide{width:min(540px,92vw);padding:30px 26px 24px}
+  .tabs{display:flex;gap:8px;justify-content:center;margin:4px 0 12px}
+  .tab{font-size:13px;padding:8px 18px;border-radius:999px;background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.13);color:#9b95a4}
+  .tab.on{background:linear-gradient(120deg,rgba(142,240,200,.28),rgba(121,198,255,.22));
+    border-color:rgba(142,240,200,.6);color:#dffff2}
+  .netline{font-size:11.5px;color:#7d7a86;letter-spacing:.06em;margin-bottom:10px;min-height:16px}
+  .lbList{max-height:42vh;overflow:auto;margin-bottom:16px;text-align:left}
+  .lbrow{display:grid;grid-template-columns:32px 1fr auto 54px;gap:10px;align-items:center;
+    padding:9px 12px;border-radius:10px;font-size:13.5px;border:1px solid transparent}
+  .lbrow:nth-child(odd){background:rgba(255,255,255,.035)}
+  .lbrow.me{background:linear-gradient(90deg,rgba(142,240,200,.22),rgba(200,107,255,.16));border-color:rgba(142,240,200,.5)}
+  .lbrow .rk{font:700 14px ui-monospace,Consolas,monospace;color:#7d7a86;text-align:center}
+  .lbrow:nth-child(1) .rk{color:#ffd36e}
+  .lbrow:nth-child(2) .rk{color:#cfd3d8}
+  .lbrow:nth-child(3) .rk{color:#d99a6c}
+  .lbrow .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lbrow .sc{font:700 14px ui-monospace,Consolas,monospace;color:#8ef0c8;text-align:right}
+  .lbrow .dt{font-size:11.5px;color:#7d7a86;text-align:right}
+  .lbList .empty{text-align:center;color:#7d7a86;font-size:13px;padding:24px 0}
+  .lbBtns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  .lbBtns button{font-size:12px;padding:8px 14px}
+
   @media (max-width:620px){ .title{display:none} .stat{min-width:66px;padding:6px 10px} .stat .v{font-size:17px} }
 </style>
 </head>
@@ -92,7 +123,7 @@
     <div class="stat sc"><div class="k">分 数</div><div class="v" id="uScore">0</div></div>
     <div class="stat tg"><div class="k">目 标</div><div class="v" id="uGoal">1000</div></div>
     <div class="stat mv"><div class="k">步 数</div><div class="v" id="uMoves">25</div></div>
-    <div class="stat lv"><div class="k">关 卡</div><div class="v" id="uLevel">1</div></div>
+    <div class="stat lv"><div class="k" id="uLevelK">关 卡</div><div class="v" id="uLevel">1</div></div>
   </div>
   <div class="best">最高分<b id="uBest">0</b></div>
   <div class="bar">
@@ -115,7 +146,10 @@
       <b>·</b> 连成 <b>5 个</b> → 生成 <b>🌈 彩虹</b>，清掉全场同色<br>
       <b>·</b> 连锁会翻倍加分，越连越爽
     </div>
-    <button class="primary" id="startBtn">开始</button>
+    <button class="primary" id="startBtn">开始游戏</button>
+    <button id="dailyBtn">🗓 每日挑战</button>
+    <button id="boardBtn">🏆 排行榜</button>
+    <div class="daily-note" id="dailyNote"></div>
   </div>
 </div>
 
@@ -128,15 +162,42 @@
   </div>
 </div>
 
-<div class="over" id="over">
+<div class="over" id="result">
   <div class="box">
-    <div class="em">🫠</div>
-    <h2>步数用完了</h2>
-    <p id="ovText"></p>
-    <button class="primary" id="ovBtn">再来一局</button>
+    <div class="em" id="rEmoji">🫠</div>
+    <h2 id="rTitle">步数用完了</h2>
+    <p id="rText"></p>
+    <div class="saveRow" id="rSaveRow">
+      <input id="rName" maxlength="12" placeholder="你的名字" autocomplete="off">
+      <button class="primary" id="rSave">记入排行榜</button>
+    </div>
+    <div class="saved-note" id="rSaved"></div>
+    <div class="actrow">
+      <button id="rBoard">🏆 看排行榜</button>
+      <button id="rAgain">再来一局</button>
+    </div>
   </div>
 </div>
 
+<div class="over" id="board">
+  <div class="box wide">
+    <h2>🏆 排行榜</h2>
+    <div class="tabs">
+      <button class="tab on" data-mode="normal">常规榜</button>
+      <button class="tab" data-mode="daily">今日挑战榜</button>
+    </div>
+    <div class="netline" id="netline"></div>
+    <div id="lbList" class="lbList"></div>
+    <div class="lbBtns">
+      <button id="lbClose">关闭</button>
+      <button id="lbExport">导出本机</button>
+      <button id="lbImport">导入</button>
+      <button id="lbClear">清空本机</button>
+    </div>
+  </div>
+</div>
+
+<script src="../config.js"></script>
 <script>
 "use strict";
 /* =========================================================
@@ -233,8 +294,18 @@ let best = 0; try{ best = Number(localStorage.getItem('ut_match3_best'))||0; }ca
 
 const key=(r,c)=>r*COLS+c;
 const inB=(r,c)=>r>=0&&r<ROWS&&c>=0&&c<COLS;
-const rndType=()=> (Math.random()*TYPES.length)|0;
+let rng = Math.random;
+const rndType = () => (rng()*TYPES.length)|0;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+/* ---------------- 每日挑战：所有人同一副牌 ---------------- */
+const DAILY_MOVES=30, DAILY_GOAL=4000;
+let mode='normal', dailySeed=0;
+function todayStr(){ const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function seedOf(s){ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619);} return h>>>0; }
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 
 /* ---------------- 建盘 ---------------- */
 function fillBoard(){
@@ -526,7 +597,7 @@ function shuffleBoard(loud){
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(grid[r][c]) all.push(grid[r][c]);
   let guard=0;
   do{
-    all.sort(()=>Math.random()-0.5);
+    for(let i=all.length-1;i>0;i--){ const j=(rng()*(i+1))|0; const tmp=all[i]; all[i]=all[j]; all[j]=tmp; }
     let i=0;
     for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
       const t=all[i++]; grid[r][c]=t; t.r=r; t.c=c;
@@ -544,18 +615,18 @@ function syncHUD(){
   $('uScore').textContent=score.toLocaleString('en-US');
   $('uGoal').textContent=goal.toLocaleString('en-US');
   $('uMoves').textContent=moves;
-  $('uLevel').textContent=level;
+  $('uLevel').textContent = mode==='daily' ? '每日' : level;
   $('uMoves').parentElement.classList.toggle('low', moves<=5);
-  if(score>best){ best=score; $('uBest').textContent=best.toLocaleString('en-US');
+  if(mode==='normal' && score>best){ best=score; $('uBest').textContent=best.toLocaleString('en-US');
     try{ localStorage.setItem('ut_match3_best', String(best)); }catch(e){} }
 }
 function checkState(){
-  if(moves<=0 && score<goal){
-    A.over();
-    $('ovText').innerHTML = `本局 <b>${score.toLocaleString('en-US')}</b> 分，差 <i>${(goal-score).toLocaleString('en-US')}</i> 分过关。<br>最高分 ${best.toLocaleString('en-US')}`;
-    $('over').classList.add('show');
+  if(mode==='daily'){
+    if(score>=goal){ A.levelup(); endGame(true); return; }
+    if(moves<=0){ A.over(); endGame(false); return; }
     return;
   }
+  if(moves<=0 && score<goal){ A.over(); endGame(false); return; }
   if(score>=goal){
     A.levelup();
     const left=moves*80;
@@ -566,6 +637,21 @@ function checkState(){
     syncHUD();
   }
 }
+function endGame(success){
+  const s=score;
+  $('rEmoji').textContent = success ? '🎉' : '🫠';
+  $('rTitle').textContent = mode==='daily'
+    ? (success ? '今日挑战完成！' : '今日挑战结束')
+    : '步数用完了';
+  $('rText').innerHTML = mode==='daily'
+    ? `今日得分 <b>${s.toLocaleString('en-US')}</b>　目标 <i>${DAILY_GOAL.toLocaleString('en-US')}</i><br>${todayStr()} · ${DAILY_MOVES} 步 · 人人同一副牌`
+    : `本局 <b>${s.toLocaleString('en-US')}</b> 分，差 <i>${Math.max(0,goal-s).toLocaleString('en-US')}</i> 分过关。<br>最高分 ${best.toLocaleString('en-US')}`;
+  pendingRec = { mode, score:s, lines:0, date: todayStr() };
+  $('rSaveRow').style.display = 'flex';
+  $('rSaved').textContent = '';
+  $('rName').value = lastName || '路人';
+  $('result').classList.add('show');
+}
 function nextLevel(){
   level++; goal=goal*2; moves=25;
   $('levelup').classList.remove('show');
@@ -575,6 +661,20 @@ function newBoard(keep){
   if(!keep){ score=0; level=1; goal=1000; moves=25; chainMax=0; }
   particles=[]; floats=[]; sel=null; selB=null; shake=0;
   fillBoard(); syncHUD();
+}
+function startGame(m){
+  mode = m;
+  if(m==='daily'){
+    dailySeed = seedOf('match3-daily-'+todayStr());
+    rng = mulberry32(dailySeed);
+    score=0; level=1; goal=DAILY_GOAL; moves=DAILY_MOVES; chainMax=0;
+  } else {
+    rng = Math.random;
+    score=0; level=1; goal=1000; moves=25; chainMax=0;
+  }
+  newBoard(true);
+  $('uLevelK').textContent = m==='daily' ? '模 式' : '关 卡';
+  syncHUD();
 }
 
 /* ---------------- 粒子 / 飘字 ---------------- */
@@ -748,28 +848,162 @@ function loop(now){
   shake=Math.max(0, shake - dt*3);
 
   // 提示：闲置 6 秒
-  if(!busy && !sel && !$('over').classList.contains('show') && !$('levelup').classList.contains('show')
-     && !$('start').classList.contains('show')){
+  if(!busy && !sel && !document.querySelector('.over.show')){
     if(now - idleAt > 6000){ if(!hint) hint=findHint(); }
   }
 
   draw(now);
 }
 
+/* ---------------- 本机榜 + 联网榜 ---------------- */
+let lastName=''; try{ lastName=localStorage.getItem('ut_match3_name')||''; }catch(e){}
+let pendingRec=null, curTab='normal';
+const lsKey = m => 'ut_match3_scores_'+m;
+function loadLocal(m){ try{ const a=JSON.parse(localStorage.getItem(lsKey(m))); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function saveLocalRec(rec){
+  const a=loadLocal(rec.mode);
+  a.push({id:'s'+Date.now()+Math.random().toString(36).slice(2,6), name:rec.name, score:rec.score, lines:rec.lines, date:rec.date});
+  a.sort((x,y)=>y.score-x.score);
+  if(a.length>20) a.length=20;
+  try{ localStorage.setItem(lsKey(rec.mode), JSON.stringify(a)); }catch(e){}
+}
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+const Net={
+  get base(){ return (window.SHOP_API||'').replace(/\/+$/,''); },
+  get on(){ return !!this.base; },
+  async submit(rec){
+    if(!this.base) return {online:false};
+    try{
+      const r=await fetch(this.base+'/scores',{
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(rec)});
+      const j=await r.json();
+      return j.ok ? {online:true, rank:j.rank, total:j.total} : {online:false};
+    }catch(e){ return {online:false}; }
+  },
+  async list(m){
+    if(!this.base) return null;
+    try{
+      const r=await fetch(this.base+'/scores?mode='+encodeURIComponent(m)+'&limit=20');
+      const j=await r.json();
+      return j.ok ? j.scores : null;
+    }catch(e){ return null; }
+  }
+};
+
+function lbRow(r,i){
+  const me = lastName && r.name===lastName;
+  return `<div class="lbrow ${me?'me':''}">`+
+    `<span class="rk">${i+1}</span>`+
+    `<span class="nm">${esc(r.name)}</span>`+
+    `<span class="sc">${(r.score||0).toLocaleString('en-US')}</span>`+
+    `<span class="dt">${((r.date||'').slice(5))||'—'}</span>`+
+  `</div>`;
+}
+async function renderBoard(m){
+  if(m) curTab=m;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on', t.dataset.mode===curTab));
+  const box=$('lbList');
+  box.innerHTML='<div class="empty">读取中…</div>';
+  const remote = await Net.list(curTab);
+  if(remote && remote.length){
+    $('netline').textContent = `🌐 联网榜 · ${curTab==='daily' ? ('今日 '+todayStr()) : '常规'} · 共 ${remote.length} 条`;
+    box.innerHTML = remote.map(lbRow).join('');
+  } else {
+    const local = loadLocal(curTab);
+    $('netline').textContent = Net.on
+      ? '⚠️ 联网榜暂时读不到，先看本机记录'
+      : '📴 未配置后端，下面是本机记录（部署方法见 server/README.md）';
+    box.innerHTML = local.length ? local.map(lbRow).join('') : '<div class="empty">还没有成绩。去打一局吧。</div>';
+  }
+}
+
 /* ---------------- 交互按钮 ---------------- */
-$('startBtn').addEventListener('click', ()=>{ A.init(); A.resume(); $('start').classList.remove('show'); newBoard(false); idleAt=performance.now(); });
+$('startBtn').addEventListener('click', ()=>{ A.init(); A.resume(); $('start').classList.remove('show'); startGame('normal'); idleAt=performance.now(); });
+$('dailyBtn').addEventListener('click', ()=>{ A.init(); A.resume(); $('start').classList.remove('show'); startGame('daily'); idleAt=performance.now(); });
+$('boardBtn').addEventListener('click', ()=>{ A.init(); A.resume(); boardFrom='start'; $('start').classList.remove('show'); renderBoard('normal'); $('board').classList.add('show'); });
 $('luNext').addEventListener('click', ()=>{ A.init(); A.resume(); nextLevel(); idleAt=performance.now(); });
-$('ovBtn').addEventListener('click', ()=>{ A.init(); A.resume(); $('over').classList.remove('show'); newBoard(false); idleAt=performance.now(); });
+
+$('rSave').addEventListener('click', async ()=>{
+  if(!pendingRec) return;
+  const name = ($('rName').value.trim() || '路人').slice(0,12);
+  lastName = name; try{ localStorage.setItem('ut_match3_name', name); }catch(e){}
+  const rec = Object.assign({}, pendingRec, {name});
+  saveLocalRec(rec);
+  $('rSaveRow').style.display='none';
+  $('rSaved').textContent = Net.on ? '正在上传…' : '已存在本机榜';
+  if(Net.on){
+    const r = await Net.submit(rec);
+    $('rSaved').textContent = r.online
+      ? ('已上榜' + (r.rank ? ('，当前第 '+r.rank+' 名') : ''))
+      : '网络不通，已存在本机榜';
+  }
+});
+$('rName').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); $('rSave').click(); } });
+$('rBoard').addEventListener('click', ()=>{
+  A.init(); A.resume();
+  boardFrom='result';
+  $('result').classList.remove('show');
+  renderBoard(pendingRec ? pendingRec.mode : 'normal');
+  $('board').classList.add('show');
+});
+$('rAgain').addEventListener('click', ()=>{
+  A.init(); A.resume();
+  $('result').classList.remove('show');
+  startGame(mode==='daily' ? 'daily' : 'normal');
+  idleAt=performance.now();
+});
 $('restart').addEventListener('click', ()=>{
   A.init(); A.resume();
-  $('over').classList.remove('show'); $('levelup').classList.remove('show'); $('start').classList.remove('show');
-  newBoard(false); idleAt=performance.now();
+  $('result').classList.remove('show'); $('levelup').classList.remove('show'); $('start').classList.remove('show');
+  startGame(mode);
+  idleAt=performance.now();
 });
 $('muteBtn').addEventListener('click', e=>{ A.init(); A.muted=!A.muted; e.target.textContent=A.muted?'🔇':'🔊'; });
+
+/* 排行榜面板 */
+let boardFrom=null;
+$('lbClose').addEventListener('click', ()=>{
+  $('board').classList.remove('show');
+  if(boardFrom==='result'){ $('result').classList.add('show'); }
+  else if(boardFrom==='start'){ $('start').classList.add('show'); }
+  boardFrom=null;
+});
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click', ()=>renderBoard(t.dataset.mode)));
+$('lbExport').addEventListener('click', async ()=>{
+  const btn=$('lbExport');
+  try{ await navigator.clipboard.writeText(JSON.stringify(loadLocal(curTab))); btn.textContent='已复制 ✓'; }
+  catch(e){ btn.textContent='复制失败'; }
+  setTimeout(()=>btn.textContent='导出本机', 1600);
+});
+$('lbImport').addEventListener('click', ()=>{
+  const t=prompt('粘贴别人导出的成绩 JSON：');
+  if(!t) return;
+  try{
+    const arr=JSON.parse(t);
+    if(!Array.isArray(arr)) throw new Error('bad');
+    const cur=loadLocal(curTab); const ids=new Set(cur.map(r=>r.id));
+    for(const r of arr){
+      if(!r || typeof r.score!=='number') continue;
+      const id=r.id||('i'+Date.now()+Math.random().toString(36).slice(2,6));
+      if(ids.has(id)) continue; ids.add(id);
+      cur.push({id, name:String(r.name||'路人').slice(0,12), score:r.score|0, lines:r.lines|0, date:String(r.date||'')});
+    }
+    cur.sort((a,b)=>b.score-a.score); if(cur.length>20) cur.length=20;
+    localStorage.setItem(lsKey(curTab), JSON.stringify(cur));
+    renderBoard();
+  }catch(e){ alert('这不是有效的成绩数据。'); }
+});
+$('lbClear').addEventListener('click', ()=>{
+  if(!confirm('清空本机榜？（联网榜不受影响）')) return;
+  try{ localStorage.removeItem(lsKey(curTab)); }catch(e){}
+  renderBoard();
+});
 
 /* ---------------- 启动 ---------------- */
 layout();
 $('uBest').textContent = best.toLocaleString('en-US');
+$('dailyNote').innerHTML = `今日 ${todayStr()} · ${DAILY_MOVES} 步 · 目标 ${DAILY_GOAL.toLocaleString('en-US')} 分<br>所有人玩同一副牌，比的是当天最高分`;
 fillBoard(); syncHUD();
 $('start').classList.add('show');
 requestAnimationFrame(loop);
