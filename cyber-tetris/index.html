@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>抽象俄罗斯方块 · ABSTRACT TETRIS</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;overflow:hidden;background:#0a0a0d}
+  body{
+    background-image:radial-gradient(900px 700px at 50% 40%, #171722 0%, #0a0a0d 72%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    color:#e9e6df;display:flex;align-items:center;justify-content:center;gap:22px;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+  .wrap{display:flex;gap:22px;align-items:flex-start;padding:16px}
+  .boardWrap{position:relative}
+  canvas#board{display:block;border-radius:12px;box-shadow:0 30px 70px rgba(0,0,0,.6);background:#0c0c12}
+  canvas#next{display:block;border-radius:10px;background:#0c0c12;margin-bottom:14px}
+
+  .panel{width:170px;display:flex;flex-direction:column;gap:14px;padding-top:4px}
+  .stat{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.11);border-radius:12px;padding:10px 14px}
+  .stat .k{font-size:10.5px;letter-spacing:.28em;color:#8f887c}
+  .stat .v{font:800 24px/1.15 ui-monospace,Consolas,monospace;margin-top:3px}
+  .stat .v.small{font-size:15px;font-weight:600;letter-spacing:.06em}
+  .hintbox{font-size:11px;line-height:1.9;color:#8f887c;letter-spacing:.04em}
+  kbd{font:inherit;font-size:10px;border:1px solid rgba(255,255,255,.18);border-radius:4px;padding:1px 5px;background:rgba(0,0,0,.3);margin-right:3px}
+
+  .pads{display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+  .pads button{
+    font:inherit;font-size:15px;color:#e9e6df;cursor:pointer;width:46px;height:42px;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:11px;transition:.12s;
+  }
+  .pads button:hover{background:rgba(95,216,255,.16);border-color:rgba(95,216,255,.5)}
+  .pads button:active{transform:scale(.94)}
+  .pads button.wide{width:auto;padding:0 14px;font-size:13px}
+
+  /* 消行时冒出来的"诗句" */
+  .poem{
+    position:fixed;left:50%;top:14%;transform:translate(-50%,-14px) scale(.95);
+    max-width:min(560px,88vw);z-index:20;pointer-events:none;
+    background:rgba(18,18,24,.96);border:1px solid rgba(255,255,255,.18);border-radius:14px;
+    padding:14px 20px;box-shadow:0 24px 60px rgba(0,0,0,.6);text-align:center;
+    opacity:0;transition:opacity .25s ease, transform .25s cubic-bezier(.2,1.3,.4,1);
+  }
+  .poem.show{opacity:1;transform:translate(-50%,0) scale(1)}
+  .poem .s{font-family:"Songti SC","SimSun",serif;font-size:19px;letter-spacing:.16em;line-height:1.7}
+  .poem .c{font-size:11.5px;color:#8f887c;margin-top:8px;letter-spacing:.1em}
+
+  .over{
+    position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;
+    background:rgba(8,8,12,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  }
+  .over.show{display:flex}
+  .over .box{text-align:center;padding:34px 40px;background:rgba(20,20,26,.95);border:1px solid rgba(255,255,255,.16);border-radius:18px}
+  .over h2{margin:0 0 6px;font-size:26px;letter-spacing:.14em}
+  .over p{margin:6px 0 20px;color:#8f887c;font-size:13px;letter-spacing:.08em}
+  .over button{font:inherit;font-size:14px;color:#e9e6df;cursor:pointer;padding:11px 26px;
+    background:linear-gradient(120deg,rgba(95,216,255,.25),rgba(200,107,255,.2));
+    border:1px solid rgba(95,216,255,.5);border-radius:999px;letter-spacing:.1em}
+  @media (max-width:720px){ .wrap{flex-direction:column;align-items:center;gap:12px} .panel{width:min(420px,92vw)} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="boardWrap"><canvas id="board"></canvas></div>
+  <div class="panel">
+    <canvas id="next" width="150" height="110"></canvas>
+    <div class="stat"><div class="k">分 数</div><div class="v" id="score">0</div></div>
+    <div class="stat"><div class="k">消 行</div><div class="v" id="lines">0</div></div>
+    <div class="stat"><div class="k">等 级</div><div class="v" id="level">1</div></div>
+    <div class="hintbox">
+      <kbd>←</kbd><kbd>→</kbd> 移动<br>
+      <kbd>↑</kbd> 旋转 &nbsp; <kbd>↓</kbd> 下落<br>
+      <kbd>空格</kbd> 直接落下<br>
+      <kbd>P</kbd> 暂停
+    </div>
+    <div class="pads">
+      <button data-k="left">←</button>
+      <button data-k="rot">⟳</button>
+      <button data-k="right">→</button>
+      <button data-k="down">↓</button>
+      <button data-k="drop" class="wide">落底</button>
+    </div>
+  </div>
+</div>
+<div class="poem" id="poem"><div class="s"></div><div class="c"></div></div>
+<div class="over" id="over">
+  <div class="box">
+    <h2>堆不下了</h2>
+    <p id="overSub">本局结束</p>
+    <button id="again">再来一局</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 抽象俄罗斯方块 ========= */
+const COLS=10, ROWS=20;
+const boardCv=document.getElementById('board'), bctx=boardCv.getContext('2d');
+const nextCv=document.getElementById('next'), nctx=nextCv.getContext('2d');
+const $=id=>document.getElementById(id);
+
+let CELL=28, W=0, H=0;
+function fit(){
+  const availH = Math.min(innerHeight-60, 720);
+  const availW = innerWidth < 720 ? innerWidth-60 : Math.min(innerWidth*0.42, 420);
+  CELL = Math.floor(Math.min(availH/ROWS, availW/COLS));
+  CELL = Math.max(16, Math.min(34, CELL));
+  W = CELL*COLS; H = CELL*ROWS;
+  const DPR = Math.min(devicePixelRatio||1,2);
+  boardCv.width = W*DPR; boardCv.height = H*DPR;
+  boardCv.style.width = W+'px'; boardCv.style.height = H+'px';
+  bctx.setTransform(DPR,0,0,DPR,0,0);
+}
+
+/* ---- 音效 ---- */
+const A={
+  ctx:null,muted:false,
+  init(){ if(this.ctx)return; const C=window.AudioContext||window.webkitAudioContext; if(C)this.ctx=new C(); },
+  resume(){ if(this.ctx&&this.ctx.state==='suspended')this.ctx.resume(); },
+  tone(f,d,type,vol){
+    if(this.muted||!this.ctx)return;
+    const c=this.ctx,t=c.currentTime;
+    const o=c.createOscillator(); o.type=type||'square'; o.frequency.setValueAtTime(f,t);
+    const g=c.createGain();
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol||0.05,t+0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+d+0.03);
+  },
+  move(){ this.tone(420,0.04,'square',0.03); },
+  rot(){ this.tone(680,0.05,'triangle',0.05); },
+  lock(){ this.tone(200,0.07,'sine',0.06); },
+  clear(n){
+    if(this.muted||!this.ctx)return;
+    const c=this.ctx,t=c.currentTime;
+    [0,1,2,3].slice(0,n).forEach((_,i)=>{
+      const o=c.createOscillator(); o.type='triangle';
+      o.frequency.value = 523.25*Math.pow(1.26,i);
+      const g=c.createGain(); const st=t+i*0.06;
+      g.gain.setValueAtTime(0.0001,st); g.gain.exponentialRampToValueAtTime(0.09,st+0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001,st+0.3);
+      o.connect(g).connect(c.destination); o.start(st); o.stop(st+0.32);
+    });
+  },
+  over(){ this.tone(160,0.5,'sawtooth',0.07); }
+};
+
+/* ---- 汉字池 ---- */
+const CHARS="的一是不了在人有我他风云山水月花雪夜灯酒梦归途行舟客愁喜悲春夏秋冬东南西北金银玉竹梅兰菊剑琴棋书画诗茶米盐酱醋锅碗手机加班摸鱼下班工资微信外卖地铁奶茶周末老板会议周五凌晨闹钟体检房租叹气深呼吸明天以后从前很久突然忽然好像大概应该可能也许差不多算了随便都行没关系的";
+const rc=()=>CHARS[(Math.random()*CHARS.length)|0];
+
+/* ---- 方块 ---- */
+const SHAPES={
+  I:[[1,1,1,1]],
+  O:[[1,1],[1,1]],
+  T:[[0,1,0],[1,1,1]],
+  S:[[0,1,1],[1,1,0]],
+  Z:[[1,1,0],[0,1,1]],
+  J:[[1,0,0],[1,1,1]],
+  L:[[0,0,1],[1,1,1]]
+};
+const COLORS={I:'#5fd8ff',O:'#ffd93d',T:'#c86bff',S:'#3fd06a',Z:'#ff6a45',J:'#4a7bff',L:'#ff9a3c'};
+const TYPES=Object.keys(SHAPES);
+function makePiece(type){
+  const base=SHAPES[type].map(row=>row.map(v=> v? rc() : ''));
+  return { m:base, color:COLORS[type], x:Math.floor((COLS-base[0].length)/2), y:0, type };
+}
+
+/* ---- 状态 ---- */
+let grid, cur, next, score=0, lines=0, level=1, dropAcc=0, dropInt=800, last=0, over=false, paused=false, combo=0;
+
+function blankGrid(){ return Array.from({length:ROWS},()=>Array(COLS).fill(null)); }
+function reset(){
+  grid=blankGrid(); score=0; lines=0; level=1; dropInt=800; dropAcc=0; over=false; paused=false; combo=0;
+  next=makePiece(TYPES[(Math.random()*TYPES.length)|0]);
+  spawn();
+  syncHUD(); $('over').classList.remove('show');
+}
+function spawn(){
+  cur = next;
+  next = makePiece(TYPES[(Math.random()*TYPES.length)|0]);
+  cur.x = Math.floor((COLS-cur.m[0].length)/2);
+  cur.y = 0;
+  if(collide(cur.m, cur.x, cur.y)){ gameOver(); }
+  drawNext();
+}
+function collide(m,px,py){
+  for(let r=0;r<m.length;r++)for(let c=0;c<m[r].length;c++){
+    if(!m[r][c]) continue;
+    const x=px+c, y=py+r;
+    if(x<0||x>=COLS||y>=ROWS) return true;
+    if(y>=0 && grid[y][x]) return true;
+  }
+  return false;
+}
+function rotateM(m){
+  const R=m.length, C=m[0].length;
+  const out=Array.from({length:C},()=>Array(R).fill(''));
+  for(let r=0;r<R;r++)for(let c=0;c<C;c++) out[c][R-1-r]=m[r][c];
+  return out;
+}
+function rot(){
+  if(over||paused) return;
+  const m=rotateM(cur.m);
+  for(const k of [0,-1,1,-2,2]){
+    if(!collide(m, cur.x+k, cur.y)){ cur.m=m; cur.x+=k; A.rot(); return; }
+  }
+}
+function move(dx){
+  if(over||paused) return;
+  if(!collide(cur.m, cur.x+dx, cur.y)){ cur.x+=dx; A.move(); }
+}
+function softDrop(){
+  if(over||paused) return;
+  if(!collide(cur.m, cur.x, cur.y+1)){ cur.y++; score+=1; syncHUD(); }
+  else lock();
+  dropAcc=0;
+}
+function hardDrop(){
+  if(over||paused) return;
+  let d=0;
+  while(!collide(cur.m, cur.x, cur.y+1)){ cur.y++; d++; }
+  score += d*2; lock();
+}
+function lock(){
+  for(let r=0;r<cur.m.length;r++)for(let c=0;c<cur.m[r].length;c++){
+    if(cur.m[r][c]){
+      const y=cur.y+r, x=cur.x+c;
+      if(y>=0) grid[y][x]={ch:cur.m[r][c], color:cur.color};
+    }
+  }
+  A.lock();
+  clearLines();
+  spawn();
+  syncHUD();
+}
+function clearLines(){
+  const cleared=[];
+  for(let r=ROWS-1;r>=0;r--){
+    if(grid[r].every(cell=>cell)) cleared.push(r);
+  }
+  if(!cleared.length){ combo=0; return; }
+  combo++;
+  // 读出这一行的字
+  const rows = cleared.slice().sort((a,b)=>a-b);
+  const sentences = rows.map(r => grid[r].map(c=>c.ch).join(''));
+  // 计分
+  const pts=[0,100,300,500,800][cleared.length]||1000;
+  score += pts*level + (combo>1 ? (combo-1)*50 : 0);
+  lines += cleared.length;
+  level = 1 + Math.floor(lines/10);
+  dropInt = Math.max(90, 800 - (level-1)*68);
+  A.clear(cleared.length);
+  showPoem(sentences);
+  // 删除
+  cleared.sort((a,b)=>a-b).forEach(r=>{ grid.splice(r,1); grid.unshift(Array(COLS).fill(null)); });
+}
+const COMMENTS=["经鉴定，这是一句废话。","本句已收录进《现代汉语废词典》。","作者想表达什么，只有他自己知道。","这就是当代诗。","读完这句，你损失了三秒。","建议抄在便利贴上贴工位。","很有道理，但没什么用。","这句可以发朋友圈。","已加入我的年度总结。"];
+function showPoem(sentences){
+  const el=$('poem');
+  el.querySelector('.s').textContent = sentences.join(' ／ ');
+  el.querySelector('.c').textContent = COMMENTS[(Math.random()*COMMENTS.length)|0];
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'), 2600);
+}
+
+/* ---- 绘制 ---- */
+function rr(x,y,w,h,r){ bctx.beginPath(); bctx.moveTo(x+r,y);
+  bctx.arcTo(x+w,y,x+w,y+h,r); bctx.arcTo(x+w,y+h,x,y+h,r);
+  bctx.arcTo(x,y+h,x,y,r); bctx.arcTo(x,y,x+w,y,r); bctx.closePath(); }
+
+function cellDraw(g,x,y,v,alpha){
+  const px=x*CELL, py=y*CELL, pad=1.5;
+  g.save(); g.globalAlpha=alpha==null?1:alpha;
+  rr(px+pad, py+pad, CELL-pad*2, CELL-pad*2, Math.max(3,CELL*0.16));
+  const grad=g.createLinearGradient(0,py,0,py+CELL);
+  grad.addColorStop(0, v.color); grad.addColorStop(1, shade(v.color,-0.32));
+  g.fillStyle=grad; g.fill();
+  g.strokeStyle='rgba(0,0,0,.35)'; g.lineWidth=1; g.stroke();
+  g.fillStyle='rgba(255,255,255,.95)';
+  g.font='700 '+Math.round(CELL*0.56)+'px "PingFang SC","Microsoft YaHei",sans-serif';
+  g.textAlign='center'; g.textBaseline='middle';
+  g.fillText(v.ch, px+CELL/2, py+CELL/2+1);
+  g.restore();
+}
+function shade(hex,amt){
+  const n=parseInt(hex.slice(1),16);
+  let r=(n>>16)&255, gg=(n>>8)&255, b=n&255;
+  r=Math.max(0,Math.min(255,r+r*amt)); gg=Math.max(0,Math.min(255,gg+gg*amt)); b=Math.max(0,Math.min(255,b+b*amt));
+  return '#'+((1<<24)+(Math.round(r)<<16)+(Math.round(gg)<<8)+Math.round(b)).toString(16).slice(1);
+}
+function draw(){
+  bctx.clearRect(0,0,W,H);
+  // 底格
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    bctx.strokeStyle='rgba(255,255,255,.035)'; bctx.lineWidth=1;
+    bctx.strokeRect(c*CELL+0.5, r*CELL+0.5, CELL-1, CELL-1);
+  }
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++) if(grid[r][c]) cellDraw(bctx,c,r,grid[r][c]);
+
+  if(cur&&!over){
+    // 落点预览
+    let gy=cur.y; while(!collide(cur.m,cur.x,gy+1)) gy++;
+    for(let r=0;r<cur.m.length;r++)for(let c=0;c<cur.m[r].length;c++){
+      if(cur.m[r][c]) cellDraw(bctx, cur.x+c, gy+r, {ch:cur.m[r][c],color:cur.color}, 0.16);
+    }
+    for(let r=0;r<cur.m.length;r++)for(let c=0;c<cur.m[r].length;c++){
+      if(cur.m[r][c]) cellDraw(bctx, cur.x+c, cur.y+r, {ch:cur.m[r][c],color:cur.color});
+    }
+  }
+  if(paused && !over){
+    bctx.fillStyle='rgba(8,8,12,.7)'; bctx.fillRect(0,0,W,H);
+    bctx.fillStyle='#e9e6df'; bctx.font='700 22px "PingFang SC",sans-serif';
+    bctx.textAlign='center'; bctx.textBaseline='middle';
+    bctx.fillText('已暂停', W/2, H/2);
+  }
+}
+function drawNext(){
+  nctx.clearRect(0,0,nextCv.width,nextCv.height);
+  const m=next.m, cs=22;
+  const w=m[0].length*cs, h=m.length*cs;
+  const ox=(nextCv.width-w)/2, oy=(nextCv.height-h)/2;
+  nctx.textAlign='center'; nctx.textBaseline='middle';
+  for(let r=0;r<m.length;r++)for(let c=0;c<m[r].length;c++){
+    if(!m[r][c]) continue;
+    const x=ox+c*cs, y=oy+r*cs;
+    nctx.beginPath();
+    const rad=4;
+    nctx.moveTo(x+rad,y); nctx.arcTo(x+cs,y,x+cs,y+cs,rad); nctx.arcTo(x+cs,y+cs,x,y+cs,rad);
+    nctx.arcTo(x,y+cs,x,y,rad); nctx.arcTo(x,y,x+cs,y,rad); nctx.closePath();
+    const grad=nctx.createLinearGradient(0,y,0,y+cs);
+    grad.addColorStop(0,next.color); grad.addColorStop(1,shade(next.color,-0.32));
+    nctx.fillStyle=grad; nctx.fill();
+    nctx.fillStyle='rgba(255,255,255,.95)';
+    nctx.font='700 13px "PingFang SC",sans-serif';
+    nctx.fillText(m[r][c], x+cs/2, y+cs/2+1);
+  }
+}
+function syncHUD(){ $('score').textContent=score; $('lines').textContent=lines; $('level').textContent=level; }
+function gameOver(){
+  over=true; A.over();
+  $('overSub').textContent = `分数 ${score} · 消行 ${lines} · 等级 ${level}`;
+  $('over').classList.add('show');
+}
+
+/* ---- 主循环 ---- */
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt = Math.min(60, now-last); last=now;
+  if(!over && !paused){
+    dropAcc += dt;
+    if(dropAcc >= dropInt){ dropAcc=0; if(!collide(cur.m,cur.x,cur.y+1)) cur.y++; else lock(); }
+  }
+  draw();
+}
+
+/* ---- 输入 ---- */
+addEventListener('keydown', e=>{
+  A.init(); A.resume();
+  if(e.key==='ArrowLeft'){ e.preventDefault(); move(-1); }
+  else if(e.key==='ArrowRight'){ e.preventDefault(); move(1); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); rot(); }
+  else if(e.key==='ArrowDown'){ e.preventDefault(); softDrop(); }
+  else if(e.code==='Space'){ e.preventDefault(); hardDrop(); }
+  else if(e.key==='p'||e.key==='P'){ paused=!paused; }
+});
+document.querySelectorAll('.pads button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    A.init(); A.resume();
+    const k=b.dataset.k;
+    if(k==='left') move(-1);
+    else if(k==='right') move(1);
+    else if(k==='rot') rot();
+    else if(k==='down') softDrop();
+    else if(k==='drop') hardDrop();
+  });
+});
+$('again').addEventListener('click', ()=>{ A.init(); A.resume(); reset(); });
+
+/* ---- 启动 ---- */
+fit(); addEventListener('resize', ()=>{ fit(); }); reset(); last=performance.now();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

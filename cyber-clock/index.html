@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>摸鱼时钟 · SLACK CLOCK</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{min-height:100%;margin:0;background:#08090c}
+  body{
+    background-image:radial-gradient(1000px 700px at 50% 0%, #16202a 0%, #08090c 66%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    color:#dfe6ea;display:flex;align-items:center;justify-content:center;padding:26px;min-height:100vh;
+    -webkit-user-select:none;user-select:none;
+  }
+  .card{
+    width:min(560px,100%);background:rgba(18,20,24,.72);
+    border:1px solid rgba(255,255,255,.11);border-radius:22px;padding:28px 26px 24px;
+    box-shadow:0 40px 90px rgba(0,0,0,.65);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  }
+  .top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
+  .top .lab{font-size:11px;letter-spacing:.4em;color:#7d8a93}
+  .top .date{font-size:12px;color:#7d8a93;letter-spacing:.16em}
+
+  .clock{
+    font:800 clamp(46px,12vw,72px)/1 ui-monospace,Consolas,"Courier New",monospace;
+    letter-spacing:.06em;color:#7ff0c4;
+    text-shadow:0 0 34px rgba(127,240,196,.42), 0 0 4px rgba(127,240,196,.6);
+    font-variant-numeric:tabular-nums;margin:10px 0 2px;
+  }
+  .clock.after{color:#ffd06a;text-shadow:0 0 34px rgba(255,208,106,.45)}
+  .clock.before{color:#7db8ff;text-shadow:0 0 34px rgba(125,184,255,.4)}
+
+  .cd{font-size:15px;letter-spacing:.1em;color:#aab6bd;margin-top:10px}
+  .cd b{color:#fff;font:700 19px ui-monospace,Consolas,monospace;letter-spacing:.04em}
+
+  .barwrap{margin:20px 0 6px}
+  .bar{height:12px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden;position:relative}
+  .bar i{display:block;height:100%;width:0;border-radius:99px;
+    background:linear-gradient(90deg,#7ff0c4,#5fd8ff);transition:width .6s ease;
+    box-shadow:0 0 16px rgba(127,240,196,.5)}
+  .bar .tick{position:absolute;top:-3px;bottom:-3px;width:2px;background:rgba(255,255,255,.35);border-radius:2px}
+  .barlabels{display:flex;justify-content:space-between;font-size:11px;color:#7d8a93;margin-top:7px;letter-spacing:.1em}
+
+  .rows{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px}
+  .box{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:13px;padding:13px 15px}
+  .box .k{font-size:10.5px;letter-spacing:.26em;color:#7d8a93}
+  .box .v{font:700 20px/1.3 ui-monospace,Consolas,monospace;margin-top:5px;letter-spacing:.03em}
+  .box .v small{font-size:12px;color:#8f9aa1;font-weight:400;font-family:inherit;letter-spacing:.06em}
+
+  .quote{
+    margin-top:20px;font-size:13.5px;line-height:1.85;color:#b9c3c9;
+    border-left:2px solid rgba(127,240,196,.5);padding-left:14px;min-height:52px;
+    transition:opacity .5s ease;
+  }
+  .quote.fade{opacity:0}
+
+  .bar2{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;align-items:center}
+  button{
+    font:inherit;font-size:13px;color:#dfe6ea;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:9px 16px;letter-spacing:.06em;transition:.15s;
+  }
+  button:hover{background:rgba(127,240,196,.15);border-color:rgba(127,240,196,.5);color:#a9ffe0}
+  button.on{background:rgba(255,106,69,.2);border-color:rgba(255,106,69,.6);color:#ffb59a}
+  button.mini{padding:6px 12px;font-size:12px}
+  .spacer{flex:1}
+  .off{font-size:12px;color:#7d8a93;letter-spacing:.08em}
+  .celebrate{
+    position:fixed;inset:0;pointer-events:none;z-index:9;opacity:0;transition:opacity .4s;
+    background:radial-gradient(circle at 50% 60%, rgba(255,208,106,.22), transparent 60%);
+  }
+  .celebrate.go{opacity:1}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="top">
+    <span class="lab">SLACK CLOCK · 摸 鱼 时 钟</span>
+    <span class="date" id="date">—</span>
+  </div>
+
+  <div class="clock" id="clock">--:--:--</div>
+  <div class="cd" id="cd">距离下班 <b>--:--:--</b></div>
+
+  <div class="barwrap">
+    <div class="bar"><i id="fill"></i><span class="tick" id="nowTick" style="left:0"></span></div>
+    <div class="barlabels"><span id="startLab">09:00 上班</span><span id="endLab">18:00 下班</span></div>
+  </div>
+
+  <div class="rows">
+    <div class="box"><div class="k">距 离 周 末</div><div class="v" id="weekend">--</div></div>
+    <div class="box"><div class="k">今 日 摸 鱼</div><div class="v" id="slack">0 <small>分钟</small></div></div>
+  </div>
+
+  <div class="quote" id="quote">正在加载今日份的自我安慰…</div>
+
+  <div class="bar2">
+    <button id="slackBtn">开始摸鱼</button>
+    <span class="off" id="offLabel">下班时间 18:00</span>
+    <span class="spacer"></span>
+    <button class="mini" id="minus">−15min</button>
+    <button class="mini" id="plus">+15min</button>
+  </div>
+</div>
+<div class="celebrate" id="celebrate"></div>
+
+<script>
+"use strict";
+/* ========= 摸鱼时钟 ========= */
+const $=id=>document.getElementById(id);
+const LS = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+const KEY_OFF='ut_clock_off', KEY_SLACK='ut_clock_slack';
+let offMin = LS.get(KEY_OFF, 18*60);      // 下班时间（分钟）
+let workMin = 9*60;                        // 上班时间
+let slackOn = false, slackAccum = LS.get(KEY_SLACK, {date:'', sec:0});
+let quotes = [
+  "摸鱼不是偷懒，是给大脑留一点呼吸的缝隙。",
+  "你不是在摸鱼，你是在等一个更好的时机。",
+  "工作会做完的，摸鱼不会。",
+  "今天也是元气满满地……算了。",
+  "工资买的是你的时间，不是你的人生。",
+  "别急着干活，先看看别人干了没。",
+  "当你觉得在摸鱼时，其实你在保存实力。",
+  "效率的尽头，是准时下班。",
+  "你摸的不是鱼，是对生活的掌控感。",
+  "再坚持一下，就快下班了（并不快）。"
+];
+let qi = Math.floor(Math.random()*quotes.length);
+
+const pad=n=>String(n).padStart(2,'0');
+const fmt = s => { s=Math.max(0,Math.floor(s)); return pad(Math.floor(s/3600))+':'+pad(Math.floor(s%3600/60))+':'+pad(s%60); };
+const fmtShort = s => { s=Math.max(0,Math.floor(s)); const d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60);
+  return d>0 ? (d+' 天 '+h+' 小时') : (h>0 ? (h+' 小时 '+m+' 分') : (m+' 分钟')); };
+
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
+
+function tick(){
+  const now=new Date();
+  const secs = now.getHours()*3600 + now.getMinutes()*60 + now.getSeconds();
+  const offS = offMin*60, workS = workMin*60;
+
+  // 时钟
+  $('clock').textContent = pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
+  const weeks=['日','一','二','三','四','五','六'];
+  $('date').textContent = `${now.getMonth()+1} 月 ${now.getDate()} 日 · 周${weeks[now.getDay()]}`;
+
+  // 倒计时 / 进度
+  const cl=$('clock');
+  cl.classList.remove('after','before');
+  if(secs < workS){
+    const d = workS-secs;
+    cl.classList.add('before');
+    $('cd').innerHTML = `还没上班 · 距离上班 <b>${fmt(d)}</b>`;
+  } else if(secs < offS){
+    const d = offS-secs;
+    $('cd').innerHTML = `距离下班 <b>${fmt(d)}</b>`;
+  } else {
+    cl.classList.add('after');
+    $('cd').innerHTML = `已下班 · 今日加班 <b>${fmt(secs-offS)}</b>`;
+    $('celebrate').classList.add('go');
+  }
+  const p = Math.max(0, Math.min(1, (secs-workS)/(offS-workS)));
+  $('fill').style.width = (p*100).toFixed(2)+'%';
+  $('nowTick').style.left = (p*100).toFixed(2)+'%';
+  $('startLab').textContent = pad(Math.floor(workMin/60))+':'+pad(workMin%60)+' 上班';
+  $('endLab').textContent = pad(Math.floor(offMin/60))+':'+pad(offMin%60)+' 下班';
+  $('offLabel').textContent = '下班时间 '+pad(Math.floor(offMin/60))+':'+pad(offMin%60);
+
+  // 距离周末（到周五 18:00）
+  const day=now.getDay();
+  let target=new Date(now);
+  const friday = 5;
+  if(day===5 && secs < offS){}
+  else { let add=(friday-day+7)%7; if(add===0) add=7; target.setDate(now.getDate()+add); }
+  target.setHours(Math.floor(offMin/60), offMin%60, 0, 0);
+  let left = (target - now)/1000;
+  const isWeekend = (day===0 || day===6) || (day===5 && secs>=offS);
+  $('weekend').textContent = isWeekend ? '周 末 了 🎉' : fmtShort(left);
+
+  // 摸鱼
+  maintainSlack();
+  $('slack').innerHTML = Math.floor(slackAccum.sec/60)+' <small>分钟</small>';
+}
+
+let lastSec = Math.floor(Date.now()/1000);
+function maintainSlack(){
+  const t = todayStr();
+  if(slackAccum.date !== t){ slackAccum = {date:t, sec:0}; LS.set(KEY_SLACK, slackAccum); }
+  const sec = Math.floor(Date.now()/1000);
+  if(sec !== lastSec){
+    if(slackOn) slackAccum.sec += (sec-lastSec);
+    lastSec = sec;
+    if(slackOn) LS.set(KEY_SLACK, slackAccum);
+  }
+}
+
+/* ---- 语录轮播 ---- */
+setInterval(()=>{
+  const q=$('quote');
+  q.classList.add('fade');
+  setTimeout(()=>{ qi=(qi+1)%quotes.length; q.textContent=quotes[qi]; q.classList.remove('fade'); }, 500);
+}, 8000);
+$('quote').textContent = quotes[qi];
+
+/* ---- 按钮 ---- */
+$('slackBtn').addEventListener('click', ()=>{
+  slackOn = !slackOn;
+  $('slackBtn').textContent = slackOn ? '结束摸鱼（正在摸）' : '开始摸鱼';
+  $('slackBtn').classList.toggle('on', slackOn);
+});
+$('minus').addEventListener('click', ()=>{ offMin = Math.max(workMin+30, offMin-15); LS.set(KEY_OFF, offMin); });
+$('plus').addEventListener('click', ()=>{ offMin = Math.min(23*60+45, offMin+15); LS.set(KEY_OFF, offMin); });
+
+/* ---- 启动 ---- */
+tick();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>

@@ -132,6 +132,35 @@
   .tmp-nit i.b{left:0;top:40px;width:88px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);animation:sl 2.4s ease-in-out .5s infinite}
   @keyframes sl{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
 
+  /* 俄罗斯方块 */
+  .tmp-tet{display:grid;grid-template-columns:repeat(6,15px);gap:2px}
+  .tmp-tet i{width:15px;height:15px;border-radius:3px;background:#1b1b22;animation:tdrop 2.6s ease-in-out infinite}
+  .tmp-tet i:nth-child(3n){background:#5fd8ff}
+  .tmp-tet i:nth-child(4n){background:#c86bff}
+  .tmp-tet i:nth-child(5n){background:#ffd93d}
+  .tmp-tet i:nth-child(7n){background:#3fd06a;animation-delay:.3s}
+  .tmp-tet i:nth-child(11n){background:#ff6a45;animation-delay:.6s}
+  @keyframes tdrop{0%,100%{opacity:.3}50%{opacity:1}}
+  /* 摸鱼时钟 */
+  .tmp-clock{text-align:center}
+  .tmp-clock .d{font:800 24px ui-monospace,Consolas,monospace;color:#7ff0c4;letter-spacing:.08em;
+    text-shadow:0 0 18px rgba(127,240,196,.5)}
+  .tmp-clock .b{margin:10px auto 0;width:112px;height:8px;border-radius:9px;background:rgba(255,255,255,.08);overflow:hidden}
+  .tmp-clock .b i{display:block;height:100%;border-radius:9px;background:linear-gradient(90deg,#7ff0c4,#5fd8ff);
+    animation:workday 6s ease-in-out infinite}
+  @keyframes workday{0%{width:6%}60%{width:92%}70%{width:92%}100%{width:6%}}
+  /* 点赞 */
+  .tmp-like{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:30px;
+    background:radial-gradient(circle at 34% 28%,#3a2a44,#1a1420 72%);border:1px solid rgba(255,255,255,.14);
+    animation:lpulse 1.6s ease-out infinite}
+  @keyframes lpulse{0%{box-shadow:0 0 0 0 rgba(255,106,69,.5)}100%{box-shadow:0 0 0 18px rgba(255,106,69,0)}}
+  /* 命运 */
+  .tmp-dest{position:relative;width:72px;height:72px}
+  .tmp-dest .c{position:absolute;inset:7px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 34% 28%,#4a2f5e,#1a1226 72%);font-size:19px;color:#fff;letter-spacing:.06em}
+  .tmp-dest .r{position:absolute;inset:0;border-radius:50%;border:2px dashed rgba(200,107,255,.5);animation:dspin 7s linear infinite}
+  @keyframes dspin{to{transform:rotate(360deg)}}
+
   footer{margin-top:56px;text-align:center;color:var(--dim);font-size:12px;letter-spacing:.18em;line-height:2}
   footer b{color:#ff9a72;font-weight:600}
   footer .sep{opacity:.4;margin:0 10px}
@@ -140,9 +169,9 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="kicker">Useless Toys · 8 件</div>
+    <div class="kicker">Useless Toys · 12 件</div>
     <h1>抽 象 玩 具 铺</h1>
-    <p>八件毫无用途、但停不下来的小东西</p>
+    <p>十二件毫无用途、但停不下来的小东西</p>
     <div class="warn">⚠ 本铺所有商品均无任何用途，打开即视为自愿</div>
   </header>
 
@@ -207,6 +236,38 @@
       <h2>杠精生成器</h2>
       <p>你说一句正常的话，它抬一句。你越是讲道理，它越有角度。抬满五轮它会宣布：本回合，杠精获胜。</p>
       <div class="tags"><span class="tag">对话</span><span class="tag">会升级</span><span class="tag">别较真</span></div>
+    </a>
+  </div>
+
+  <div class="shelf"><span class="label"><b>VOL.3</b> · 继续加货</span><span class="rule"></span></div>
+  <div class="grid">
+    <a class="card" href="cyber-tetris/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-tet"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+      <h2>抽象俄罗斯方块</h2>
+      <p>方块上全是汉字。消掉一行，就把那一行的字从左到右读成一句话，并给出鉴定意见。玩着玩着就开始读诗了。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">自动读诗</span><span class="tag">键盘/触屏</span></div>
+    </a>
+    <a class="card" href="cyber-clock/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-clock"><div class="d">17:42:09</div><div class="b"><i></i></div></div></div>
+      <h2>摸鱼时钟</h2>
+      <p>一个挂在屏幕上的桌面摆件：当前时间、距离下班倒计时、工作进度条、距离周末、以及一个会自动计时的「摸鱼计时器」。</p>
+      <div class="tags"><span class="tag">下班倒计时</span><span class="tag">摸鱼计时</span><span class="tag">桌面摆件</span></div>
+    </a>
+    <a class="card" href="cyber-like/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-like">👍</div></div>
+      <h2>点赞按钮</h2>
+      <p>一个会记住你的按钮。点得越多它越大、越花、称号越高，从「路过的」一路点到「摸鱼界的神」。存在本机，关掉再开它还记得。</p>
+      <div class="tags"><span class="tag">会记住你</span><span class="tag">会升级</span><span class="tag">有音效</span></div>
+    </a>
+    <a class="card" href="cyber-destiny/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-dest"><div class="r"></div><div class="c">命运</div></div></div>
+      <h2>命运按钮</h2>
+      <p>只有一个按钮。按下去，随机发生一件事——可能是字符雨、世界倒转、全屏彩虹、按钮分裂，也可能只是一句忠告。</p>
+      <div class="tags"><span class="tag">盲盒</span><span class="tag">12 种事件</span><span class="tag">全屏</span></div>
     </a>
   </div>
 
