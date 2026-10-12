@@ -283,7 +283,7 @@ const DEP_STAT = ['登机中','已取消','延误','正在起飞','备降他处'
 const DEP_TIME = ['∞','看老板','待定','梦里','未定','实时','随缘','下辈子','待补充'];
 
 function boardDepartures(){
-  const rows = ['目的地        状态        时间'];
+  const rows = [pad('目的地', 8) + pad('状态', 10) + '时间'];
   const used = new Set();
   for(let i=0;i<ROWS-1;i++){
     let d; let guard=0;

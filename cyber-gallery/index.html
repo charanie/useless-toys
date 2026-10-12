@@ -18,7 +18,7 @@
     font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
     display:flex;justify-content:center;padding:34px 20px 60px;min-height:100vh;
   }
-  .wrap{display:flex;gap:44px;align-items:flex-start;flex-wrap:wrap;justify-content:center;max-width:1080px}
+  .wrap{display:flex;gap:44px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:1080px}
 
   /* 画 */
   .stage{position:relative}
@@ -350,10 +350,10 @@ const VERDICT = [
   {t:"待考证", c:"v-meh"}
 ];
 function money(){
-  const base = rint(8, 980) * 1000 + rint(0,999);
-  const unit = Math.random()<0.22 ? 1e8 : 1e4;
-  const v = Math.round(base * (unit/1e4) * rnd(0.7,3.2));
-  return '¥ ' + v.toLocaleString('en-US');
+  if(Math.random() < 0.25){
+    return '¥ ' + Math.round(rnd(0.6, 9.9) * 1e8).toLocaleString('en-US');
+  }
+  return '¥ ' + (rint(8, 980) * 10000 + rint(0,9) * 1000).toLocaleString('en-US');
 }
 
 function generate(silent){
