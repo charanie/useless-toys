@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>赛博电台 · CYBER RADIO</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{min-height:100%;margin:0;background:#07070a}
+  body{
+    background-image:radial-gradient(900px 640px at 50% 12%, #1d1710 0%, #07070a 66%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#e9e6df;
+    display:flex;align-items:center;justify-content:center;padding:26px;min-height:100vh;
+    -webkit-user-select:none;user-select:none;
+  }
+  .radio{
+    width:min(560px,100%);border-radius:22px;padding:20px;
+    background:linear-gradient(170deg,#4a3524,#2a1d12 60%,#1b1209);
+    border:1px solid rgba(255,255,255,.09);
+    box-shadow:0 40px 90px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.12);
+  }
+  .top{display:flex;gap:16px;margin-bottom:16px}
+  .grille{
+    flex:0 0 118px;border-radius:12px;background:linear-gradient(180deg,#241a11,#160f08);
+    border:1px solid rgba(0,0,0,.6);box-shadow:inset 0 0 30px rgba(0,0,0,.7);
+    background-image:radial-gradient(circle, rgba(255,190,120,.20) 1.2px, transparent 1.6px);
+    background-size:9px 9px;background-position:4px 4px;
+  }
+  .panel{
+    flex:1;min-width:0;border-radius:12px;padding:14px 16px;
+    background:linear-gradient(180deg,#100c07,#0a0805);
+    border:1px solid rgba(0,0,0,.7);box-shadow:inset 0 0 40px rgba(255,180,90,.10), inset 0 2px 12px rgba(0,0,0,.8);
+    position:relative;overflow:hidden;
+  }
+  .panel::after{content:'';position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0 1px, transparent 1px 3px)}
+  .band{font-size:10px;letter-spacing:.4em;color:#8a6a3e}
+  .freq{font:800 clamp(34px,8vw,46px)/1 ui-monospace,Consolas,monospace;color:#ffb04c;
+    text-shadow:0 0 26px rgba(255,176,76,.45);font-variant-numeric:tabular-nums;margin:6px 0 4px}
+  .freq small{font-size:13px;font-weight:600;color:#8a6a3e;margin-left:6px;letter-spacing:.1em}
+  .freq.off{color:#5a4a34;text-shadow:none}
+  .stname{font-size:14.5px;letter-spacing:.1em;color:#ffe0b0;min-height:20px}
+  .prog{font-size:11.5px;color:#9d8563;letter-spacing:.06em;margin-top:5px;min-height:17px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  .dial{
+    position:relative;height:44px;border-radius:11px;cursor:pointer;touch-action:none;
+    background:linear-gradient(180deg,#160f08,#0e0904);border:1px solid rgba(0,0,0,.7);
+    box-shadow:inset 0 2px 10px rgba(0,0,0,.8);overflow:hidden;margin-bottom:6px;
+  }
+  .ticks{position:absolute;inset:0;display:flex;justify-content:space-between;padding:0 8px;align-items:flex-end}
+  .ticks i{display:block;width:1px;height:10px;background:rgba(255,190,120,.22)}
+  .ticks i.big{height:17px;background:rgba(255,190,120,.45)}
+  .needle{
+    position:absolute;top:0;bottom:0;width:3px;border-radius:3px;
+    background:linear-gradient(180deg,#ffd18a,#ff8a3c);
+    box-shadow:0 0 16px rgba(255,150,60,.85);transition:left .08s linear
+  }
+  .scale{display:flex;justify-content:space-between;font-size:10px;color:#8a6a3e;letter-spacing:.14em;margin-bottom:16px;padding:0 4px}
+
+  .row{display:flex;gap:9px;align-items:center;flex-wrap:wrap;justify-content:center}
+  button{
+    font:inherit;font-size:12.5px;color:#f0e2cd;cursor:pointer;
+    background:linear-gradient(180deg,#5a4128,#38271a);border:1px solid rgba(255,255,255,.12);
+    border-radius:9px;padding:9px 15px;letter-spacing:.08em;transition:.12s;
+    box-shadow:0 3px 0 rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.14);
+  }
+  button:hover{filter:brightness(1.12)}
+  button:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.14)}
+  button.on{background:linear-gradient(180deg,#a8621f,#7a4413);border-color:rgba(255,190,120,.5);color:#ffe9c8}
+  .vol{font-size:11.5px;color:#c9a97e;letter-spacing:.1em;min-width:70px;text-align:center}
+  .foot{margin-top:16px;text-align:center;font-size:11px;color:#8a6a3e;letter-spacing:.16em}
+  .foot b{color:#ffb04c}
+</style>
+</head>
+<body>
+<div class="radio">
+  <div class="top">
+    <div class="grille"></div>
+    <div class="panel">
+      <div class="band">FM STEREO</div>
+      <div class="freq off" id="freq">--.-<small>MHz</small></div>
+      <div class="stname" id="stname">未调谐</div>
+      <div class="prog" id="prog">— 沙沙沙沙沙 —</div>
+    </div>
+  </div>
+
+  <div class="dial" id="dial">
+    <div class="ticks" id="ticks"></div>
+    <div class="needle" id="needle" style="left:0%"></div>
+  </div>
+  <div class="scale"><span>66.0</span><span>78.0</span><span>88.0</span><span>98.0</span><span>108.0</span></div>
+
+  <div class="row">
+    <button id="power">电源</button>
+    <button id="scan">自动寻台</button>
+    <button id="volDown">−</button>
+    <span class="vol" id="volLab">音量 60</span>
+    <button id="volUp">＋</button>
+    <button id="next">下一台</button>
+  </div>
+  <div class="foot">本台所有节目均无实际内容 · 声音是现场算出来的</div>
+</div>
+
+<script>
+"use strict";
+/* ========= 赛博电台 ========= */
+const $=id=>document.getElementById(id);
+const FMIN=66, FMAX=108;
+let freq=87.5, power=false, vol=0.6, tuned=null, progIdx=0;
+
+const STATIONS=[
+  {f:66.6, name:'另一个维度', tag:'你不太确定它是不是在播音', root:45, scale:[0,3,5,7,10], bpm:58, wave:'sine',     dens:0.30, prog:['《走廊尽头》','《无人接听》','《凌晨四点的回声》']},
+  {f:78.4, name:'地心电台',   tag:'声音是从很深的地方传上来的', root:38, scale:[0,2,3,7,8],  bpm:48, wave:'triangle', dens:0.28, prog:['《岩层慢摇》','《地下三层》','《把心埋起来》']},
+  {f:87.5, name:'摸鱼之声',   tag:'本台由上班族友情赞助',       root:53, scale:[0,2,4,7,9],  bpm:74, wave:'sine',     dens:0.50, prog:['《上午十点的困》','《厕所里的五分钟》','《摸鱼进行曲》']},
+  {f:92.3, name:'深夜加班台', tag:'陪你把这一版改完',           root:48, scale:[0,3,5,8,10], bpm:56, wave:'triangle', dens:0.42, prog:['《改到第七版》','《再改最后一次》','《需求又变了》']},
+  {f:101.7,name:'早八叫醒台', tag:'专治起不来',                 root:55, scale:[0,2,4,7,9],  bpm:108,wave:'square',   dens:0.70, prog:['《起床进行曲》','《第七个闹钟》','《你要迟到了》']},
+  {f:104.3,name:'电梯音乐台', tag:'永远播不完的背景音',         root:52, scale:[0,4,7,11,14],bpm:82, wave:'sine',     dens:0.55, prog:['《上升中》','《请不要倚靠》','《到了，请下》']},
+  {f:108.0,name:'抽象电台',   tag:'本台没有节目单',             root:47, scale:[0,1,3,6,8,11],bpm:92, wave:'sawtooth', dens:0.58, prog:['《？？？》','《信号丢失》','《你也听不懂》']}
+];
+const NEAR=0.75;
+
+/* ---- 音频引擎 ---- */
+const A={
+  ctx:null, master:null, noiseBuf:null,
+  staticSrc:null, staticGain:null,
+  step:0, timer:null, vol:0.6,
+  init(){
+    if(this.ctx) return;
+    const C=window.AudioContext||window.webkitAudioContext; if(!C) return;
+    const c=this.ctx=new C();
+    this.master=c.createGain(); this.master.gain.value=0.0;
+    // 空间感
+    const dly=c.createDelay(1.0); dly.delayTime.value=0.28;
+    const fb=c.createGain(); fb.gain.value=0.3;
+    const wet=c.createGain(); wet.gain.value=0.28;
+    this.master.connect(c.destination);
+    this.master.connect(dly); dly.connect(fb); fb.connect(dly); dly.connect(wet); wet.connect(c.destination);
+    // 噪声
+    const len=Math.floor(c.sampleRate*2);
+    const b=c.createBuffer(1,len,c.sampleRate); const d=b.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    this.noiseBuf=b;
+    // 沙沙声通道
+    const s=c.createBufferSource(); s.buffer=b; s.loop=true;
+    const bp=c.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1600; bp.Q.value=0.6;
+    const ng=c.createGain(); ng.gain.value=0;
+    s.connect(bp).connect(ng).connect(c.destination); s.start();
+    this.staticSrc=s; this.staticGain=ng;
+  },
+  resume(){ if(this.ctx&&this.ctx.state==='suspended') this.ctx.resume(); },
+  setMaster(v){ if(this.master) this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.15); },
+  setStatic(v){ if(this.staticGain) this.staticGain.gain.setTargetAtTime(v, this.ctx.currentTime, 0.12); },
+  midi(n){ return 440*Math.pow(2,(n-69)/12); },
+  voice(freq, dur, wave, gain, bright){
+    if(!this.ctx) return;
+    const c=this.ctx, t=c.currentTime;
+    const o=c.createOscillator(); o.type=wave; o.frequency.value=freq;
+    const lp=c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=bright||2400; lp.Q.value=0.6;
+    const g=c.createGain();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(gain, t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(lp).connect(g).connect(this.master);
+    o.start(t); o.stop(t+dur+0.05);
+  },
+  hat(gain){
+    if(!this.ctx) return;
+    const c=this.ctx,t=c.currentTime;
+    const s=c.createBufferSource(); s.buffer=this.noiseBuf;
+    const hp=c.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=6000;
+    const g=c.createGain();
+    g.gain.setValueAtTime(gain,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.05);
+    s.connect(hp).connect(g).connect(this.master); s.start(t); s.stop(t+0.07);
+  },
+  startSeq(st){
+    this.stopSeq();
+    this.step=0;
+    const ms = 30000/st.bpm;   // 八分音符
+    let walk=2;
+    this.timer=setInterval(()=>{
+      if(!power || !tuned || document.hidden) return;
+      const s=this.step++;
+      // 旋律
+      if(Math.random()<st.dens){
+        walk += [-1,1,1,-1,2,-2][(Math.random()*6)|0];
+        walk = Math.max(0, Math.min(st.scale.length*2-1, walk));
+        const oct=Math.floor(walk/st.scale.length), deg=walk%st.scale.length;
+        const n=st.root + st.scale[deg] + oct*12;
+        this.voice(this.midi(n), 0.5+Math.random()*0.7, st.wave, 0.09+Math.random()*0.05, 2600);
+      }
+      // 低音
+      if(s%4===0) this.voice(this.midi(st.root-12), 0.9, 'sine', 0.11, 700);
+      // 打点
+      if(s%2===0 && st.bpm>70) this.hat(0.028);
+    }, ms);
+  },
+  stopSeq(){ if(this.timer){ clearInterval(this.timer); this.timer=null; } }
+};
+
+/* ---- 调谐 ---- */
+function nearest(f){
+  let best=null, bd=99;
+  for(const s of STATIONS){ const d=Math.abs(s.f-f); if(d<bd){ bd=d; best=s; } }
+  return bd<=NEAR ? best : null;
+}
+function setFreq(f){
+  freq = Math.max(FMIN, Math.min(FMAX, f));
+  $('needle').style.left = ((freq-FMIN)/(FMAX-FMIN)*100)+'%';
+  const st = nearest(freq);
+  const changed = st!==tuned;
+  tuned = st;
+  $('freq').classList.toggle('off', !power);
+  $('freq').innerHTML = freq.toFixed(1) + '<small>MHz</small>';
+  if(!power){ $('stname').textContent='未调谐'; $('prog').textContent='— 未开机 —'; return; }
+  if(st){
+    $('stname').textContent = st.name + ' · ' + st.tag;
+    $('prog').textContent = '正在播出：' + st.prog[progIdx%st.prog.length];
+    if(changed){
+      A.setStatic(0.02); A.setMaster(vol);
+      A.startSeq(st);
+    }
+  } else {
+    $('stname').textContent = '未调谐';
+    $('prog').textContent = '— 沙沙沙沙沙 —';
+    if(changed){ A.stopSeq(); A.setStatic(0.10); A.setMaster(0); }
+  }
+}
+
+/* ---- 交互 ---- */
+const dial=$('dial');
+let dragging=false;
+function dialX(clientX){
+  const r=dial.getBoundingClientRect();
+  const k=Math.max(0,Math.min(1,(clientX-r.left)/r.width));
+  setFreq(FMIN + k*(FMAX-FMIN));
+}
+dial.addEventListener('pointerdown', e=>{ A.init(); A.resume(); dragging=true; dial.setPointerCapture?.(e.pointerId); dialX(e.clientX); });
+dial.addEventListener('pointermove', e=>{ if(dragging) dialX(e.clientX); });
+addEventListener('pointerup', ()=>dragging=false);
+addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft'){ e.preventDefault(); A.init(); A.resume(); setFreq(freq-0.4); }
+  if(e.key==='ArrowRight'){ e.preventDefault(); A.init(); A.resume(); setFreq(freq+0.4); }
+});
+$('power').addEventListener('click', e=>{
+  A.init(); A.resume();
+  power=!power;
+  e.target.classList.toggle('on', power);
+  $('freq').classList.toggle('off', !power);
+  if(power){ setFreq(freq); }
+  else { A.stopSeq(); A.setStatic(0); A.setMaster(0); $('stname').textContent='未调谐'; $('prog').textContent='— 未开机 —'; }
+});
+let scanT=null;
+$('scan').addEventListener('click', ()=>{
+  A.init(); A.resume();
+  if(!power){ $('power').click(); }
+  clearInterval(scanT);
+  let dir=1;
+  scanT=setInterval(()=>{
+    let f=freq + dir*0.28;
+    if(f>=FMAX){ f=FMAX; dir=-1; }
+    if(f<=FMIN){ f=FMIN; dir=1; }
+    setFreq(f);
+    if(tuned){ clearInterval(scanT); }
+  }, 70);
+});
+$('next').addEventListener('click', ()=>{
+  A.init(); A.resume();
+  if(!power) $('power').click();
+  const idx = STATIONS.findIndex(s=>s===tuned);
+  const nx = STATIONS[(idx+1+STATIONS.length)%STATIONS.length];
+  // 逐步逼近，制造调台过程
+  const start=freq, end=nx.f, t0=performance.now();
+  (function hop(){
+    const k=Math.min(1,(performance.now()-t0)/520);
+    setFreq(start + (end-start)*(1-Math.pow(1-k,3)));
+    if(k<1) requestAnimationFrame(hop);
+  })();
+});
+$('volDown').addEventListener('click', ()=>{ A.init(); A.resume(); vol=Math.max(0, vol-0.1); $('volLab').textContent='音量 '+Math.round(vol*100); if(tuned) A.setMaster(vol); });
+$('volUp').addEventListener('click', ()=>{ A.init(); A.resume(); vol=Math.min(1, vol+0.1); $('volLab').textContent='音量 '+Math.round(vol*100); if(tuned) A.setMaster(vol); });
+
+/* 刻度 */
+(function(){
+  const box=$('ticks');
+  for(let i=0;i<=42;i++){
+    const s=document.createElement('i');
+    if(i%7===0) s.className='big';
+    box.appendChild(s);
+  }
+})();
+
+/* 节目轮播 */
+setInterval(()=>{
+  progIdx++;
+  if(tuned && power) $('prog').textContent='正在播出：'+tuned.prog[progIdx%tuned.prog.length];
+}, 12000);
+
+/* ---- 启动 ---- */
+$('freq').innerHTML='--.-<small>MHz</small>';
+</script>
+</body>
+</html>

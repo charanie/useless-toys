@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>无限下坠 · ENDLESS FALL</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;overflow:hidden;background:#05060a}
+  body{font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#dfe6ee;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  #c{position:fixed;inset:0;display:block;touch-action:none}
+  .ui{position:fixed;inset:0;pointer-events:none;z-index:2}
+  .hud{position:absolute;top:24px;left:28px;line-height:1.35}
+  .hud .m{font:800 40px/1 ui-monospace,Consolas,monospace;color:#8fd9ff;font-variant-numeric:tabular-nums;
+    text-shadow:0 0 30px rgba(143,217,255,.4)}
+  .hud .k{font-size:11px;letter-spacing:.36em;color:#61707f;margin-top:6px}
+  .hud .b{margin-top:14px;font-size:13px;letter-spacing:.14em;color:#9fb1c0}
+  .hud .b b{color:#ffd36e}
+  .bar{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);display:flex;gap:10px;pointer-events:auto}
+  button{font:inherit;font-size:13px;color:#dfe6ee;cursor:pointer;background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:9px 18px;letter-spacing:.08em;transition:.15s;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  button:hover{background:rgba(143,217,255,.16);border-color:rgba(143,217,255,.5);color:#bfe9ff}
+  .hint{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);font-size:11.5px;color:#61707f;letter-spacing:.18em;white-space:nowrap;transition:opacity .6s}
+  .hint.hide{opacity:0}
+  .flash{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);font-size:clamp(22px,4.4vw,38px);
+    font-weight:800;letter-spacing:.3em;color:#ffd36e;text-shadow:0 0 40px rgba(255,211,110,.5);
+    opacity:0;transition:opacity .4s}
+  .flash.show{opacity:1}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="ui">
+  <div class="hud">
+    <div class="m" id="meters">0</div>
+    <div class="k">已 下 坠 （米）</div>
+    <div class="b">当前 <b id="floor">B1</b> · <span id="fname">财务部</span></div>
+  </div>
+  <div class="flash" id="flash"></div>
+  <div class="hint" id="hint">左右移动鼠标（或按 ← →）控制下坠姿态</div>
+  <div class="bar">
+    <button id="pause">⏸ 暂停下坠</button>
+    <button id="muteBtn">🔊</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 无限下坠 · 电梯井 ========= */
+const cvs=document.getElementById('c'), ctx=cvs.getContext('2d');
+const $=id=>document.getElementById(id);
+let W=0,H=0,DPR=1;
+
+function resize(){
+  DPR=Math.min(devicePixelRatio||1,2);
+  W=innerWidth; H=innerHeight;
+  cvs.width=W*DPR|0; cvs.height=H*DPR|0;
+  cvs.style.width=W+'px'; cvs.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  shaft.l = Math.max(60, W*0.17);
+  shaft.r = Math.min(W-60, W*0.83);
+  player.x = Math.min(Math.max(player.x, shaft.l+28), shaft.r-28);
+}
+const shaft={l:0,r:0};
+addEventListener('resize', resize);
+
+/* ---- 音效：风噪 + 偶发回声 ---- */
+const A={
+  ctx:null,muted:false,noise:null,wind:null,windGain:null,
+  init(){
+    if(this.ctx) return;
+    const C=window.AudioContext||window.webkitAudioContext; if(!C) return;
+    this.ctx=new C();
+    const len=Math.floor(this.ctx.sampleRate*2);
+    const b=this.ctx.createBuffer(1,len,this.ctx.sampleRate); const d=b.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    this.noise=b;
+    // 持续风声
+    const s=this.ctx.createBufferSource(); s.buffer=b; s.loop=true;
+    const lp=this.ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=420; lp.Q.value=0.7;
+    const g=this.ctx.createGain(); g.gain.value=0;
+    s.connect(lp).connect(g).connect(this.ctx.destination); s.start();
+    this.wind=g;
+  },
+  resume(){ if(this.ctx&&this.ctx.state==='suspended')this.ctx.resume(); },
+  windLevel(v){ if(!this.ctx||!this.wind) return; this.wind.gain.setTargetAtTime(this.muted?0:v, this.ctx.currentTime, 0.4); },
+  ping(){
+    if(this.muted||!this.ctx) return;
+    const c=this.ctx,t=c.currentTime;
+    [523,784].forEach((f,i)=>{
+      const o=c.createOscillator(); o.type='sine'; o.frequency.value=f;
+      const g=c.createGain(); const st=t+i*0.12;
+      g.gain.setValueAtTime(0.0001,st); g.gain.exponentialRampToValueAtTime(0.08,st+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,st+1.4);
+      o.connect(g).connect(c.destination); o.start(st); o.stop(st+1.5);
+    });
+  }
+};
+
+/* ---- 楼层 ---- */
+const NAMES=["财务部","会议室","加班区","摸鱼层","茶水间","工位海","数据仓库","需求黑洞","复盘室",
+  "团建大厅","绩效考核室","汇报现场","Excel 深渊","进度条底部","已读不回层","天花板以下","地心停车场",
+  "另一个世界","无人认领的工位","凌晨三点的群聊"];
+const ITEMS=["☕","🍜","⌨️","📎","🧱","📱","🍊","🧋","🪑","📄"];
+const SPACING=210;
+
+const floors=[];
+const items=[];
+const streaks=[];
+const floats=[];
+const player={x:0, targetX:0};
+let depth=0, speed=340, paused=false, nextMilestone=500, floorNo=0, curFloor=1;
+
+function makeFloor(y){
+  floorNo++;
+  return { y, n:floorNo, name:NAMES[(floorNo-1)%NAMES.length] };
+}
+function reset(){
+  floors.length=0; items.length=0; streaks.length=0; floats.length=0;
+  depth=0; speed=340; nextMilestone=500; floorNo=0;
+  let y=H*0.5;
+  for(let i=0;i<Math.ceil(H/SPACING)+3;i++) floors.push(makeFloor(y + i*SPACING));
+  for(let i=0;i<80;i++) streaks.push({x:0,y:Math.random()*H,v:0,len:0});
+  player.x=(shaft.l+shaft.r)/2; player.targetX=player.x;
+}
+
+/* ---- 输入 ---- */
+let keyL=false, keyR=false;
+addEventListener('pointermove', e=>{ player.targetX=e.clientX; $('hint').classList.add('hide'); });
+addEventListener('pointerdown', e=>{ player.targetX=e.clientX; $('hint').classList.add('hide'); A.init(); A.resume(); });
+addEventListener('keydown', e=>{
+  A.init(); A.resume();
+  if(e.key==='ArrowLeft'||e.key==='a'){ keyL=true; e.preventDefault(); }
+  if(e.key==='ArrowRight'||e.key==='d'){ keyR=true; e.preventDefault(); }
+  if(e.code==='Space'){ e.preventDefault(); togglePause(); }
+});
+addEventListener('keyup', e=>{
+  if(e.key==='ArrowLeft'||e.key==='a') keyL=false;
+  if(e.key==='ArrowRight'||e.key==='d') keyR=false;
+});
+function togglePause(){ paused=!paused; $('pause').textContent = paused?'▶ 继续下坠':'⏸ 暂停下坠'; A.windLevel(paused?0:0.06); }
+$('pause').addEventListener('click', ()=>{ A.init(); A.resume(); togglePause(); });
+$('muteBtn').addEventListener('click', e=>{ A.init(); A.muted=!A.muted; e.target.textContent=A.muted?'🔇':'🔊'; A.windLevel(A.muted||paused?0:0.06); });
+setTimeout(()=>$('hint').classList.add('hide'), 11000);
+
+/* ---- 主循环 ---- */
+let last=performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  let dt=Math.min(0.05,(now-last)/1000); last=now;
+  if(paused) dt=0;
+
+  // 速度随深度增加
+  speed = Math.min(1500, 340 + depth*0.45);
+  depth += speed*dt/10;
+
+  // 玩家横向
+  if(keyL) player.targetX -= 900*dt;
+  if(keyR) player.targetX += 900*dt;
+  player.targetX=Math.min(Math.max(player.targetX, shaft.l+26), shaft.r-26);
+  player.x += (player.targetX - player.x) * Math.min(1, 9*dt);
+
+  // 楼层滚动
+  for(const f of floors) f.y -= speed*dt;
+  while(floors.length && floors[0].y < -120) floors.shift();
+  let maxY = floors.length ? Math.max(...floors.map(f=>f.y)) : H;
+  while(maxY < H+SPACING) { maxY += SPACING; floors.push(makeFloor(maxY)); }
+
+  // 当前楼层
+  const nearest = floors.reduce((a,f)=> (Math.abs(f.y - H*0.34) < Math.abs(a.y - H*0.34) ? f : a), floors[0]);
+  if(nearest && nearest.n!==curFloor){
+    curFloor=nearest.n;
+    $('floor').textContent='B'+curFloor;
+    $('fname').textContent=nearest.name;
+  }
+
+  // 掉落物
+  if(Math.random() < dt*1.4 && items.length<10){
+    items.push({x:shaft.l+40+Math.random()*(shaft.r-shaft.l-80), y:H+40,
+      vy:speed*(1.3+Math.random()*0.5), ch:ITEMS[(Math.random()*ITEMS.length)|0], r:(Math.random()-0.5)*2, spin:0});
+  }
+  for(let i=items.length-1;i>=0;i--){
+    const it=items[i];
+    it.y -= it.vy*dt; it.spin += dt*3;
+    if(it.y < -60) items.splice(i,1);
+  }
+
+  // 速度线
+  for(const s of streaks){ s.y -= speed*dt*1.5; if(s.y<-60){ s.y=H+Math.random()*80; } }
+
+  // 里程碑
+  if(depth >= nextMilestone){
+    const m=nextMilestone; nextMilestone += 500;
+    floats.push({t:0, life:2.4, n:m});
+    A.ping();
+    showFlash('已下坠 '+m+' 米');
+  }
+  for(let i=floats.length-1;i>=0;i--){ floats[i].t+=dt; if(floats[i].t>=floats[i].life) floats.splice(i,1); }
+
+  $('meters').textContent = Math.floor(depth);
+
+  draw();
+}
+function showFlash(t){
+  const f=$('flash'); f.textContent=t;
+  f.classList.add('show'); clearTimeout(f._t); f._t=setTimeout(()=>f.classList.remove('show'), 1600);
+}
+
+/* ---- 绘制 ---- */
+function rr(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+function draw(){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#0a0d14'); g.addColorStop(1,'#05060a');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+  // 井壁
+  const wg=ctx.createLinearGradient(0,0,shaft.l,0);
+  wg.addColorStop(0,'#0e1119'); wg.addColorStop(1,'#1a2030');
+  ctx.fillStyle=wg; ctx.fillRect(0,0,shaft.l,H);
+  const wg2=ctx.createLinearGradient(W,0,shaft.r,0);
+  wg2.addColorStop(0,'#0e1119'); wg2.addColorStop(1,'#1a2030');
+  ctx.fillStyle=wg2; ctx.fillRect(shaft.r,0,W-shaft.r,H);
+
+  // 速度线
+  ctx.save(); ctx.globalAlpha=0.16;
+  for(const s of streaks){
+    const x=shaft.l+((s.y*37)%(shaft.r-shaft.l));
+    ctx.strokeStyle='#8fd9ff'; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.moveTo(x, s.y); ctx.lineTo(x, s.y+46); ctx.stroke();
+  }
+  ctx.restore();
+
+  // 楼层
+  for(const f of floors){
+    const y=f.y;
+    if(y<-60||y>H+60) continue;
+    // 一层的光
+    const lg=ctx.createLinearGradient(0,y-46,0,y+6);
+    lg.addColorStop(0,'rgba(143,217,255,0)'); lg.addColorStop(1,'rgba(143,217,255,.10)');
+    ctx.fillStyle=lg; ctx.fillRect(shaft.l, y-46, shaft.r-shaft.l, 52);
+    // 楼板
+    ctx.fillStyle='rgba(160,190,220,.35)';
+    ctx.fillRect(shaft.l, y, shaft.r-shaft.l, 2.5);
+    ctx.fillStyle='rgba(160,190,220,.55)';
+    ctx.fillRect(shaft.l, y, 34, 3);
+    ctx.fillRect(shaft.r-34, y, 34, 3);
+    // 标牌
+    ctx.save();
+    ctx.fillStyle='rgba(10,14,20,.85)'; rr(shaft.l+6, y-30, 158, 25, 6); ctx.fill();
+    ctx.strokeStyle='rgba(143,217,255,.35)'; ctx.lineWidth=1; ctx.stroke();
+    ctx.fillStyle='#8fd9ff'; ctx.font='700 12px ui-monospace,Consolas,monospace';
+    ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillText('B'+f.n, shaft.l+14, y-17);
+    ctx.fillStyle='#9fb1c0'; ctx.font='600 12px "PingFang SC",sans-serif';
+    ctx.fillText(f.name, shaft.l+46, y-17);
+    ctx.restore();
+  }
+
+  // 掉落物
+  for(const it of items){
+    ctx.save(); ctx.translate(it.x, it.y); ctx.rotate(it.spin*it.r);
+    ctx.font='30px "PingFang SC",sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.globalAlpha=.9; ctx.fillText(it.ch, 0, 0); ctx.restore();
+  }
+
+  // 玩家
+  drawPlayer();
+
+  // 里程碑飘字
+  for(const f of floats){
+    const k=1-f.t/f.life;
+    ctx.save();
+    ctx.globalAlpha=Math.min(1,k*2);
+    ctx.textAlign='center'; ctx.font='800 30px "PingFang SC",sans-serif';
+    ctx.fillStyle='#ffd36e'; ctx.shadowColor='rgba(255,211,110,.6)'; ctx.shadowBlur=26;
+    ctx.fillText(f.n+' 米', (shaft.l+shaft.r)/2, H*0.62 - (1-k)*60);
+    ctx.restore();
+  }
+
+  // 暗角
+  const vg=ctx.createRadialGradient(W/2,H*0.42,Math.min(W,H)*0.25, W/2,H*0.42, Math.max(W,H)*0.8);
+  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,.72)');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+}
+
+function drawPlayer(){
+  const x=player.x, y=H*0.34;
+  const t=performance.now()/1000;
+  ctx.save();
+  // 光晕
+  const gl=ctx.createRadialGradient(x,y,4,x,y,90);
+  gl.addColorStop(0,'rgba(143,217,255,.30)'); gl.addColorStop(1,'transparent');
+  ctx.fillStyle=gl; ctx.beginPath(); ctx.arc(x,y,90,0,7); ctx.fill();
+
+  // 围巾（向上飘）
+  ctx.strokeStyle='#ff6a45'; ctx.lineWidth=7; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x-6,y-18);
+  ctx.quadraticCurveTo(x-16+Math.sin(t*4)*8, y-52, x-2+Math.sin(t*4+1)*14, y-84);
+  ctx.stroke();
+
+  // 身体
+  ctx.fillStyle='#2f4a6b';
+  rr(x-14, y-14, 28, 40, 12); ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.lineWidth=2; ctx.stroke();
+  // 头
+  ctx.fillStyle='#f0d9b8';
+  ctx.beginPath(); ctx.arc(x, y-26, 15, 0, 7); ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.lineWidth=2; ctx.stroke();
+  // 头发
+  ctx.fillStyle='#26262e';
+  ctx.beginPath(); ctx.arc(x, y-29, 15, Math.PI*1.03, Math.PI*1.97); ctx.fill();
+  // 眼睛（往下看）
+  ctx.fillStyle='#1a1a20';
+  ctx.beginPath(); ctx.arc(x-5, y-24, 2.1, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(x+5, y-24, 2.1, 0, 7); ctx.fill();
+  // 手脚
+  ctx.strokeStyle='#f0d9b8'; ctx.lineWidth=6; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x-12,y+2); ctx.lineTo(x-20+Math.sin(t*6)*4, y-16); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x+12,y+2); ctx.lineTo(x+20+Math.sin(t*6+1)*4, y-16); ctx.stroke();
+  ctx.restore();
+}
+
+/* ---- 启动 ---- */
+resize(); reset();
+addEventListener('pointerdown', ()=>{ A.init(); A.resume(); }, {once:true});
+setInterval(()=>A.windLevel((paused||A.muted)?0:0.05), 700);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

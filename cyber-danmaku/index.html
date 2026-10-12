@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>抽象弹幕墙 · DANMAKU WALL</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;overflow:hidden;background:#07070b}
+  body{
+    background-image:radial-gradient(1000px 700px at 50% 40%, #151222 0%, #07070b 72%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#e9e6df;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+  #c{position:fixed;inset:0;display:block}
+  .ui{position:fixed;inset:0;pointer-events:none;z-index:2}
+  header{position:absolute;top:24px;left:0;right:0;text-align:center}
+  header h1{margin:0;font-size:clamp(17px,2.6vw,24px);letter-spacing:.4em;font-weight:800;
+    background:linear-gradient(94deg,#8ef0c8,#79c6ff 50%,#ff8ab0);-webkit-background-clip:text;background-clip:text;color:transparent}
+  header p{margin:7px 0 0;font-size:11px;color:#6f7a86;letter-spacing:.26em}
+  .bar{
+    position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:10px;
+    align-items:center;padding:0 14px;pointer-events:auto;width:min(680px,94vw);
+  }
+  input{
+    flex:1;min-width:0;font:inherit;font-size:14.5px;color:#e9e6df;background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.15);border-radius:999px;padding:12px 20px;outline:none;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  }
+  input:focus{border-color:rgba(142,240,200,.6)}
+  input::placeholder{color:#6b6660}
+  button{
+    font:inherit;font-size:13.5px;color:#e9e6df;cursor:pointer;white-space:nowrap;
+    background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);
+    border-radius:999px;padding:12px 20px;letter-spacing:.08em;transition:.15s;
+  }
+  button:hover{background:rgba(142,240,200,.18);border-color:rgba(142,240,200,.5);color:#b8ffe6}
+  .send{background:linear-gradient(120deg,rgba(142,240,200,.3),rgba(121,198,255,.25));border-color:rgba(142,240,200,.55)}
+  .meta{position:absolute;left:26px;bottom:26px;font-size:11.5px;color:#6f7a86;letter-spacing:.14em}
+  .meta b{color:#8ef0c8;font-size:14px}
+  .hint{position:absolute;left:50%;bottom:78px;transform:translateX(-50%);font-size:11.5px;color:#6f7a86;letter-spacing:.1em;white-space:nowrap;transition:opacity .6s}
+  .hint.hide{opacity:0}
+  @media (max-width:560px){ header h1{font-size:16px;letter-spacing:.24em} .meta{display:none} }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="ui">
+  <header>
+    <h1>抽 象 弹 幕 墙</h1>
+    <p>你打的每一个字，都会飞过去</p>
+  </header>
+  <div class="meta">弹幕 <b id="cnt">0</b> 条</div>
+  <div class="hint" id="hint">在下面打字，回车发送 →</div>
+  <div class="bar">
+    <input id="msg" maxlength="40" placeholder="说点什么，让它飞过去…" autocomplete="off">
+    <button class="send" id="send">发送</button>
+    <button id="muteBtn">🔊</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 抽象弹幕墙 ========= */
+const cvs=document.getElementById('c'), ctx=cvs.getContext('2d');
+const $=id=>document.getElementById(id);
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR=Math.min(devicePixelRatio||1,2);
+  W=innerWidth; H=innerHeight;
+  cvs.width=W*DPR|0; cvs.height=H*DPR|0;
+  cvs.style.width=W+'px'; cvs.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener('resize', resize);
+
+/* ---- 音效 ---- */
+const A={
+  ctx:null,muted:false,
+  init(){ if(this.ctx)return; const C=window.AudioContext||window.webkitAudioContext; if(C)this.ctx=new C(); },
+  resume(){ if(this.ctx&&this.ctx.state==='suspended')this.ctx.resume(); },
+  blip(f,v){
+    if(this.muted||!this.ctx) return;
+    const c=this.ctx,t=c.currentTime;
+    const o=c.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(f,t);
+    o.frequency.exponentialRampToValueAtTime(f*0.7,t+0.1);
+    const g=c.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(v||0.05,t+0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.13);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+0.15);
+  }
+};
+
+/* ---- 弹幕 ---- */
+const POOL=["这墙不错","我来了","抽象","哈哈哈哈","6","典","绷不住了","已阅","建议直接躺平",
+  "谁在打字","这很互联网","前排","路过","啊？","说得好（没说）","我上班也是这个状态",
+  "屏幕好空，多刷点","弹幕护体","下一句呢","这个可以有","你说得对","+1","学习了","太好了我也这么想",
+  "摸鱼中，勿扰","这题我会","不太懂但大受震撼","有被冒犯到","再来一条"];
+const COLORS=["#8ef0c8","#79c6ff","#ff8ab0","#ffd36e","#c86bff","#ff8a5c","#a9ffe0"];
+const LANES=13;
+const laneFree=new Array(LANES).fill(0);
+const items=[];
+const sparks=[];
+let total=0, hue=0;
+
+function laneY(i){ return 100 + (i+0.5)*((H-190)/LANES); }
+function pickLane(){
+  let best=0, bestT=Infinity;
+  for(let i=0;i<LANES;i++){ if(laneFree[i]<bestT){ bestT=laneFree[i]; best=i; } }
+  laneFree[best]=performance.now()+900;
+  return best;
+}
+function spawn(text, mine){
+  const lane=pickLane();
+  const size = mine ? 22 : (15+Math.random()*7|0);
+  ctx.font = `${mine?'800':'600'} ${size}px "PingFang SC","Microsoft YaHei",sans-serif`;
+  const w=ctx.measureText(text).width + (mine?44:26);
+  const item={
+    text, x:W+30, y:laneY(lane), size, w,
+    vx:-(86 + Math.random()*70) - (mine?30:0),
+    color: mine ? `hsl(${(hue=(hue+47)%360)},90%,68%)` : COLORS[(Math.random()*COLORS.length)|0],
+    mine:!!mine, born:performance.now(), alpha:0
+  };
+  items.push(item);
+  total++; $('cnt').textContent=total;
+  if(mine){
+    for(let i=0;i<18;i++){
+      const a=Math.random()*Math.PI*2, sp=60+Math.random()*200;
+      sparks.push({x:item.x, y:item.y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, t:0, life:.6+Math.random()*.4, c:item.color});
+    }
+  }
+  return item;
+}
+
+/* ---- 绘制 ---- */
+function rr(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+let last=performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+
+  ctx.clearRect(0,0,W,H);
+
+  // 背景网格微光
+  ctx.save(); ctx.globalAlpha=0.045; ctx.strokeStyle='#8ef0c8'; ctx.lineWidth=1;
+  for(let y=100;y<H-80;y+=54){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  ctx.restore();
+
+  for(let i=items.length-1;i>=0;i--){
+    const m=items[i];
+    m.x += m.vx*dt;
+    if(m.x + m.w < -40){ items.splice(i,1); continue; }
+    m.alpha = Math.min(1, m.alpha + dt*3.4);
+    const fadeIn = Math.min(1, (W + 40 - m.x)/160);
+    ctx.save();
+    ctx.globalAlpha = m.alpha * Math.max(0, fadeIn);
+    if(m.mine){
+      ctx.fillStyle='rgba(20,20,26,.72)';
+      rr(m.x-20, m.y-m.size*0.86, m.w, m.size*1.7, m.size*0.85); ctx.fill();
+      ctx.strokeStyle=m.color; ctx.lineWidth=1.6; ctx.stroke();
+      ctx.shadowColor=m.color; ctx.shadowBlur=16;
+    }
+    ctx.fillStyle=m.color;
+    ctx.font=`${m.mine?'800':'600'} ${m.size}px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillText(m.text, m.x, m.y);
+    if(m.mine){ ctx.shadowBlur=0; ctx.fillStyle='rgba(255,255,255,.6)';
+      ctx.font='600 10px ui-monospace,monospace'; ctx.fillText('我', m.x-14, m.y); }
+    ctx.restore();
+  }
+
+  // 粒子
+  for(let i=sparks.length-1;i>=0;i--){
+    const s=sparks[i]; s.t+=dt;
+    if(s.t>=s.life){ sparks.splice(i,1); continue; }
+    s.vy+=260*dt; s.x+=s.vx*dt; s.y+=s.vy*dt;
+    const k=1-s.t/s.life;
+    ctx.globalAlpha=k; ctx.fillStyle=s.c;
+    ctx.beginPath(); ctx.arc(s.x,s.y,2.4*k,0,7); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // 顶部/底部渐隐
+  const tg=ctx.createLinearGradient(0,0,0,110);
+  tg.addColorStop(0,'rgba(7,7,11,.95)'); tg.addColorStop(1,'transparent');
+  ctx.fillStyle=tg; ctx.fillRect(0,0,W,110);
+  const bg=ctx.createLinearGradient(0,H-100,0,H);
+  bg.addColorStop(0,'transparent'); bg.addColorStop(1,'rgba(7,7,11,.95)');
+  ctx.fillStyle=bg; ctx.fillRect(0,H-100,W,100);
+}
+
+/* ---- 交互 ---- */
+function send(){
+  const v=$('msg').value.trim();
+  if(!v){ A.blip(240,0.04); return; }
+  A.init(); A.resume(); A.blip(760,0.06);
+  spawn(v.slice(0,40), true);
+  $('msg').value='';
+  $('hint').classList.add('hide');
+}
+$('send').addEventListener('click', send);
+$('msg').addEventListener('keydown', e=>{ if(e.key==='Enter') send(); });
+$('muteBtn').addEventListener('click', e=>{ A.init(); A.muted=!A.muted; e.target.textContent=A.muted?'🔇':'🔊'; });
+
+/* 自动弹幕 */
+setInterval(()=>{
+  if(document.hidden) return;
+  if(Math.random()<0.72){ spawn(POOL[(Math.random()*POOL.length)|0], false); if(Math.random()<0.25) A.blip(420+Math.random()*300,0.022); }
+}, 900);
+setTimeout(()=>{ spawn("欢迎来到抽象弹幕墙", false); }, 400);
+setTimeout(()=>$('hint').classList.add('hide'), 10000);
+
+/* ---- 启动 ---- */
+resize(); requestAnimationFrame(loop);
+</script>
+</body>
+</html>
