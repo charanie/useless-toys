@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>赛博功德 Pro · CYBER MERIT</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;overflow:hidden;background:#0a0a0c}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    color:#efe7d6;-webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #c{position:fixed;inset:0;display:block;z-index:1;cursor:pointer;touch-action:manipulation}
+  #ui{position:fixed;inset:0;z-index:2;pointer-events:none}
+  button{pointer-events:auto}
+
+  .hud{position:absolute;top:26px;left:30px;line-height:1.15}
+  .hud .big{
+    font-size:clamp(44px,9vw,96px);font-weight:800;letter-spacing:.02em;
+    background:linear-gradient(92deg,#ffd98a,#ffb04c 45%,#ff7a45);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    font-variant-numeric:tabular-nums;text-shadow:0 0 40px rgba(255,170,70,.25);
+  }
+  .hud .cap{font-size:13px;letter-spacing:.36em;color:#a89a80;margin-top:2px}
+  .hud .rank{margin-top:14px;font-size:15px;letter-spacing:.18em}
+  .hud .rank b{color:#ffcf85}
+  .hud .meta{margin-top:6px;font-size:12px;color:#8d8474;letter-spacing:.1em;font-family:ui-monospace,Consolas,monospace}
+
+  .bar{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  button{
+    font:inherit;font-size:13px;color:#efe7d6;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);
+    border-radius:999px;padding:10px 18px;letter-spacing:.08em;transition:.15s;
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  }
+  button:hover{background:rgba(255,180,90,.18);border-color:rgba(255,180,90,.55);transform:translateY(-1px)}
+  button.on{background:rgba(255,180,90,.22);border-color:rgba(255,180,90,.7);color:#ffd79a}
+
+  .hint{position:absolute;left:50%;bottom:84px;transform:translateX(-50%);font-size:12px;color:#8d8474;letter-spacing:.2em;transition:opacity .6s}
+  .hint.hide{opacity:0}
+
+  #dm{position:absolute;inset:0;overflow:hidden}
+  .d{position:absolute;white-space:nowrap;font-size:15px;color:rgba(255,220,170,.30);letter-spacing:.14em;will-change:transform}
+
+  #flash{position:absolute;inset:0;pointer-events:none;opacity:0}
+  #flash.go{animation:fl .9s ease}
+  @keyframes fl{0%{opacity:0}10%{opacity:1}100%{opacity:0}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div class="hud">
+    <div class="big" id="merit">0</div>
+    <div class="cap">功 德</div>
+    <div class="rank">境界 <b id="rank">凡人</b></div>
+    <div class="meta" id="meta">连敲 0 · 抽象化 0%</div>
+  </div>
+  <div id="dm"></div>
+  <div class="hint" id="hint">点击木鱼 · 积累功德 · 长按连敲</div>
+  <div class="bar">
+    <button data-act="auto" id="autoBtn">自动敲（电子木鱼机）</button>
+    <button data-act="reset">重置</button>
+    <button data-act="mute" id="muteBtn">🔊</button>
+  </div>
+  <div id="flash"></div>
+</div>
+
+<script>
+"use strict";
+/* ========= 赛博功德 Pro ========= */
+const cvs = document.getElementById('c');
+const ctx = cvs.getContext('2d');
+const dmEl = document.getElementById('dm');
+const flashEl = document.getElementById('flash');
+const $ = id => document.getElementById(id);
+
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR = Math.min(devicePixelRatio||1, 2);
+  W = innerWidth; H = innerHeight;
+  cvs.width = Math.floor(W*DPR); cvs.height = Math.floor(H*DPR);
+  cvs.style.width = W+'px'; cvs.style.height = H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener('resize', resize);
+
+/* ---- 音效：木鱼的「咚」 ---- */
+const A = {
+  ctx:null, muted:false, noise:null,
+  init(){
+    if(this.ctx) return;
+    const C = window.AudioContext||window.webkitAudioContext; if(!C) return;
+    this.ctx = new C();
+    const len = Math.floor(this.ctx.sampleRate*0.3);
+    const b = this.ctx.createBuffer(1,len,this.ctx.sampleRate); const d = b.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    this.noise = b;
+  },
+  resume(){ if(this.ctx && this.ctx.state==='suspended') this.ctx.resume(); },
+  knock(pitch){
+    if(this.muted || !this.ctx) return;
+    const c = this.ctx, t = c.currentTime;
+    pitch = pitch||1;
+    // 木质瞬态
+    const s = c.createBufferSource(); s.buffer = this.noise;
+    const bp = c.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value = 1200*pitch; bp.Q.value = 1.4;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.32,t+0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.06);
+    s.connect(bp).connect(g).connect(c.destination); s.start(t); s.stop(t+0.08);
+    // 空腔共鸣
+    const o = c.createOscillator(); o.type='sine';
+    const f = 300*pitch;
+    o.frequency.setValueAtTime(f,t);
+    o.frequency.exponentialRampToValueAtTime(f*0.7,t+0.14);
+    const g2 = c.createGain();
+    g2.gain.setValueAtTime(0.0001,t);
+    g2.gain.exponentialRampToValueAtTime(0.28,t+0.005);
+    g2.gain.exponentialRampToValueAtTime(0.0001,t+0.28);
+    o.connect(g2).connect(c.destination); o.start(t); o.stop(t+0.3);
+  },
+  gong(){
+    if(this.muted || !this.ctx) return;
+    const c=this.ctx; const t=c.currentTime;
+    [261.6,392,523.3,784,1046].forEach((f,i)=>{
+      const o=c.createOscillator(); o.type='sine'; o.frequency.value=f;
+      const g=c.createGain(); const st=t+i*0.05;
+      g.gain.setValueAtTime(0.0001,st);
+      g.gain.exponentialRampToValueAtTime(0.16,st+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,st+1.2);
+      o.connect(g).connect(c.destination); o.start(st); o.stop(st+1.3);
+    });
+  }
+};
+
+/* ---- 境界 ---- */
+const RANK = ["凡人","初学者","居士","沙弥","比丘","罗汉","菩萨","佛陀","抽象佛陀","砖"];
+const RTH  = [0, 8, 18, 36, 66, 108, 168, 258, 398, 618];
+function rankOf(m){ let r=0; for(let i=0;i<RTH.length;i++) if(m>=RTH[i]) r=i; return r; }
+
+/* ---- 台词 ---- */
+const LINES = [
+  "一切皆空，除了功德。",
+  "心诚则灵，心不诚则更灵。",
+  "放下手机，捡起手机。",
+  "你敲的是木鱼，木鱼敲的是你。",
+  "空即是色，色即是 KPI。",
+  "顿悟了，但没完全悟。",
+  "阿弥陀佛，摸鱼也是修行。",
+  "无我，但功德是我的。",
+  "修行不在深山，在下班之后。",
+  "一花一世界，一砖一天堂。",
+  "功德不是目的，功德是 KPI。",
+  "你已经很久没说话了，继续敲。"
+];
+const DM = ["功德无量","我敲过这个木鱼","一体机","佛了佛了","电子木鱼 yyds","手速可以","这波操作很佛",
+  "建议直接出家","隔壁老王也在敲","6","敲出残影了","这就是修行吗","已悟","阿弥陀佛","敲吧，敲吧"];
+
+/* ---- 状态 ---- */
+const S = { merit:0, combo:0, lastKnock:0, abst:0, level:0, auto:false };
+const floats = [], ripples = [];
+let shake = 0, swing = 0, hue = 30, t0 = performance.now();
+let lastInteract = performance.now();
+const pointer = { x:0, y:0, down:false };
+
+/* ---- 木鱼几何 ---- */
+function fish(){ return { cx: W/2, cy: H*0.56, R: Math.min(W,H)*0.17 }; }
+
+/* ---- 敲 ---- */
+function knock(clientX, clientY){
+  const now = performance.now();
+  A.init(); A.resume();
+  S.combo = (now - S.lastKnock < 380) ? S.combo+1 : 1;
+  S.lastKnock = now; lastInteract = now;
+
+  const gain = 1 + Math.floor(S.combo/12);
+  S.merit += gain;
+  swing = 1; shake = Math.min(1, shake + 0.25);
+
+  const f = fish();
+  const px = clientX ?? f.cx, py = clientY ?? f.cy;
+  ripples.push({ x:f.cx, y:f.cy+6, r:f.R*0.5, life:0.7, t:0, max:1 });
+
+  // 飘字
+  const text = (S.merit % 7 === 0) || Math.random()<0.12 ? pick(LINES) : ('功德 +'+gain);
+  floats.push({
+    x: px + (Math.random()*60-30), y: py - 20,
+    vy: -(40+Math.random()*40), t:0, life:1.4,
+    text, size: (Math.random()<0.15? 20 : 15), big: false
+  });
+
+  A.knock(1 + Math.min(0.5, S.combo*0.015));
+  if(gain>1){ S.combo = S.combo; }
+
+  // 抽象化随功德增长（对数）
+  S.abst = Math.min(1, Math.log10(1 + S.merit) / 2.4);
+  hue = (hue + 3) % 360;
+
+  // 顿悟
+  const r = rankOf(S.merit);
+  if(r > S.level){
+    S.level = r;
+    A.gong();
+    flashEl.classList.remove('go'); void flashEl.offsetWidth; flashEl.classList.add('go');
+    floats.push({ x:f.cx, y:f.cy - f.R*1.4, vy:-24, t:0, life:2.2, text:"【顿悟】"+RANK[r], size:30, big:true });
+    hideHint();
+  }
+  if(S.merit === 1) hideHint();
+  updateHUD();
+}
+function hideHint(){ $('hint').classList.add('hide'); }
+setTimeout(hideHint, 10000);
+
+/* ---- 输入 ---- */
+cvs.addEventListener('pointerdown', e=>{
+  pointer.down = true; pointer.x=e.clientX; pointer.y=e.clientY;
+  knock(e.clientX, e.clientY);
+});
+cvs.addEventListener('pointermove', e=>{ pointer.x=e.clientX; pointer.y=e.clientY; });
+addEventListener('pointerup', ()=> pointer.down = false);
+// 长按连敲
+let holdT = null;
+cvs.addEventListener('pointerdown', ()=>{
+  clearInterval(holdT);
+  holdT = setInterval(()=>{
+    if(pointer.down) knock(pointer.x, pointer.y);
+    else clearInterval(holdT);
+  }, 90);
+});
+addEventListener('pointerup', ()=> clearInterval(holdT));
+
+/* ---- 按钮 ---- */
+document.querySelector('[data-act="auto"]').addEventListener('click', e=>{
+  A.init(); A.resume();
+  S.auto = !S.auto; e.target.classList.toggle('on', S.auto);
+  if(S.auto){ hideHint(); autoT = setInterval(()=>{ if(!document.hidden) knock(); }, 150); }
+  else clearInterval(autoT);
+});
+let autoT = null;
+document.querySelector('[data-act="reset"]').addEventListener('click', ()=>{
+  A.init(); A.resume();
+  S.merit=0; S.combo=0; S.abst=0; S.level=0; hue=30; floats.length=0; ripples.length=0;
+  updateHUD();
+});
+const muteBtn = $('muteBtn');
+muteBtn.addEventListener('click', ()=>{ A.init(); A.muted=!A.muted; muteBtn.textContent = A.muted?'🔇':'🔊'; });
+addEventListener('keydown', e=>{ if(e.code==='Space'){ e.preventDefault(); knock(); } });
+
+function updateHUD(){
+  $('merit').textContent = S.merit;
+  $('rank').textContent = RANK[S.level];
+  $('meta').textContent = '连敲 '+S.combo+' · 抽象化 '+Math.round(S.abst*100)+'%';
+}
+
+/* ---- 绘制 ---- */
+function drawFish(now){
+  const f = fish();
+  const sq = 1 - Math.max(0, swing)*0.12;
+
+  // 影子
+  ctx.save(); ctx.globalAlpha = 0.35; ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.ellipse(f.cx, f.cy + f.R*1.05, f.R*1.15, f.R*0.22, 0, 0, 7); ctx.fill(); ctx.restore();
+
+  ctx.save();
+  ctx.translate(f.cx, f.cy);
+  ctx.scale(1/sq, sq);   // 敲击时压扁
+
+  // 光晕
+  if(swing > 0.02){
+    const g = ctx.createRadialGradient(0,0,f.R*0.4,0,0,f.R*2.6);
+    g.addColorStop(0, `hsla(${hue},90%,60%,${0.28*swing})`);
+    g.addColorStop(1, 'transparent');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0,0,f.R*2.6,0,7); ctx.fill();
+  }
+
+  // 身体
+  const grad = ctx.createLinearGradient(0,-f.R,0,f.R);
+  grad.addColorStop(0, '#b6743a'); grad.addColorStop(0.5, '#8a5222'); grad.addColorStop(1, '#5c3616');
+  ctx.beginPath(); ctx.ellipse(0,0,f.R*1.12,f.R*0.92,0,0,7);
+  ctx.fillStyle = grad; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(60,34,12,.8)'; ctx.stroke();
+
+  // 顶部小把
+  ctx.beginPath(); ctx.ellipse(0,-f.R*0.92,f.R*0.18,f.R*0.12,0,0,7);
+  ctx.fillStyle = '#7a4620'; ctx.fill();
+
+  // 开口（鱼嘴缝）
+  ctx.save();
+  ctx.strokeStyle = 'rgba(40,20,8,.92)'; ctx.lineWidth = f.R*0.16; ctx.lineCap='round';
+  ctx.beginPath(); ctx.arc(0, f.R*0.18, f.R*0.5, Math.PI*0.18, Math.PI*0.82); ctx.stroke();
+  ctx.restore();
+  // 高光
+  ctx.globalAlpha=.35; ctx.fillStyle='#ffd9a0';
+  ctx.beginPath(); ctx.ellipse(-f.R*0.35,-f.R*0.42,f.R*0.28,f.R*0.12,-0.5,0,7); ctx.fill();
+  ctx.globalAlpha=1;
+
+  // 木鱼的眼睛（抽象化到一定程度才睁开）
+  if(S.abst > 0.25){
+    const open = Math.min(1, (S.abst-0.25)/0.3);
+    const cos = Math.cos(0), sin = 0;
+    for(const ex of [-f.R*0.34, f.R*0.34]){
+      const ey = -f.R*0.1;
+      ctx.fillStyle = `rgba(255,255,255,${open})`;
+      ctx.beginPath(); ctx.ellipse(ex, ey, f.R*0.12, f.R*0.14*open,0,0,7); ctx.fill();
+      if(open>0.5){
+        const dx = pointer.x - (f.cx+ex), dy = pointer.y - (f.cy+ey);
+        const d = Math.hypot(dx,dy)||1;
+        ctx.fillStyle = `rgba(20,12,8,${open})`;
+        ctx.beginPath(); ctx.arc(ex + dx/d*f.R*0.05, ey + dy/d*f.R*0.05, f.R*0.06,0,7); ctx.fill();
+      }
+    }
+  }
+  ctx.restore();
+
+  // 木槌
+  const pivotX = f.cx + f.R*1.65, pivotY = f.cy - f.R*1.5;
+  ctx.save();
+  ctx.translate(pivotX, pivotY);
+  ctx.rotate(-0.9 + (1 - Math.max(0,swing))*0.0 + swing*0.95);
+  // 柄
+  ctx.lineCap='round';
+  ctx.strokeStyle = '#6b4a2c'; ctx.lineWidth = Math.max(6, f.R*0.12);
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, f.R*1.5); ctx.stroke();
+  ctx.strokeStyle='#8a6238'; ctx.lineWidth = Math.max(3, f.R*0.06);
+  ctx.beginPath(); ctx.moveTo(-1,0); ctx.lineTo(-1, f.R*1.3); ctx.stroke();
+  // 槌头
+  ctx.beginPath(); ctx.arc(0, f.R*1.62, f.R*0.22, 0, 7);
+  const hg = ctx.createRadialGradient(-f.R*0.06, f.R*1.56, 2, 0, f.R*1.62, f.R*0.24);
+  hg.addColorStop(0,'#c68a4d'); hg.addColorStop(1,'#71451f');
+  ctx.fillStyle = hg; ctx.fill();
+  ctx.restore();
+}
+
+function draw(now){
+  const dt = 1/60;
+  // 背景（抽象化越高越花）
+  const bgA = S.abst;
+  const bg = ctx.createRadialGradient(W/2, H*0.5, 40, W/2, H*0.5, Math.max(W,H)*0.75);
+  if(bgA < 0.02){
+    bg.addColorStop(0,'#17161b'); bg.addColorStop(1,'#0a0a0c');
+  } else {
+    bg.addColorStop(0, `hsl(${hue}, ${20+bgA*55}%, ${9+bgA*8}%)`);
+    bg.addColorStop(1, `hsl(${(hue+60)%360}, ${10+bgA*40}%, 5%)`);
+  }
+  ctx.save();
+  if(shake > 0.01) ctx.translate((Math.random()-0.5)*shake*10, (Math.random()-0.5)*shake*10);
+  ctx.fillStyle = bg; ctx.fillRect(-20,-20,W+40,H+40);
+
+  // 涟漪
+  for(const r of ripples){
+    r.t += dt;
+    const k = r.t/r.life;
+    ctx.globalAlpha = (1-k)*0.5;
+    ctx.strokeStyle = `hsl(${hue},80%,65%)`;
+    ctx.lineWidth = 2*(1-k)+0.5;
+    ctx.beginPath(); ctx.arc(r.x, r.y, r.r + k*Math.min(W,H)*0.5, 0, 7); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  drawFish(now);
+
+  // 飘字
+  for(const fl of floats){
+    fl.t += dt;
+    fl.y += fl.vy*dt; fl.vy *= 0.985;
+    const k = 1 - fl.t/fl.life;
+    ctx.globalAlpha = Math.max(0, Math.min(1, k*1.6));
+    ctx.textAlign = 'center';
+    ctx.font = `700 ${fl.size}px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.fillStyle = fl.big ? `hsl(${hue},95%,72%)` : 'rgba(255,225,170,.95)';
+    if(fl.big){ ctx.shadowColor = `hsl(${hue},95%,60%)`; ctx.shadowBlur = 24; }
+    ctx.fillText(fl.text, fl.x, fl.y);
+    ctx.shadowBlur = 0;
+  }
+  ctx.globalAlpha = 1;
+
+  // 高抽象化：故障条
+  if(S.abst > 0.6 && Math.random() < (S.abst-0.6)*0.9){
+    const n = 3 + (Math.random()*5|0);
+    for(let i=0;i<n;i++){
+      const y = Math.random()*H, hh = 4 + Math.random()*26;
+      const dx = (Math.random()-0.5)*80*S.abst;
+      ctx.drawImage(cvs, 0, y*DPR, cvs.width, hh*DPR, dx, y, W, hh);
+    }
+    if(Math.random()<0.06){
+      ctx.globalAlpha = 0.06; ctx.fillStyle = `hsl(${(hue+180)%360},90%,60%)`;
+      ctx.fillRect(0, Math.random()*H, W, 6+Math.random()*40); ctx.globalAlpha = 1;
+    }
+  }
+  ctx.restore();
+
+  // 衰减
+  swing = Math.max(0, swing - 3.2*dt);
+  shake = Math.max(0, shake - 2.4*dt);
+  for(let i=floats.length-1;i>=0;i--) if(floats[i].t >= floats[i].life) floats.splice(i,1);
+  for(let i=ripples.length-1;i>=0;i--) if(ripples[i].t >= ripples[i].life) ripples.splice(i,1);
+}
+
+function loop(){ requestAnimationFrame(loop); draw(performance.now()); }
+
+/* ---- 弹幕：抽象化越高越密 ---- */
+function shoot(){
+  if(S.abst < 0.05) return;
+  if(Math.random() > S.abst*0.9) return;
+  const d = document.createElement('div');
+  d.className = 'd'; d.textContent = pick(DM);
+  d.style.top = (Math.random()*100)+'%';
+  const w = 240;
+  d.style.left = W + 20 + 'px';
+  dmEl.appendChild(d);
+  d.animate([{transform:'translateX(0)'},{transform:`translateX(${-(W+w+60)}px)`}],
+    { duration: 7000+Math.random()*5000, easing:'linear' }).onfinish = ()=>d.remove();
+}
+setInterval(()=>{ if(!document.hidden) shoot(); }, 1200);
+
+/* ---- 启动 ---- */
+function pick(a){ return a[(Math.random()*a.length)|0]; }
+resize(); updateHUD(); loop();
+</script>
+</body>
+</html>

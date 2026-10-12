@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>抽象美术馆 · ABSTRACT GALLERY</title>
+<style>
+  :root{ --gold:#c9a24b; --ink:#efeae0; --dim:#9b958a; --wall:#141210; }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{
+    background:var(--wall);
+    background-image:
+      radial-gradient(900px 900px at 22% 18%, rgba(255,236,190,.10), transparent 60%),
+      radial-gradient(1200px 800px at 80% 90%, rgba(90,120,180,.10), transparent 60%),
+      linear-gradient(180deg,#16130f,#0c0b09);
+    color:var(--ink);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    display:flex;justify-content:center;padding:34px 20px 60px;min-height:100vh;
+  }
+  .wrap{display:flex;gap:44px;align-items:flex-start;flex-wrap:wrap;justify-content:center;max-width:1080px}
+
+  /* 画 */
+  .stage{position:relative}
+  .stage::before{ /* 顶光 */
+    content:'';position:absolute;inset:-70px -60px 40px;pointer-events:none;
+    background:radial-gradient(60% 45% at 50% 0%, rgba(255,240,210,.16), transparent 70%);
+  }
+  .frame{
+    position:relative;padding:16px;border-radius:6px;
+    background:linear-gradient(145deg,#e2c469,#8a6b23 45%,#d9bc63 70%,#6f5518);
+    box-shadow:0 40px 80px rgba(0,0,0,.7), inset 0 0 0 1px rgba(255,255,255,.25);
+  }
+  .mat{background:#f4f0e6;padding:14px 14px 54px;box-shadow:inset 0 0 40px rgba(0,0,0,.12)}
+  #cv{display:block;width:min(360px,68vw);aspect-ratio:4/5;height:auto;background:#fff;box-shadow:0 6px 22px rgba(0,0,0,.35)}
+  .plate{
+    position:absolute;left:50%;bottom:16px;transform:translateX(-50%);
+    background:#efe9da;color:#20201c;border:1px solid #cbbf9f;border-radius:3px;
+    padding:5px 12px;font-size:11px;letter-spacing:.06em;white-space:nowrap;
+    max-width:88%;overflow:hidden;text-overflow:ellipsis;font-family:"Songti SC","SimSun",serif;
+    text-align:center;
+  }
+
+  /* 展签 */
+  .info{width:min(430px,88vw);padding-top:8px}
+  .museum{font-size:11px;letter-spacing:.42em;color:var(--gold);text-transform:uppercase}
+  .title{
+    font-family:"Songti SC","SimSun",Georgia,serif;
+    font-size:clamp(22px,3vw,30px);line-height:1.32;margin:12px 0 4px;font-weight:700;
+  }
+  .byline{font-size:12px;color:var(--dim);letter-spacing:.14em;margin-bottom:18px}
+  .stmt{
+    font-size:14.5px;line-height:1.85;color:#d9d3c7;
+    border-left:2px solid rgba(201,162,75,.5);padding-left:14px;margin:0 0 20px;
+  }
+  .grid{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px;margin-bottom:22px}
+  .grid dt{color:var(--dim);letter-spacing:.1em}
+  .grid dd{margin:0;color:var(--ink)}
+  .price{color:var(--gold);font-weight:700}
+  .verdict{padding:2px 8px;border-radius:4px;font-size:12px}
+  .v-ok{background:rgba(120,200,140,.16);color:#8fe0a6;border:1px solid rgba(120,200,140,.35)}
+  .v-meh{background:rgba(255,190,90,.14);color:#ffcf85;border:1px solid rgba(255,190,90,.35)}
+  .v-no{background:rgba(255,110,110,.14);color:#ff9d9d;border:1px solid rgba(255,110,110,.35)}
+
+  .bar{display:flex;gap:10px;flex-wrap:wrap}
+  button{
+    font:inherit;font-size:13.5px;color:var(--ink);cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);
+    border-radius:999px;padding:11px 20px;letter-spacing:.08em;transition:.16s;
+  }
+  button:hover{background:rgba(201,162,75,.18);border-color:rgba(201,162,75,.6);color:#f4e2b4;transform:translateY(-1px)}
+  button.primary{background:linear-gradient(120deg,rgba(201,162,75,.28),rgba(201,162,75,.12));border-color:rgba(201,162,75,.55)}
+  .foot{margin-top:18px;font-size:11px;color:var(--dim);letter-spacing:.16em}
+  .fade{animation:fade .5s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stage">
+    <div class="frame">
+      <div class="mat">
+        <canvas id="cv" width="720" height="900"></canvas>
+        <div class="plate" id="plate">《 无题 》</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="info" id="info">
+    <div class="museum">ABSTRACT GALLERY · 抽象美术馆</div>
+    <h2 class="title" id="title">《 无题 · 关于加载的荒谬 》</h2>
+    <div class="byline" id="byline">匿名艺术家 · 2026 · 布面综合材料</div>
+
+    <p class="stmt" id="stmt">「他把虚无缝进了周一的早晨。」</p>
+
+    <dl class="grid">
+      <dt>尺寸</dt><dd id="size">120 × 150 cm</dd>
+      <dt>媒材</dt><dd id="media">布面丙烯、颜料、以及一点情绪</dd>
+      <dt>展次</dt><dd id="exh">第 7 届抽象双年展（平行单元）</dd>
+      <dt>估价</dt><dd class="price" id="price">¥ 3,207,000</dd>
+      <dt>来源</dt><dd id="prov">艺术家本人（其后一直在搬家）</dd>
+      <dt>鉴定</dt><dd><span class="verdict v-ok" id="verdict">真迹</span></dd>
+    </dl>
+
+    <div class="bar">
+      <button class="primary" data-act="gen">生成新作</button>
+      <button data-act="save">收藏（下载）</button>
+      <button data-act="mute" id="muteBtn">🔊</button>
+    </div>
+    <div class="foot">本馆所有作品均无任何意义 · 越看不懂越贵</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 抽象美术馆 ========= */
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const CW = cv.width, CH = cv.height;
+const $ = id => document.getElementById(id);
+
+/* ---- 音效 ---- */
+const A = {
+  ctx:null, muted:false,
+  init(){ if(this.ctx) return; const C=window.AudioContext||window.webkitAudioContext; if(C) this.ctx=new C(); },
+  resume(){ if(this.ctx && this.ctx.state==='suspended') this.ctx.resume(); },
+  chime(){
+    if(this.muted || !this.ctx) return;
+    const c=this.ctx, t=c.currentTime;
+    [523.25, 783.99, 1046.5].forEach((f,i)=>{
+      const o=c.createOscillator(); o.type='sine'; o.frequency.value=f;
+      const g=c.createGain(); const st=t+i*0.06;
+      g.gain.setValueAtTime(0.0001,st);
+      g.gain.exponentialRampToValueAtTime(0.12,st+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,st+0.7);
+      o.connect(g).connect(c.destination); o.start(st); o.stop(st+0.75);
+    });
+  }
+};
+
+/* ---- 调色板 ---- */
+const PALETTES = [
+  {bg:"#efe7d8", cols:["#c1440e","#1f3a5f","#e3b23c","#2b2b2b"], ink:"#1a1a18"},
+  {bg:"#f3f0ea", cols:["#1b1b1b","#d94f2b","#f2c94c","#3d6b8c"], ink:"#111"},
+  {bg:"#111214", cols:["#e8e2d6","#c0392b","#4a90a4","#d9a441"], ink:"#eee"},
+  {bg:"#f6f1e7", cols:["#7b5ea7","#e07a5f","#3d9970","#1b1b1b"], ink:"#1a1a18"},
+  {bg:"#0e1418", cols:["#f2e9dc","#ff6b6b","#4ecdc4","#ffe66d"], ink:"#f4f0e8"},
+  {bg:"#f7f4ef", cols:["#264653","#2a9d8f","#e9c46a","#e76f51"], ink:"#222"},
+  {bg:"#eceae4", cols:["#111","#888","#c1440e","#f2c94c"], ink:"#111"},
+  {bg:"#faf8f4", cols:["#d62828","#003049","#fcbf49","#eae2b7"], ink:"#111"}
+];
+const rnd = (a,b)=> a + Math.random()*(b-a);
+const pick = arr => arr[(Math.random()*arr.length)|0];
+const rint = (a,b)=> Math.floor(rnd(a,b+1));
+
+/* ---- 纹理（一次生成） ---- */
+let noiseCv = null;
+function makeNoise(){
+  noiseCv = document.createElement('canvas');
+  noiseCv.width = CW; noiseCv.height = CH;
+  const c = noiseCv.getContext('2d');
+  const img = c.createImageData(CW, CH);
+  const d = img.data;
+  for(let i=0;i<d.length;i+=4){
+    const v = 128 + (Math.random()*70-35);
+    d[i]=d[i+1]=d[i+2]=v; d[i+3]= 22 + Math.random()*26;
+  }
+  c.putImageData(img,0,0);
+}
+
+/* ---- 六个画派 ---- */
+const STYLES = [
+  function colorField(p){
+    ctx.fillStyle = p.bg; ctx.fillRect(0,0,CW,CH);
+    ctx.save(); ctx.filter = 'blur(26px)';
+    const n = rint(3,5);
+    for(let i=0;i<n;i++){
+      ctx.globalAlpha = rnd(.55,.95);
+      ctx.fillStyle = pick(p.cols);
+      const w = rnd(CW*.3, CW*.85), h = rnd(CH*.2, CH*.6);
+      ctx.beginPath();
+      ctx.ellipse(rnd(0,CW), rnd(0,CH), w/2, h/2, rnd(0,3.14), 0, 7);
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    // 一块硬边
+    ctx.fillStyle = pick(p.cols);
+    const bw = rnd(CW*.16,CW*.34), bh = rnd(CH*.1,CH*.24);
+    ctx.fillRect(rnd(CW*.1,CW-bw-.1*CW), rnd(CH*.1,CH-bh-.1*CH), bw, bh);
+    // 一条细线
+    ctx.strokeStyle = p.ink; ctx.lineWidth = rnd(2,5); ctx.globalAlpha=.85;
+    const y = rnd(CH*.2,CH*.8);
+    ctx.beginPath(); ctx.moveTo(rnd(0,CW*.2), y); ctx.lineTo(rnd(CW*.7,CW), y+rnd(-40,40)); ctx.stroke();
+    ctx.globalAlpha = 1;
+  },
+
+  function splatter(p){
+    ctx.fillStyle = p.bg; ctx.fillRect(0,0,CW,CH);
+    for(let i=0;i<420;i++){
+      ctx.globalAlpha = rnd(.25,.95);
+      ctx.fillStyle = pick(p.cols);
+      const x = rnd(0,CW), y = rnd(0,CH);
+      const r = Math.pow(Math.random(),2.4)*rnd(4,46)+1;
+      ctx.save(); ctx.translate(x,y); ctx.rotate(rnd(0,3.14));
+      ctx.beginPath(); ctx.ellipse(0,0,r, r*rnd(.3,1), 0, 0, 7); ctx.fill();
+      ctx.restore();
+      if(Math.random()<0.08){ // 流挂
+        ctx.globalAlpha = rnd(.3,.6);
+        ctx.fillRect(x, y, rnd(1.5,4), rnd(40,240));
+      }
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  function strokes(p){
+    ctx.fillStyle = p.bg; ctx.fillRect(0,0,CW,CH);
+    const n = rint(9,22);
+    for(let i=0;i<n;i++){
+      ctx.strokeStyle = pick(p.cols);
+      ctx.globalAlpha = rnd(.35,.95);
+      ctx.lineCap = 'round';
+      let x = rnd(-50,CW), y = rnd(-30,CH);
+      const steps = rint(20,60);
+      const dx = rnd(-6,6), dy = rnd(-6,6);
+      let w = rnd(4,34);
+      for(let s=0;s<steps;s++){
+        ctx.lineWidth = w; w *= 0.965;
+        const nx = x + dx + rnd(-30,30), ny = y + dy + rnd(-30,30);
+        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(nx,ny); ctx.stroke();
+        x = nx; y = ny;
+      }
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  function minimal(p){
+    ctx.fillStyle = p.bg; ctx.fillRect(0,0,CW,CH);
+    const kind = rint(0,3);
+    const cx = rnd(CW*.25,CW*.75), cy = rnd(CH*.25,CH*.75);
+    if(kind===0){
+      ctx.strokeStyle = pick(p.cols); ctx.lineWidth = rnd(6,20);
+      ctx.beginPath(); ctx.arc(cx, cy, rnd(60,Math.min(CW,CH)*0.28), 0, 7); ctx.stroke();
+    } else if(kind===1){
+      ctx.fillStyle = pick(p.cols);
+      const s = rnd(60,180); ctx.save(); ctx.translate(cx,cy); ctx.rotate(rnd(-0.4,0.4));
+      ctx.fillRect(-s/2,-s/2,s,s); ctx.restore();
+    } else if(kind===2){
+      ctx.strokeStyle = pick(p.cols); ctx.lineWidth = rnd(4,14);
+      for(let i=0;i<rint(2,4);i++){
+        const y = rnd(CH*.15,CH*.85);
+        ctx.beginPath(); ctx.moveTo(CW*.1,y); ctx.lineTo(CW*.9, y+rnd(-20,20)); ctx.stroke();
+      }
+    } else {
+      ctx.fillStyle = pick(p.cols);
+      ctx.beginPath(); ctx.arc(cx,cy,rnd(20,60),0,7); ctx.fill();
+      ctx.strokeStyle = p.ink; ctx.lineWidth = 3; ctx.globalAlpha=.8;
+      ctx.beginPath(); ctx.moveTo(0, rnd(CH*.3,CH*.7)); ctx.lineTo(CW, rnd(CH*.3,CH*.7)); ctx.stroke();
+      ctx.globalAlpha=1;
+    }
+  },
+
+  function dots(p){
+    ctx.fillStyle = p.bg; ctx.fillRect(0,0,CW,CH);
+    const step = rint(16,30);
+    const c1 = pick(p.cols), c2 = pick(p.cols);
+    const ax = rnd(0,1), ay = rnd(0,1);
+    for(let y=0;y<CH;y+=step){
+      for(let x=0;x<CW;x+=step){
+        const t = (Math.sin((x/CW)*6.28*ax + y/CH*6.28*ay) + 1)/2;
+        ctx.globalAlpha = 0.15 + t*0.8;
+        ctx.fillStyle = t>0.5 ? c1 : c2;
+        const r = step*0.16*(0.4+t);
+        ctx.beginPath(); ctx.arc(x+step/2, y+step/2, r, 0, 7); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  function glitchArt(p){
+    // 底：色带
+    for(let i=0;i<rint(6,12);i++){
+      ctx.fillStyle = pick(p.cols);
+      ctx.globalAlpha = rnd(.5,.95);
+      ctx.fillRect(0, i*CH/12 + rnd(-8,8), CW, CH/12 + rnd(-4,10));
+    }
+    ctx.globalAlpha = 1;
+    // RGB 偏移
+    ctx.save(); ctx.globalCompositeOperation='screen'; ctx.globalAlpha=.25;
+    ctx.drawImage(cv, rnd(-8,-2), 0);
+    ctx.globalAlpha=.18; ctx.drawImage(cv, rnd(2,9), 0);
+    ctx.restore();
+    // 横向错切
+    for(let i=0;i<rint(14,34);i++){
+      const y = rnd(0,CH), h = rnd(4,40);
+      const sx = 0, sy = y, sw = CW, sh = h;
+      const dx = rnd(-70,70);
+      ctx.drawImage(cv, sx, sy, sw, sh, dx, sy, sw, sh);
+    }
+  }
+];
+
+function paint(){
+  const pal = pick(PALETTES);
+  pick(STYLES)(pal);
+  // 纸张纹理 + 暗角
+  if(!noiseCv) makeNoise();
+  ctx.save(); ctx.globalCompositeOperation='overlay'; ctx.globalAlpha=.5;
+  ctx.drawImage(noiseCv,0,0); ctx.restore();
+  const vg = ctx.createRadialGradient(CW/2,CH/2,Math.min(CW,CH)*0.3, CW/2,CH/2, Math.max(CW,CH)*0.75);
+  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,.30)');
+  ctx.globalAlpha = 1; ctx.fillStyle = vg; ctx.fillRect(0,0,CW,CH);
+  return pal;
+}
+
+/* ---- 文案 ---- */
+const THING = ["午睡","内卷","地铁","周一","外卖","相亲","加班","房贷","早八","摸鱼","人生的意义","理发","排队","无线耳机","微信红点","体检报告","朋友圈","社恐","年终总结","猫"];
+const FIELD = ["政治经济学","形而上学","田野调查","沉思录","挽歌","白皮书","考古报告","辩护词","生态学","精神分析","备忘录","简史","病理学","使用说明"];
+const COLORW = ["红色","蓝色","灰色","金色","乳白","赭石","克莱因蓝","某种绿"];
+const TIMEW = ["凌晨三点","星期一","黄昏","童年","下班后","停电时","春天","深夜"];
+const NOUNW = ["呼吸","自画像","练习","肖像","回声","证据","姿态","叙事","残留物","剧场","伤口","假期"];
+
+function makeTitle(){
+  const r = Math.random();
+  if(r<0.42) return `《 无题 · 关于${pick(THING)}的${pick(FIELD)} 》`;
+  if(r<0.62) return `《 ${pick(COLORW)}的第 ${rint(2,97)} 种${pick(NOUNW)} 》`;
+  if(r<0.8) return `《 ${pick(TIMEW)}的${pick(NOUNW)} 》`;
+  if(r<0.92) return `《 关于${pick(THING)}，以及它对${pick(THING)}的影响 》`;
+  return `《 ${pick(NOUNW)} No.${rint(1,42)} 》`;
+}
+const STMT = [
+  t=>`他把${pick(THING)}缝进了${pick(TIMEW)}。`,
+  t=>`在${pick(THING)}的废墟上，艺术家种下了一颗${pick(NOUNW)}。`,
+  t=>`这不是关于${pick(THING)}的作品，而是关于${pick(THING)}的作品。区别很重要。`,
+  t=>`画面中央的留白，是对${pick(THING)}最克制的回应。`,
+  t=>`艺术家本人拒绝解释。我们也是。`,
+  t=>`评论家说：看不懂就对了。艺术家说：我也看不懂。`,
+  t=>`${pick(TIMEW)}，他终于和${pick(THING)}和解，然后发现和解也是要收费的。`,
+  t=>`这件作品不表达任何东西，但表达得很用力。`,
+  t=>`每一笔都在质问：这就叫艺术吗？——是的，这就叫。`
+];
+const BY = ["匿名艺术家","一位不愿透露姓名的上班族","艺术家本人（存疑）","一个路人","AI 与它的不安","某位已故大师（重制版）","他本人"];
+const MEDIA = ["布面丙烯、颜料，以及一点情绪","综合材料、旧键盘与未读消息","油彩、灰尘、时间","宣纸、墨水、叹息","装置、现成品、周一","数字微喷（限量 8 版，另有 3 版）"];
+const EXH = ["第 7 届抽象双年展（平行单元）","「看不懂」群展 · 三号厅","某美术馆地下 B3","已下架","私人收藏（其实就是他家）","线上，且在加载"];
+const PROV = ["艺术家本人（其后一直在搬家）","某位舅舅，1998 年购于地摊","流传有序（无人能证明）","机场免税店","从一个模糊的微信群里购得"];
+const VERDICT = [
+  {t:"真迹", c:"v-ok"},
+  {t:"真迹（存疑）", c:"v-meh"},
+  {t:"赝品，但很抽象", c:"v-no"},
+  {t:"待考证", c:"v-meh"}
+];
+function money(){
+  const base = rint(8, 980) * 1000 + rint(0,999);
+  const unit = Math.random()<0.22 ? 1e8 : 1e4;
+  const v = Math.round(base * (unit/1e4) * rnd(0.7,3.2));
+  return '¥ ' + v.toLocaleString('en-US');
+}
+
+function generate(silent){
+  paint();
+  const T = makeTitle();
+  $('plate').textContent = T;
+  $('title').textContent = T;
+  $('byline').textContent = `${pick(BY)} · ${rint(1958,2026)} · ${pick(["布面综合材料","数字绘画","装置（现场）","行为（已结束）"])}`;
+  $('stmt').textContent = '「' + pick(STMT)(T) + '」';
+  $('size').textContent = `${rint(60,240)} × ${rint(70,300)} cm`;
+  $('media').textContent = pick(MEDIA);
+  $('exh').textContent = pick(EXH);
+  $('price').textContent = money() + (Math.random()<0.3 ? '（流拍）' : '（含佣金）');
+  $('prov').textContent = pick(PROV);
+  const v = pick(VERDICT);
+  const ve = $('verdict'); ve.textContent = v.t; ve.className = 'verdict ' + v.c;
+
+  const info = $('info');
+  info.classList.remove('fade'); void info.offsetWidth; info.classList.add('fade');
+  if(!silent) A.chime();
+}
+
+/* ---- 交互 ---- */
+document.querySelector('[data-act="gen"]').addEventListener('click', ()=>{ A.init(); A.resume(); generate(); });
+document.querySelector('[data-act="save"]').addEventListener('click', ()=>{
+  const a = document.createElement('a');
+  a.download = $('title').textContent.replace(/[《》·，\s]/g,'') + '.png';
+  a.href = cv.toDataURL('image/png'); a.click();
+});
+const muteBtn = $('muteBtn');
+muteBtn.addEventListener('click', ()=>{ A.init(); A.muted = !A.muted; muteBtn.textContent = A.muted ? '🔇' : '🔊'; });
+document.addEventListener('pointerdown', ()=>{ A.init(); A.resume(); }, {once:true});
+
+/* ---- 启动 ---- */
+makeNoise();
+generate(true);
+setTimeout(()=>{ A.init(); generate(true); }, 300);
+</script>
+</body>
+</html>

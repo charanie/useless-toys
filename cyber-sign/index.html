@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>抽象公告牌 · SPLIT-FLAP</title>
+<style>
+  :root{
+    --tw:34px; --th:42px; --fs:26px;
+    --tile:#15151a; --tile2:#101014; --ink:#f4f1e9; --dim:#8b8880;
+    --amber:#ffb454; --frame:#241d18;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:#0a0a0d;
+    background-image:radial-gradient(1000px 700px at 50% 20%, #1a1712 0%, #0a0a0d 70%);
+    color:var(--ink);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:22px;padding:28px 16px;min-height:100%;
+    -webkit-user-select:none;user-select:none;
+  }
+  .head{text-align:center;line-height:1.2}
+  .head h1{
+    margin:0;font-size:clamp(20px,3.4vw,30px);letter-spacing:.30em;font-weight:800;
+    color:var(--amber);text-shadow:0 0 26px rgba(255,180,84,.35);
+  }
+  .head .sub{margin-top:6px;font-size:11px;letter-spacing:.36em;color:var(--dim)}
+
+  .rig{
+    padding:18px;border-radius:16px;
+    background:linear-gradient(180deg,#2a221b,#14100d);
+    border:1px solid #3a2f26;
+    box-shadow:0 30px 70px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.06);
+    max-width:100%;
+  }
+  .board{
+    display:grid;
+    grid-template-columns:repeat(var(--cols), var(--tw));
+    gap:3px;
+    padding:10px;border-radius:8px;
+    background:#07070a;
+    box-shadow:inset 0 0 40px rgba(0,0,0,.9);
+  }
+  .tile{
+    position:relative;width:var(--tw);height:var(--th);
+    perspective:420px;border-radius:3px;
+  }
+  .half{
+    position:absolute;left:0;right:0;height:50%;overflow:hidden;
+    background:linear-gradient(180deg,#1c1c22,#17171c);
+  }
+  .half span{
+    position:absolute;left:0;right:0;height:var(--th);
+    display:flex;align-items:center;justify-content:center;
+    font:700 var(--fs)/1 ui-monospace,"Consolas","Courier New",monospace;
+    color:var(--ink);
+  }
+  .top{top:0;border-radius:3px 3px 0 0;border-bottom:1px solid rgba(0,0,0,.75)}
+  .top span{top:0}
+  .bot{bottom:0;border-radius:0 0 3px 3px}
+  .bot span{bottom:0}
+  .flap{
+    position:absolute;left:0;right:0;height:50%;overflow:hidden;
+    backface-visibility:hidden;-webkit-backface-visibility:hidden;will-change:transform;
+    background:linear-gradient(180deg,#232329,#1b1b21);
+  }
+  .flap span{
+    position:absolute;left:0;right:0;height:var(--th);
+    display:flex;align-items:center;justify-content:center;
+    font:700 var(--fs)/1 ui-monospace,"Consolas","Courier New",monospace;
+    color:var(--ink);
+  }
+  .fTop{top:0;transform-origin:bottom;border-radius:3px 3px 0 0;z-index:3}
+  .fTop span{top:0}
+  .fBot{bottom:0;transform-origin:top;border-radius:0 0 3px 3px;z-index:2}
+  .fBot span{bottom:0}
+  @keyframes flapDown{from{transform:rotateX(0)}to{transform:rotateX(-92deg)}}
+  @keyframes flapUp{from{transform:rotateX(92deg)}to{transform:rotateX(0)}}
+
+  .clock{
+    margin-top:12px;display:flex;justify-content:space-between;align-items:center;
+    font:600 12px/1 ui-monospace,Consolas,monospace;letter-spacing:.22em;color:var(--amber);
+    padding:0 6px;opacity:.9;
+  }
+  .clock .dot{animation:blink 1.4s steps(1,end) infinite}
+  @keyframes blink{50%{opacity:.15}}
+
+  .bar{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;align-items:center}
+  button{
+    font:inherit;font-size:13px;color:var(--ink);cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:10px 18px;letter-spacing:.08em;transition:.15s;
+  }
+  button:hover{background:rgba(255,180,84,.16);border-color:rgba(255,180,84,.5);color:var(--amber)}
+  button.on{background:rgba(255,180,84,.2);border-color:var(--amber);color:var(--amber)}
+  input{
+    font:inherit;font-size:13px;color:var(--ink);width:min(320px,52vw);
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:10px 18px;outline:none;letter-spacing:.06em;
+  }
+  input:focus{border-color:rgba(255,180,84,.5)}
+  input::placeholder{color:#666}
+  .tip{font-size:11px;color:var(--dim);letter-spacing:.18em}
+</style>
+</head>
+<body>
+  <div class="head">
+    <h1>抽 象 公 告 牌</h1>
+    <div class="sub">SPLIT-FLAP · 离站信息 · 本屏无任何用途</div>
+  </div>
+
+  <div class="rig">
+    <div class="board" id="board"></div>
+    <div class="clock">
+      <span><span class="dot">●</span> DEPARTURES</span>
+      <span id="clock">--:--:--</span>
+    </div>
+  </div>
+
+  <div class="bar">
+    <button data-act="flip">翻 牌</button>
+    <button data-act="auto" id="autoBtn">自动</button>
+    <input id="msg" maxlength="80" placeholder="打一行字，让它翻给你看…">
+    <button data-act="send">打上去</button>
+    <button data-act="mute" id="muteBtn">🔊</button>
+  </div>
+  <div class="tip">每块字牌都会翻过去 · 点击「翻牌」换一批抽象离站信息</div>
+
+<script>
+"use strict";
+/* ========= 抽象公告牌 · Split-Flap Board ========= */
+
+const COLS = 22, ROWS = 4;
+const board = document.getElementById('board');
+const clockEl = document.getElementById('clock');
+
+/* ---- 音效 ---- */
+const A = {
+  ctx:null, muted:false,
+  init(){ if(this.ctx) return; const C=window.AudioContext||window.webkitAudioContext; if(C) this.ctx=new C(); },
+  resume(){ if(this.ctx && this.ctx.state==='suspended') this.ctx.resume(); },
+  last:0,
+  tok(){
+    if(this.muted || !this.ctx) return;
+    const now = performance.now();
+    if(now - this.last < 26) return;   // 限流，避免火力过猛
+    this.last = now;
+    const c=this.ctx, t=c.currentTime;
+    const o=c.createOscillator(); o.type='square';
+    const f=560+Math.random()*340;
+    o.frequency.setValueAtTime(f,t);
+    o.frequency.exponentialRampToValueAtTime(f*0.5,t+0.03);
+    const g=c.createGain();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.045+Math.random()*0.02,t+0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.05);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+0.07);
+  }
+};
+
+/* ---- 字符池 ---- */
+const POOL = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-+/*#@&%$?!<>=.").split('');
+const CJK = "的一是不了在人有我他这个们中来上大为和国地到以说时要就出会可也你对生能而子那得于着下自之年过发后作里用道行所然家种事成方多经么去法学如都同现当没动面起看定天分还进好小部其些主样理心她本前开但因只从想实日军者意无力它与长把机十民第公此已工使情明性知全三又关点正业外将两高间由问很最重并物手应战向头文体政美相见被利什二等产或新己制身果加西斯月话合回特代内信表化老给世位次度门任常先海通教儿原东声提立及比员解水名真论处走义各入几口认条平系气题活尔更别打女变四神总何电数安少报才结反受目太量再感建务做接必场件计管期市直德资命山金指克许统区保至队形社便空决治展马科司五基眼书非则听白却界达光放强即像难且权思王象完设式色路记南品住告类求据程北边死张该交规万取拉格望觉术领共确传师观清今切院让识候带导争运笑飞风步改收根干造言联持组每济车亲极林服快办议往元英士证近失转夫令准布始怎呢存未远叫台单影具罗字爱击流备兵连调深商算质团集百需价花党华城石级整府离况亚请技际约示复病息究线似官火断精满支视消越器容照须九增研写称企八功吗包片史委乎查轻易早曾除农找装广显吧阿李标谈吃图念六引历首医局突专费号尽另周较注语仅考落青随选列武红响虽推势参希古众构房半节土投某案黑维革划敌致陈律足态护七兴派孩验责营星够章音跟志底站严巴例防族供效续施留讲型料终答紧黄绝奇察母京段依批群项故按河米围江织害斗双境客纪采举杀攻父苏密低朝友诉止细愿千值仍男钱破网热助倒育属坐帝限船脸职速刻乐否刚威毛状率甚独球般普怕弹校苦创假久错承印晚兰试股拿脑预谁益阳若哪微尼继送急血惊伤素药适波夜省初喜卫源食险待述陆习置居劳财环排福纳欢雷警获模充负云停木游龙树疑层冷洲冲射略范竟句室异激汉村哈策演简卡罪判担州静退既衣您宗积余痛检差富灵协角占配征修皮挥胜降阶审沉坚善妈刘读啊超免压银买皇养伊怀执副乱抗犯追帮宣佛岁航优怪香著田铁控税左右份穿艺背阵草脚概恶块顿敢守酒岛托央户烈洋哥索胡款靠评版宝座释景顾弟登货互付伯慢欧换闻危忙核暗姐介坏讨丽良序升监临亮露永呼味野架域沙掉括舰鱼杂误湾吉减编楚费紧";
+function randChar(){
+  const r = Math.random();
+  if(r < 0.55) return POOL[(Math.random()*POOL.length)|0];
+  return CJK.length ? CJK[(Math.random()*CJK.length)|0] : '·';
+}
+
+/* ---- 建牌 ---- */
+const tiles = [];
+function buildBoard(){
+  board.innerHTML = '';
+  board.style.setProperty('--cols', COLS);
+  const frag = document.createDocumentFragment();
+  for(let i=0;i<COLS*ROWS;i++){
+    const t = document.createElement('div');
+    t.className = 'tile';
+    t.innerHTML =
+      '<div class="half top"><span></span></div>'+
+      '<div class="half bot"><span></span></div>'+
+      '<div class="flap fTop"><span></span></div>'+
+      '<div class="flap fBot"><span></span></div>';
+    t.topSpan = t.querySelector('.top span');
+    t.botSpan = t.querySelector('.bot span');
+    t.fTopSpan = t.querySelector('.fTop span');
+    t.fBotSpan = t.querySelector('.fBot span');
+    t.fTop = t.querySelector('.fTop');
+    t.fBot = t.querySelector('.fBot');
+    t.ch = ' ';
+    frag.appendChild(t);
+    tiles.push(t);
+  }
+  board.appendChild(frag);
+}
+
+/* ---- 尺寸自适应 ---- */
+function fit(){
+  const maxW = Math.min(window.innerWidth - 96, 1180);
+  let tw = Math.floor((maxW - (COLS-1)*3) / COLS);
+  tw = Math.max(16, Math.min(42, tw));
+  const th = Math.round(tw*1.22);
+  const fs = Math.round(th*0.62);
+  const r = document.documentElement.style;
+  r.setProperty('--tw', tw+'px');
+  r.setProperty('--th', th+'px');
+  r.setProperty('--fs', fs+'px');
+}
+window.addEventListener('resize', ()=>{ fit(); });
+
+/* ---- 翻牌 ---- */
+function flip(t, ch){
+  if(t.ch === ch) return;
+  const oldTop = t.topSpan.textContent || ' ';
+  t.topSpan.textContent = ch;         // 新字上半（被上翻片盖着）
+  t.fTopSpan.textContent = oldTop;    // 旧字上半，向下翻走
+  t.fBotSpan.textContent = ch;        // 新字下半，翻下来
+  t.fTop.style.animation = 'none';
+  t.fBot.style.animation = 'none';
+  void t.fTop.offsetWidth; void t.fBot.offsetWidth;
+  t.fTop.style.animation = 'flapDown .085s ease-in forwards';
+  t.fBot.style.animation = 'flapUp .085s ease-out .05s forwards';
+  clearTimeout(t._bt);
+  t._bt = setTimeout(()=>{ t.botSpan.textContent = ch; }, 60);
+  t.ch = ch;
+  A.tok();
+}
+function clearTimers(){
+  for(const t of tiles){ clearTimeout(t._to); clearTimeout(t._bt); }
+}
+
+/* ---- 文本 → 牌面 ---- */
+function toGrid(lines){
+  const g = [];
+  for(let r=0;r<ROWS;r++){
+    let s = lines[r] != null ? String(lines[r]) : '';
+    if(s.length > COLS) s = s.slice(0, COLS);
+    g.push(s.padEnd(COLS, ' ').split(''));
+  }
+  return g;
+}
+function render(lines, instant){
+  clearTimers();
+  const g = toGrid(lines);
+  if(instant){
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const t = tiles[r*COLS+c];
+      t.ch = g[r][c];
+      t.topSpan.textContent = t.ch; t.botSpan.textContent = t.ch;
+      t.fTopSpan.textContent = t.ch; t.fBotSpan.textContent = t.ch;
+    }
+    return;
+  }
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const t = tiles[r*COLS+c];
+      const target = g[r][c];
+      if(t.ch === target) continue;
+      const k = 1 + (Math.random()*4|0);
+      const delay = c*20 + (Math.random()*24|0) + r*10;
+      scheduleFlip(t, target, k, delay);
+    }
+  }
+}
+function scheduleFlip(t, target, k, delay){
+  clearTimeout(t._to);
+  let i = 0;
+  const step = ()=>{
+    const last = i === k-1;
+    flip(t, last ? target : randChar());
+    i++;
+    if(!last) t._to = setTimeout(step, 118 + (Math.random()*26|0));
+  };
+  t._to = setTimeout(step, delay);
+}
+
+/* ---- 内容 ---- */
+const pad = (s, n) => (s + ' '.repeat(n)).slice(0, n);
+const DEP_DEST = ['摸鱼','下班','人生的意义','存款','周末','爱情','发际线','年终奖','自由','睡眠','理想','对象','健康','假期'];
+const DEP_STAT = ['登机中','已取消','延误','正在起飞','备降他处','提前到达','持续离场','显示错误'];
+const DEP_TIME = ['∞','看老板','待定','梦里','未定','实时','随缘','下辈子','待补充'];
+
+function boardDepartures(){
+  const rows = ['目的地        状态        时间'];
+  const used = new Set();
+  for(let i=0;i<ROWS-1;i++){
+    let d; let guard=0;
+    do { d = DEP_DEST[(Math.random()*DEP_DEST.length)|0]; guard++; } while(used.has(d) && guard<30);
+    used.add(d);
+    const s = DEP_STAT[(Math.random()*DEP_STAT.length)|0];
+    const tm = DEP_TIME[(Math.random()*DEP_TIME.length)|0];
+    rows.push(pad(d, 8) + pad(s, 10) + tm);
+  }
+  return rows;
+}
+const POEMS = [
+  "人生就是一场大风 我只是被吹着走的",
+  "本屏无任何用途 请勿在此滞留",
+  "下一站 抽象 前方到站 下班",
+  "你已偏离路线 请继续偏离",
+  "所有列车 均晚点 就像你一样",
+  "请照顾好随身物品 尤其是理想",
+  "本次列车开往 一个说不清的地方",
+  "预计到达时间 永远不会 但也说不准"
+];
+function boardPoem(){
+  const p = POEMS[(Math.random()*POEMS.length)|0];
+  const lines = [];
+  for(let i=0;i<ROWS;i++) lines.push('');
+  // 居中放进中间两行
+  const mid = Math.floor(ROWS/2)-1;
+  const chunks = [];
+  for(let i=0;i<p.length;i+=COLS) chunks.push(p.slice(i, i+COLS));
+  const start = Math.max(0, mid - Math.floor(chunks.length/2) + 1);
+  chunks.forEach((ch,i)=>{
+    const row = start + i;
+    if(row>=0 && row<ROWS){
+      const padN = Math.max(0, Math.floor((COLS-ch.length)/2));
+      lines[row] = ' '.repeat(padN) + ch;
+    }
+  });
+  return lines;
+}
+function randomBoard(){ return Math.random()<0.55 ? boardDepartures() : boardPoem(); }
+
+/* ---- 时钟 ---- */
+function tickClock(){
+  const d = new Date();
+  const p = n => String(n).padStart(2,'0');
+  clockEl.textContent = p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+}
+setInterval(tickClock, 1000); tickClock();
+
+/* ---- 交互 ---- */
+let autoTimer = null;
+function setAuto(on){
+  const btn = document.getElementById('autoBtn');
+  btn.classList.toggle('on', on);
+  if(autoTimer){ clearInterval(autoTimer); autoTimer = null; }
+  if(on) autoTimer = setInterval(()=>{ if(!document.hidden) render(randomBoard()); }, 9000);
+}
+document.querySelector('[data-act="flip"]').addEventListener('click', ()=>{
+  A.init(); A.resume(); render(randomBoard());
+});
+document.getElementById('autoBtn').addEventListener('click', e=>{
+  A.init(); A.resume(); setAuto(!autoTimer);
+});
+document.querySelector('[data-act="send"]').addEventListener('click', ()=>{
+  A.init(); A.resume();
+  const v = document.getElementById('msg').value;
+  if(v.trim()) render([v]);
+});
+document.getElementById('msg').addEventListener('keydown', e=>{
+  if(e.key === 'Enter'){ A.init(); A.resume(); const v=e.target.value; if(v.trim()) render([v]); }
+});
+const muteBtn = document.getElementById('muteBtn');
+muteBtn.addEventListener('click', ()=>{
+  A.init(); A.muted = !A.muted; muteBtn.textContent = A.muted ? '🔇' : '🔊';
+});
+document.addEventListener('pointerdown', ()=>{ A.init(); A.resume(); }, {once:true});
+
+/* ---- 启动 ---- */
+fit();
+buildBoard();
+render(boardDepartures(), true);
+setTimeout(()=>render(boardDepartures()), 600);
+</script>
+</body>
+</html>
