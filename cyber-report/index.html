@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>周报生成器 · WEEKLY REPORT</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{
+    background:#0a0a0d;
+    background-image:radial-gradient(1000px 640px at 50% -4%, #1a1622 0%, #0a0a0d 64%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    color:#e9e6df;display:flex;justify-content:center;padding:30px 18px 60px;min-height:100vh;
+    -webkit-user-select:none;user-select:none;
+  }
+  .wrap{width:min(760px,100%);display:flex;flex-direction:column;gap:20px}
+  header{text-align:center}
+  header h1{margin:0;font-size:clamp(22px,4.4vw,32px);letter-spacing:.22em;
+    background:linear-gradient(94deg,#79c6ff,#a98cff 55%,#ff8ab0);-webkit-background-clip:text;background-clip:text;color:transparent}
+  header p{margin:10px 0 0;font-size:12.5px;color:#8f887c;letter-spacing:.2em}
+
+  .panel{background:rgba(22,22,28,.66);border:1px solid rgba(255,255,255,.11);border-radius:16px;padding:16px 18px;
+    display:flex;flex-direction:column;gap:12px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  label{font-size:12px;color:#8f887c;letter-spacing:.14em;flex:0 0 auto}
+  input[type=text]{
+    flex:1;min-width:150px;font:inherit;font-size:13.5px;color:#e9e6df;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px 14px;outline:none;
+  }
+  input[type=text]:focus{border-color:rgba(121,198,255,.55)}
+  input::placeholder{color:#6b6660}
+  input[type=range]{flex:1;min-width:140px;-webkit-appearance:none;appearance:none;height:5px;border-radius:9px;background:rgba(255,255,255,.14);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;
+    background:linear-gradient(140deg,#79c6ff,#a98cff);cursor:pointer;box-shadow:0 0 12px rgba(140,160,255,.6)}
+  .lv{font-size:12px;color:#a98cff;min-width:66px;text-align:right;letter-spacing:.1em}
+  .btns{display:flex;gap:10px;flex-wrap:wrap}
+  button{
+    font:inherit;font-size:13px;color:#e9e6df;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);
+    border-radius:999px;padding:10px 20px;letter-spacing:.08em;transition:.15s;
+  }
+  button:hover{background:rgba(121,198,255,.18);border-color:rgba(121,198,255,.5);transform:translateY(-1px)}
+  button.primary{background:linear-gradient(120deg,rgba(121,198,255,.28),rgba(169,140,255,.22));border-color:rgba(140,160,255,.55)}
+
+  /* 文档 */
+  .doc{
+    background:#f7f4ee;color:#23211c;border-radius:12px;padding:34px 38px;
+    box-shadow:0 30px 70px rgba(0,0,0,.55);line-height:2;font-size:14.5px;
+    font-family:"Songti SC","SimSun",Georgia,serif;position:relative;min-height:240px;
+    opacity:0;transform:translateY(8px);transition:opacity .35s ease, transform .35s ease;
+  }
+  .doc.show{opacity:1;transform:none}
+  .doc h2{margin:0 0 6px;text-align:center;font-size:20px;letter-spacing:.3em;font-weight:700}
+  .doc .meta{text-align:center;font-size:12px;color:#8a8375;letter-spacing:.1em;margin-bottom:22px;
+    border-bottom:1px solid #ddd6c8;padding-bottom:14px}
+  .doc h3{margin:20px 0 6px;font-size:15px;letter-spacing:.14em;color:#1a1815}
+  .doc ol{margin:6px 0;padding-left:22px}
+  .doc li{margin:4px 0}
+  .doc .ghost{color:#9d9787}
+  .doc .seal{position:absolute;right:26px;bottom:20px;width:56px;height:56px;border:2px solid #b0463c;border-radius:6px;
+    color:#b0463c;display:flex;align-items:center;justify-content:center;font-size:11px;letter-spacing:2px;
+    transform:rotate(-8deg);opacity:.55;line-height:1.2;text-align:center;font-family:"Songti SC",serif}
+  .doc.empty{display:flex;align-items:center;justify-content:center;color:#a09a8c;font-family:inherit;font-size:13px;letter-spacing:.1em}
+  .tip{font-size:11.5px;color:#6f6a62;letter-spacing:.12em;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>周 报 生 成 器</h1>
+    <p>看起来很像样 · 其实全是废话 · 但没人会发现</p>
+  </header>
+
+  <div class="panel">
+    <div class="row">
+      <label>姓名</label>
+      <input type="text" id="name" maxlength="12" placeholder="（可留空）">
+      <label>关键词</label>
+      <input type="text" id="kw" maxlength="60" placeholder="用逗号分隔，可留空">
+    </div>
+    <div class="row">
+      <label>抽象程度</label>
+      <input type="range" id="lv" min="1" max="5" value="3">
+      <span class="lv" id="lvLab">3 · 标准</span>
+    </div>
+    <div class="btns">
+      <button class="primary" id="gen">生成一份周报</button>
+      <button id="copy">复制</button>
+      <button id="muteBtn">🔊</button>
+    </div>
+  </div>
+
+  <div class="doc empty" id="doc">点上面的按钮，它会替你写一份（毫无内容的）周报</div>
+  <div class="tip">生成内容纯属虚构，如有雷同，说明你们公司确实是这样</div>
+</div>
+
+<script>
+"use strict";
+/* ========= 周报生成器 ========= */
+const $=id=>document.getElementById(id);
+const pick=a=>a[(Math.random()*a.length)|0];
+const shuffle=a=>a.slice().sort(()=>Math.random()-0.5);
+function uniq(arr){ return [...new Set(arr)]; }
+
+/* ---- 音效 ---- */
+const A={
+  ctx:null,muted:false,
+  init(){ if(this.ctx)return; const C=window.AudioContext||window.webkitAudioContext; if(C)this.ctx=new C(); },
+  resume(){ if(this.ctx&&this.ctx.state==='suspended')this.ctx.resume(); },
+  tap(){ this.tone(620,0.05,'square',0.03); },
+  done(){
+    if(this.muted||!this.ctx)return;
+    const c=this.ctx,t=c.currentTime;
+    [523,659,784].forEach((f,i)=>{
+      const o=c.createOscillator(); o.type='triangle'; o.frequency.value=f;
+      const g=c.createGain(); const st=t+i*0.07;
+      g.gain.setValueAtTime(0.0001,st); g.gain.exponentialRampToValueAtTime(0.09,st+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,st+0.45);
+      o.connect(g).connect(c.destination); o.start(st); o.stop(st+0.5);
+    });
+  },
+  tone(f,d,type,v){ if(this.muted||!this.ctx)return;
+    const c=this.ctx,t=c.currentTime; const o=c.createOscillator(); o.type=type||'sine';
+    o.frequency.setValueAtTime(f,t); const g=c.createGain();
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(v||0.05,t+0.005); g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+d+0.03);
+  }
+};
+
+/* ---- 词库 ---- */
+const DEFAULT_THINGS=["项目","数据","需求","文档","流程","体验","指标","活动","内容","系统","平台","方案","排期","复盘"];
+const BUZZ=["赋能","抓手","闭环","对齐","拉通","沉淀","颗粒度","组合拳","方法论","顶层设计","生态位","心智","复用","打法","势能","壁垒","飞轮","卡点","护城河","中台"];
+const FAKE_DETAIL=["（细节略）","（此处省略三百字）","（本句暂无实际含义）","（已同步至相关方，具体内容另行同步）","（如有疑问，以我为准）","（这一段可以删）"];
+
+function keywords(){
+  const raw=$('kw').value.trim();
+  let list = raw ? raw.split(/[,，、;；\s]+/).filter(Boolean) : [];
+  list = uniq(list);
+  while(list.length < 6) list.push(pick(DEFAULT_THINGS));
+  return list;
+}
+
+const OPEN=[
+  t=>`持续推进「${t}」相关工作，梳理了现状，初步明确了下一阶段的方向。`,
+  t=>`围绕「${t}」完成了阶段性工作，整体进展符合预期。`,
+  t=>`负责「${t}」的日常推进与维护，保障了节奏的稳定。`,
+  t=>`对「${t}」进行了系统性的复核，输出了一份初步的结论。`
+];
+const MID=[
+  (a,b)=>`与相关方就「${a}」与「${b}」的口径进行了对齐，双方基本达成一致。`,
+  (a,b)=>`拉通了「${a}」与「${b}」之间的链路，形成了初步闭环。`,
+  (a,b)=>`同步了「${a}」与「${b}」的最新进展，后续将持续跟进。`,
+  (a,b)=>`针对「${a}」暴露的问题，结合「${b}」的情况做了专项梳理。`
+];
+const END=[
+  t=>`复核了「${t}」的细节，优化了体验，用户/同事反馈良好。`,
+  t=>`沉淀了「${t}」的相关经验，形成了一套可复用的方法。`,
+  t=>`完成了「${t}」的阶段性目标，达成了预期效果。`,
+  t=>`把「${t}」往前推了一步，剩下的看下周。`
+];
+const PROBLEM=[
+  t=>`「${t}」的排期还需要再对齐，时间上有点紧。`,
+  t=>`部分事项依赖外部输入，「${t}」的进度存在一定不确定性。`,
+  t=>`事情比较多，「${t}」与其他事项的优先级还需要进一步明确。`,
+  t=>`整体可控，但「${t}」的节奏需要持续关注。`,
+  t=>`客观条件所限，「${t}」只能先做到这一步。`
+];
+const NEXT=[
+  t=>`继续推进「${t}」，争取完成阶段性目标。`,
+  t=>`加强与相关方的协同，尽快形成闭环。`,
+  t=>`视情况启动「${t}」的前期调研。`,
+  t=>`保持节奏，稳定输出，把「${t}」做扎实。`
+];
+
+function buzzStr(n){
+  const b=shuffle(BUZZ).slice(0,n);
+  if(!b.length) return '';
+  return `，并在${b.join('、')}等方面做了进一步思考`;
+}
+function ghost(lv){
+  return lv>=4 && Math.random()<0.6 ? ' '+pick(FAKE_DETAIL) : '';
+}
+
+function build(){
+  const kws=keywords();
+  const lv=+$('lv').value;
+  const t1=pick(kws), t2=pick(kws), t3=pick(kws), t4=pick(kws);
+
+  const works=[];
+  works.push(pick(OPEN)(t1));
+  works.push(pick(MID)(t2,t3));
+  works.push(pick(END)(t4));
+  if(lv>=3) works.push(pick(OPEN)(pick(kws)));
+  if(lv>=4) works.push(pick(MID)(pick(kws), pick(kws)));
+  const workItems = works.slice(0, Math.min(5, 2+lv));
+  // 抽象度：给句子接上黑话尾巴
+  const withBuzz = workItems.map(s => s.replace(/。$/, buzzStr(Math.min(3, Math.floor(lv/1.6))) + '。' + ghost(lv)));
+
+  const problems=[pick(PROBLEM)(pick(kws))];
+  if(lv>=3) problems.push('整体上，需要进一步明确优先级，聚焦重点。');
+  if(lv>=4) problems.push('以上问题都已经记录，正在推进解决'+ghost(lv));
+
+  const nexts=[pick(NEXT)(pick(kws)), '加强与相关方的协同，尽快形成闭环。'];
+  if(lv>=4) nexts.push(pick(NEXT)(pick(kws)));
+  if(lv>=5) nexts.push('继续保持，稳中求进，进中求稳。'+ghost(lv));
+
+  const name=$('name').value.trim();
+  const d=new Date();
+  const monday=new Date(d); monday.setDate(d.getDate() - ((d.getDay()+6)%7));
+  const fmt=x=>`${x.getMonth()+1}月${x.getDate()}日`;
+  const range=`${fmt(monday)} — ${fmt(d)}`;
+
+  const li = arr => '<ol>'+[...new Set(arr)].map(s=>`<li>${s}</li>`).join('')+'</ol>';
+  const html = `
+    <h2>本 周 工 作 小 结</h2>
+    <div class="meta">${name?name+' · ':''}${range}${lv>=5?' · 第七版（终版）（最终版）':''}</div>
+    <h3>一、本周工作</h3>${li(withBuzz)}
+    <h3>二、存在问题</h3>${li(problems)}
+    <h3>三、下周计划</h3>${li(nexts)}
+    <div class="seal">${name? name.slice(0,2) : '周报'}<br>之印</div>`;
+  return html;
+}
+
+/* ---- 交互 ---- */
+$('lv').addEventListener('input', e=>{
+  const v=+e.target.value;
+  $('lvLab').textContent = v+' · '+['','朴实','克制','标准','浮夸','失控'][v];
+});
+$('gen').addEventListener('click', ()=>{
+  A.init(); A.resume(); A.tap();
+  const doc=$('doc');
+  doc.classList.remove('empty','show');
+  doc.innerHTML=build();
+  requestAnimationFrame(()=>doc.classList.add('show'));
+  A.done();
+});
+$('copy').addEventListener('click', async ()=>{
+  const doc=$('doc');
+  const text = doc.classList.contains('empty') ? '' : doc.innerText;
+  if(!text){ A.tone(200,0.15,'square',0.05); return; }
+  try{ await navigator.clipboard.writeText(text); $('copy').textContent='已复制 ✓'; }
+  catch(e){ $('copy').textContent='复制失败'; }
+  setTimeout(()=>$('copy').textContent='复制', 1500);
+});
+$('muteBtn').addEventListener('click', e=>{ A.init(); A.muted=!A.muted; e.target.textContent=A.muted?'🔇':'🔊'; });
+</script>
+</body>
+</html>

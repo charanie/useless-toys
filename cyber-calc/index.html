@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>会记仇的计算器 · BITTER CALCULATOR</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:#08080b}
+  body{
+    background-image:radial-gradient(800px 620px at 50% 18%, #161c22 0%, #08080b 68%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    color:#e6ecf0;display:flex;align-items:center;justify-content:center;padding:22px;min-height:100vh;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+  .calc{
+    width:min(360px,100%);background:rgba(18,20,24,.85);border:1px solid rgba(255,255,255,.11);
+    border-radius:22px;padding:18px;box-shadow:0 40px 90px rgba(0,0,0,.7);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);position:relative;overflow:hidden;
+  }
+  .calc.shake{animation:sk .4s ease}
+  @keyframes sk{0%,100%{transform:translate(0,0)}25%{transform:translate(-5px,3px)}75%{transform:translate(5px,-3px)}}
+
+  .screen{background:rgba(0,0,0,.42);border-radius:14px;padding:14px 16px;margin-bottom:12px;min-height:104px;
+    display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;gap:6px;overflow:hidden}
+  .expr{font:600 14px/1.4 ui-monospace,Consolas,monospace;color:#6f7c86;min-height:20px;word-break:break-all;text-align:right}
+  .out{font:800 40px/1.05 ui-monospace,Consolas,monospace;color:#8ef0c8;font-variant-numeric:tabular-nums;
+    text-shadow:0 0 26px rgba(142,240,200,.35);word-break:break-all;text-align:right;transition:color .2s}
+  .out.err{color:#ff8a6e;text-shadow:0 0 26px rgba(255,138,110,.35);font-size:26px}
+  .out.angry{color:#ffb04c}
+
+  .say{
+    background:rgba(255,255,255,.045);border-left:2px solid rgba(255,138,92,.6);border-radius:0 10px 10px 0;
+    padding:10px 13px;font-size:13px;line-height:1.65;color:#b9c4cc;min-height:56px;margin-bottom:12px;
+    display:flex;align-items:center;transition:opacity .25s
+  }
+  .say.fade{opacity:0}
+  .say b{color:#ffd36e}
+
+  .keys{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .keys button{
+    font:inherit;font-size:17px;font-weight:600;color:#e6ecf0;cursor:pointer;height:54px;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:13px;
+    transition:transform .1s, background .15s;
+  }
+  .keys button:hover{background:rgba(255,255,255,.12)}
+  .keys button:active{transform:scale(.94)}
+  .keys button.op{color:#8ef0c8;background:rgba(142,240,200,.09)}
+  .keys button.fn{color:#ffb04c;background:rgba(255,176,76,.09)}
+  .keys button.eq{color:#fff;background:linear-gradient(140deg,#ff8a5c,#c33c8f);border-color:transparent}
+  .meta{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:11.5px;color:#6f7c86;letter-spacing:.1em}
+  .meta button{font:inherit;font-size:11.5px;color:#6f7c86;background:transparent;border:1px solid rgba(255,255,255,.12);
+    border-radius:999px;padding:4px 12px;cursor:pointer;transition:.15s}
+  .meta button:hover{color:#e6ecf0;border-color:rgba(255,255,255,.3)}
+  .meta b{color:#8ef0c8}
+  @media (max-height:700px){ .keys button{height:46px} .out{font-size:34px} }
+</style>
+</head>
+<body>
+<div class="calc" id="calc">
+  <div class="screen">
+    <div class="expr" id="expr"></div>
+    <div class="out" id="out">0</div>
+  </div>
+  <div class="say" id="say">你好。我是一台计算器。有什么可以算的？</div>
+  <div class="keys" id="keys"></div>
+  <div class="meta">
+    <span>已计算 <b id="cnt">0</b> 次</span>
+    <button id="forgive">跟它和好</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 会记仇的计算器 ========= */
+const $=id=>document.getElementById(id);
+const KEYS=[
+  ['C','fn'],['←','fn'],['÷','op'],['×','op'],
+  ['7',''],['8',''],['9',''],['−','op'],
+  ['4',''],['5',''],['6',''],['+','op'],
+  ['1',''],['2',''],['3',''],['=','eq'],
+  ['0',''],['.',''],['(',''],[')','']
+];
+const keyBox=$('keys');
+KEYS.forEach(([k,cls])=>{
+  const b=document.createElement('button');
+  b.textContent=k; if(cls) b.className=cls; b.dataset.k=k;
+  b.addEventListener('click', ()=>{ A.init(); A.resume(); press(k); });
+  keyBox.appendChild(b);
+});
+
+/* ---- 音效 ---- */
+const A={
+  ctx:null,muted:false,
+  init(){ if(this.ctx)return; const C=window.AudioContext||window.webkitAudioContext; if(C)this.ctx=new C(); },
+  resume(){ if(this.ctx&&this.ctx.state==='suspended')this.ctx.resume(); },
+  tap(f){ if(!this.ctx)return; const c=this.ctx,t=c.currentTime;
+    const o=c.createOscillator(); o.type='square'; o.frequency.value=f||680;
+    const g=c.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.035,t+0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.05);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+0.06); },
+  ok(){ if(!this.ctx)return; const c=this.ctx,t=c.currentTime;
+    [659,880].forEach((f,i)=>{ const o=c.createOscillator(); o.type='triangle'; o.frequency.value=f;
+      const g=c.createGain(); const st=t+i*0.06;
+      g.gain.setValueAtTime(0.0001,st); g.gain.exponentialRampToValueAtTime(0.07,st+0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001,st+0.3);
+      o.connect(g).connect(c.destination); o.start(st); o.stop(st+0.32); }); },
+  bad(){ if(!this.ctx)return; const c=this.ctx,t=c.currentTime;
+    const o=c.createOscillator(); o.type='sawtooth'; o.frequency.setValueAtTime(180,t);
+    o.frequency.exponentialRampToValueAtTime(70,t+0.3);
+    const g=c.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.07,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.35);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+0.4); }
+};
+
+/* ---- 状态 ---- */
+let cur='', done=false, count=0, strike=false;
+
+const TIER=[
+  [ // 0-2 友好
+    r=>`算好了，答案是 ${r}。`,
+    r=>`嗯，${r}。不客气。`,
+    r=>`${r}。这个我会。`,
+    r=>`结果 ${r}。还需要算别的吗？`
+  ],
+  [ // 3-7 略烦
+    r=>`${r}。就这？`,
+    r=>`行，${r}。`,
+    r=>`又是你。${r}。`,
+    r=>`${r}，下一个。`
+  ],
+  [ // 8-15 烦
+    r=>`${r}。我不问你为什么了。`,
+    r=>`${r}。你其实可以用手机算的。`,
+    r=>`${r}。建议你自己核对一遍。`,
+    r=>`你按得有点频繁啊。${r}。`
+  ],
+  [ // 16+ 崩溃
+    r=>`${r}。……你开心就好。`,
+    r=>`${r}。我已经算了 ${count} 次了。`,
+    r=>`${r}。再算下去我就要罢工了。`,
+    r=>`求你了。${r}。`
+  ]
+];
+const pick=a=>a[(Math.random()*a.length)|0];
+
+function press(k){
+  if(strike && k!=='C' && k!=='←'){ strike=false; say('……好吧。', 'fade'); if(k!=='=') { /* 继续正常输入 */ } }
+  if(k==='C'){ cur=''; done=false; render('0'); say('清空了啊。', 'fade'); A.tap(430); return; }
+  if(k==='←'){ cur=cur.slice(0,-1); render(cur||'0'); A.tap(520); return; }
+  if(k==='='){ equals(); return; }
+  if(done){ cur=''; done=false; }
+  cur += k;
+  render(cur);
+  A.tap(620 + Math.random()*160);
+}
+function render(txt){
+  const o=$('out');
+  o.classList.remove('err','angry');
+  o.textContent = txt;
+  $('expr').textContent = (txt===cur && cur) ? '' : cur;
+}
+function say(t, cls){
+  const s=$('say');
+  s.classList.add('fade');
+  setTimeout(()=>{ s.innerHTML=t; s.classList.remove('fade'); }, 180);
+}
+function equals(){
+  if(!cur){ A.tap(300); return; }
+  count++;
+  $('cnt').textContent = count;
+
+  // 罢工
+  if(count>0 && count%18===0 && !strike){
+    strike=true;
+    $('out').textContent='……';
+    $('out').classList.add('err');
+    say('我今天不想算了。你自己来吧。', '');
+    A.bad();
+    document.getElementById('calc').classList.remove('shake'); void 0;
+    document.getElementById('calc').classList.add('shake');
+    return;
+  }
+
+  const cleaned = cur.replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-').replace(/[^0-9+\-*/(). ]/g,'');
+  if(!cleaned){ A.bad(); say('你输的这些我没法算。', ''); return; }
+
+  // 特判
+  if(/^\s*1\s*\+\s*1\s*$/.test(cleaned)){
+    finish('2', '1+1……你确定需要我？答案是 2。'); return;
+  }
+  if(/\/\s*0(?!\d)/.test(cleaned)){
+    $('out').textContent='÷0'; $('out').classList.add('err');
+    say('除以零。你竟然真的试了。结果：宇宙的尽头。', '');
+    A.bad(); document.getElementById('calc').classList.add('shake');
+    setTimeout(()=>document.getElementById('calc').classList.remove('shake'), 420);
+    cur=''; done=true; return;
+  }
+
+  let val;
+  try{ val = Function('"use strict";return ('+cleaned+')')(); }
+  catch(e){
+    $('out').textContent='错误'; $('out').classList.add('err');
+    say('这个我都算不出来，你自己想想。', '');
+    A.bad(); cur=''; done=true; return;
+  }
+  if(typeof val!=='number' || !isFinite(val)){
+    $('out').textContent='错误'; $('out').classList.add('err');
+    say('算不出来。这题超纲了。', ''); A.bad(); cur=''; done=true; return;
+  }
+  const r = Math.abs(val) < 1e-10 ? 0 : (Math.round(val*1e10)/1e10);
+  const rs = String(r);
+  let extra = '';
+  if(Math.abs(r) > 1e7) extra = '（这么大的数你也算得出来。）';
+  finish(rs, extra, true);
+}
+function finish(rs, custom, tier){
+  cur = rs; done = true;
+  const o=$('out');
+  o.classList.remove('err');
+  const big = rs.length>10;
+  o.style.fontSize = big ? '26px' : '';
+  o.textContent = rs;
+  $('expr').textContent = cur;
+  if(custom){ say(custom, ''); }
+  else {
+    const t = count<=2 ? 0 : count<=7 ? 1 : count<=15 ? 2 : 3;
+    o.classList.toggle('angry', t>=2);
+    say(pick(TIER[t])(rs), '');
+  }
+  A.ok();
+  document.getElementById('calc').classList.add('shake');
+  setTimeout(()=>document.getElementById('calc').classList.remove('shake'), 260);
+}
+
+/* ---- 键盘 ---- */
+addEventListener('keydown', e=>{
+  A.init(); A.resume();
+  const k=e.key;
+  if(/^[0-9.]$/.test(k)){ press(k); }
+  else if(k==='+'){ press('+'); }
+  else if(k==='-'){ press('−'); }
+  else if(k==='*'){ press('×'); }
+  else if(k==='/'){ e.preventDefault(); press('÷'); }
+  else if(k==='('||k===')'){ press(k); }
+  else if(k==='Enter'||k==='='){ e.preventDefault(); press('='); }
+  else if(k==='Backspace'){ e.preventDefault(); press('←'); }
+  else if(k==='Escape'){ press('C'); }
+});
+$('forgive').addEventListener('click', ()=>{
+  count=0; strike=false; $('cnt').textContent=0;
+  $('out').classList.remove('err','angry'); $('out').textContent='0'; $('out').style.fontSize='';
+  cur=''; done=false;
+  A.ok();
+  say('……好吧，我原谅你了。<b>重新开始</b>。', '');
+});
+</script>
+</body>
+</html>

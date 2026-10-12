@@ -161,6 +161,36 @@
   .tmp-dest .r{position:absolute;inset:0;border-radius:50%;border:2px dashed rgba(200,107,255,.5);animation:dspin 7s linear infinite}
   @keyframes dspin{to{transform:rotate(360deg)}}
 
+  /* 画板 */
+  .tmp-paint{width:106px;height:66px;border-radius:10px;background:#111119;position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+  .tmp-paint i{position:absolute;left:11px;top:34px;width:84px;height:11px;border-radius:9px;
+    background:linear-gradient(90deg,#ff6a45,#ffd93d,#3fd06a,#5fd8ff,#c86bff);
+    animation:swish 2.6s ease-in-out infinite}
+  @keyframes swish{0%,100%{transform:translateY(0) rotate(-5deg)}50%{transform:translateY(-15px) rotate(6deg)}}
+  /* 周报 */
+  .tmp-doc{width:86px;height:104px;border-radius:8px;background:#f7f4ee;padding:11px 10px;box-shadow:0 12px 26px rgba(0,0,0,.5)}
+  .tmp-doc i{display:block;height:6px;border-radius:4px;background:#cfc7b6;margin-bottom:6px}
+  .tmp-doc i:nth-child(1){width:58%;background:#a99f8b;height:8px}
+  .tmp-doc i:nth-child(2){width:100%}
+  .tmp-doc i:nth-child(3){width:84%}
+  .tmp-doc i:nth-child(4){width:92%}
+  .tmp-doc i:nth-child(5){width:68%}
+  .tmp-doc i:nth-child(6){width:34%;background:#c2766c;margin-top:9px}
+  /* 计算器 */
+  .tmp-calc{display:grid;grid-template-columns:repeat(3,20px);gap:4px}
+  .tmp-calc i{width:20px;height:15px;border-radius:4px;background:#22242c;animation:clit 1.6s steps(2) infinite}
+  .tmp-calc i:nth-child(4n){background:#8ef0c8;animation-delay:.2s}
+  .tmp-calc i:nth-child(4n+2){animation-delay:.4s}
+  @keyframes clit{0%,100%{opacity:.45}50%{opacity:1}}
+  /* 钢琴 */
+  .tmp-piano{display:grid;grid-template-columns:repeat(4,21px);gap:4px}
+  .tmp-piano i{width:21px;height:17px;border-radius:5px;background:#1d1d26;animation:plit 1.9s ease-in-out infinite}
+  .tmp-piano i:nth-child(2){animation-delay:.16s}
+  .tmp-piano i:nth-child(5){animation-delay:.32s}
+  .tmp-piano i:nth-child(7){animation-delay:.48s}
+  .tmp-piano i:nth-child(8){animation-delay:.64s}
+  @keyframes plit{0%,100%{background:#1d1d26}40%{background:hsl(190 85% 46%)}}
+
   footer{margin-top:56px;text-align:center;color:var(--dim);font-size:12px;letter-spacing:.18em;line-height:2}
   footer b{color:#ff9a72;font-weight:600}
   footer .sep{opacity:.4;margin:0 10px}
@@ -169,9 +199,9 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="kicker">Useless Toys · 12 件</div>
+    <div class="kicker">Useless Toys · 16 件</div>
     <h1>抽 象 玩 具 铺</h1>
-    <p>十二件毫无用途、但停不下来的小东西</p>
+    <p>十六件毫无用途、但停不下来的小东西</p>
     <div class="warn">⚠ 本铺所有商品均无任何用途，打开即视为自愿</div>
   </header>
 
@@ -268,6 +298,38 @@
       <h2>命运按钮</h2>
       <p>只有一个按钮。按下去，随机发生一件事——可能是字符雨、世界倒转、全屏彩虹、按钮分裂，也可能只是一句忠告。</p>
       <div class="tags"><span class="tag">盲盒</span><span class="tag">12 种事件</span><span class="tag">全屏</span></div>
+    </a>
+  </div>
+
+  <div class="shelf"><span class="label"><b>VOL.4</b> · 换种玩法</span><span class="rule"></span></div>
+  <div class="grid">
+    <a class="card" href="cyber-paint/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-paint"><i></i></div></div>
+      <h2>抽象画板</h2>
+      <p>随便画点什么，然后按「抽象化」——画面会被随机解构一次：镜像、万花筒、故障切片、色块化、拖影…… 可以一直按下去。</p>
+      <div class="tags"><span class="tag">可画</span><span class="tag">算法解构</span><span class="tag">可保存</span></div>
+    </a>
+    <a class="card" href="cyber-report/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-doc"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+      <h2>周报生成器</h2>
+      <p>填个名字、丢几个关键词，一键生成一份看起来很像样、其实全是废话的周报。有「抽象程度」旋钮，从朴实一路拧到失控。</p>
+      <div class="tags"><span class="tag">废话文学</span><span class="tag">可复制</span><span class="tag">打工用</span></div>
+    </a>
+    <a class="card" href="cyber-calc/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-calc"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+      <h2>会记仇的计算器</h2>
+      <p>算得没错，但嘴很欠。算得越多它越不耐烦，攒够次数会直接罢工；你按 1+1 它还会阴阳你一句。可以「跟它和好」。</p>
+      <div class="tags"><span class="tag">会算</span><span class="tag">会阴阳</span><span class="tag">会罢工</span></div>
+    </a>
+    <a class="card" href="cyber-piano/">
+      <span class="go">进入 →</span>
+      <div class="thumb"><div class="tmp-piano"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+      <h2>赛博钢琴</h2>
+      <p>十六个方块，五声音阶——所以怎么按都不会难听。有涟漪和拖尾，还有个「自动演奏」，会自己弹一段随机旋律。</p>
+      <div class="tags"><span class="tag">发声</span><span class="tag">随便按都好听</span><span class="tag">自动演奏</span></div>
     </a>
   </div>
 

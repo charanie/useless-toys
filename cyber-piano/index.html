@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>赛博钢琴 · CYBER PIANO</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;overflow:hidden;background:#07070a}
+  body{
+    background-image:radial-gradient(1000px 700px at 50% 30%, #161320 0%, #07070a 72%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    color:#e8e6e2;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+  #c{position:fixed;inset:0;display:block;touch-action:none;cursor:pointer}
+  .ui{position:fixed;inset:0;pointer-events:none;z-index:2}
+  header{position:absolute;top:22px;left:0;right:0;text-align:center}
+  header h1{margin:0;font-size:clamp(17px,2.6vw,24px);letter-spacing:.42em;font-weight:800;
+    background:linear-gradient(94deg,#8ef0c8,#79c6ff 45%,#c86bff);-webkit-background-clip:text;background-clip:text;color:transparent}
+  header p{margin:7px 0 0;font-size:11px;color:#6f7a80;letter-spacing:.26em}
+  .bar{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:10px;pointer-events:auto}
+  button{
+    font:inherit;font-size:13px;color:#e8e6e2;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:10px 18px;letter-spacing:.08em;transition:.15s;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  }
+  button:hover{background:rgba(142,240,200,.16);border-color:rgba(142,240,200,.5);color:#b8ffe6}
+  button.on{background:rgba(142,240,200,.22);border-color:rgba(142,240,200,.7);color:#b8ffe6}
+  .hintk{position:absolute;left:50%;bottom:70px;transform:translateX(-50%);font-size:11.5px;color:#6f7a80;letter-spacing:.16em;white-space:nowrap;transition:opacity .6s}
+  .hintk.hide{opacity:0}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="ui">
+  <header>
+    <h1>赛 博 钢 琴</h1>
+    <p>五声音阶 · 瞎按都好听</p>
+  </header>
+  <div class="hintk" id="hintk">按 1-8 / Q-I，或者直接点方块</div>
+  <div class="bar">
+    <button id="auto">▶ 自动演奏</button>
+    <button id="muteBtn">🔊</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 赛博钢琴 ========= */
+const cvs=document.getElementById('c'), ctx=cvs.getContext('2d');
+const $=id=>document.getElementById(id);
+let W=0,H=0,DPR=1;
+
+const COLS=8, ROWS=2, GAP=10;
+let grid={x:0,y:0,w:0,h:0,pw:0,ph:0};
+const PENT=[0,2,4,7,9];              // 大调五声音阶
+const BASE=261.63;                    // C4
+function freqOf(i){ const oct=Math.floor(i/5), d=PENT[i%5]; return BASE*Math.pow(2, oct + d/12); }
+
+const pads=[];
+function buildPads(){
+  pads.length=0;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const i=r*COLS+c;
+    pads.push({i, r, c, hue:(i*24+150)%360, lit:0, f:freqOf(i)});
+  }
+}
+buildPads();
+
+function layout(){
+  DPR=Math.min(devicePixelRatio||1,2);
+  W=innerWidth; H=innerHeight;
+  cvs.width=W*DPR|0; cvs.height=H*DPR|0;
+  cvs.style.width=W+'px'; cvs.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  const availW = Math.min(W-56, 1180);
+  const availH = Math.min(H-210, 430);
+  grid.w=availW; grid.h=availH;
+  grid.pw=(grid.w - GAP*(COLS-1))/COLS;
+  grid.ph=(grid.h - GAP*(ROWS-1))/ROWS;
+  grid.x=(W-grid.w)/2;
+  grid.y=(H-grid.h)/2 + 22;
+}
+addEventListener('resize', layout);
+
+/* ---- 音频 ---- */
+const A={
+  ctx:null, muted:false, master:null,
+  init(){
+    if(this.ctx) return;
+    const C=window.AudioContext||window.webkitAudioContext; if(!C) return;
+    this.ctx=new C();
+    this.master=this.ctx.createGain(); this.master.gain.value=0.85;
+    const dly=this.ctx.createDelay(1.0); dly.delayTime.value=0.17;
+    const fb=this.ctx.createGain(); fb.gain.value=0.26;
+    const wet=this.ctx.createGain(); wet.gain.value=0.3;
+    this.master.connect(this.ctx.destination);
+    this.master.connect(dly); dly.connect(fb); fb.connect(dly); dly.connect(wet); wet.connect(this.ctx.destination);
+  },
+  resume(){ if(this.ctx&&this.ctx.state==='suspended')this.ctx.resume(); },
+  note(f, vel){
+    if(this.muted||!this.ctx) return;
+    const c=this.ctx, t=c.currentTime;
+    vel = vel==null?1:vel;
+    const g=c.createGain();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.24*vel, t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+1.5);
+    const o1=c.createOscillator(); o1.type='triangle'; o1.frequency.value=f;
+    const o2=c.createOscillator(); o2.type='sine'; o2.frequency.value=f*2;
+    const g2=c.createGain(); g2.gain.value=0.32;
+    const lp=c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=4600;
+    o1.connect(g); o2.connect(g2); g2.connect(g);
+    g.connect(lp); lp.connect(this.master);
+    o1.start(t); o2.start(t); o1.stop(t+1.6); o2.stop(t+1.6);
+  }
+};
+
+/* ---- 特效 ---- */
+const fx=[];
+function hit(i, vel){
+  const p=pads[i]; if(!p) return;
+  p.lit=1;
+  fx.push({type:'ring', x:padCX(p), y:padCY(p), r:Math.min(grid.pw,grid.ph)*0.28, t:0, life:0.9, hue:p.hue});
+  const n=8;
+  for(let k=0;k<n;k++){
+    const a=Math.random()*Math.PI*2, sp=40+Math.random()*180;
+    fx.push({type:'dot', x:padCX(p), y:padCY(p), vx:Math.cos(a)*sp, vy:Math.sin(a)*sp-40, t:0, life:0.6+Math.random()*0.5, hue:p.hue, r:1.5+Math.random()*2.5});
+  }
+}
+const padX=p=>grid.x + p.c*(grid.pw+GAP);
+const padY=p=>grid.y + p.r*(grid.ph+GAP);
+const padCX=p=>padX(p)+grid.pw/2;
+const padCY=p=>padY(p)+grid.ph/2;
+
+function playPad(i, vel){ A.init(); A.resume(); A.note(pads[i].f, vel); hit(i, vel); }
+
+/* ---- 绘制 ---- */
+function rr(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+function draw(now){
+  ctx.clearRect(0,0,W,H);
+  const dt=1/60;
+  for(const p of pads){
+    const x=padX(p), y=padY(p), w=grid.pw, h=grid.ph;
+    const lit=p.lit;
+    ctx.save();
+    if(lit>0.02){ ctx.shadowColor=`hsla(${p.hue},90%,62%,${lit*0.9})`; ctx.shadowBlur=30*lit; }
+    const g=ctx.createLinearGradient(0,y,0,y+h);
+    if(lit>0.02){
+      g.addColorStop(0, `hsl(${p.hue},85%,${44+lit*22}%)`);
+      g.addColorStop(1, `hsl(${p.hue},80%,${24+lit*14}%)`);
+    } else {
+      g.addColorStop(0, '#1d1d26');
+      g.addColorStop(1, '#141419');
+    }
+    rr(x,y,w,h,16); ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle=`rgba(255,255,255,${0.07+lit*0.5})`; ctx.lineWidth=1.2; ctx.stroke();
+    ctx.restore();
+
+    // 高光
+    ctx.save(); ctx.globalAlpha=0.10+lit*0.28; ctx.fillStyle='#fff';
+    rr(x+8, y+7, w-16, Math.min(10,h*0.16), 6); ctx.fill(); ctx.restore();
+
+    // 音名
+    const names=['C','D','E','G','A'];
+    const oct=Math.floor(p.i/5)+4, nm=names[p.i%5]+oct;
+    ctx.globalAlpha=0.22+lit*0.6;
+    ctx.fillStyle='#fff'; ctx.font='600 11px ui-monospace,Consolas,monospace';
+    ctx.textAlign='left'; ctx.textBaseline='top';
+    ctx.fillText(nm, x+12, y+11);
+    ctx.globalAlpha=1;
+  }
+
+  // 特效
+  for(let k=fx.length-1;k>=0;k--){
+    const e=fx[k]; e.t+=dt;
+    if(e.t>=e.life){ fx.splice(k,1); continue; }
+    const kk=1-e.t/e.life;
+    if(e.type==='ring'){
+      ctx.globalAlpha=kk*0.6; ctx.strokeStyle=`hsl(${e.hue},90%,66%)`;
+      ctx.lineWidth=3*kk+0.5;
+      ctx.beginPath(); ctx.arc(e.x,e.y, e.r + (1-kk)*Math.max(grid.pw,grid.ph)*1.1, 0,7); ctx.stroke();
+    } else {
+      e.vy+=380*dt; e.x+=e.vx*dt; e.y+=e.vy*dt;
+      ctx.globalAlpha=kk; ctx.fillStyle=`hsl(${e.hue},90%,66%)`;
+      ctx.beginPath(); ctx.arc(e.x,e.y,e.r*kk,0,7); ctx.fill();
+    }
+  }
+  ctx.globalAlpha=1;
+
+  for(const p of pads) p.lit=Math.max(0, p.lit - dt*3.2);
+}
+
+/* ---- 输入 ---- */
+function padAt(x,y){
+  for(const p of pads){
+    const px=padX(p), py=padY(p);
+    if(x>=px&&x<=px+grid.pw&&y>=py&&y<=py+grid.ph) return p.i;
+  }
+  return -1;
+}
+cvs.addEventListener('pointerdown', e=>{
+  $('hintk').classList.add('hide');
+  const i=padAt(e.clientX, e.clientY);
+  if(i>=0) playPad(i, 0.95);
+});
+const KEYMAP={'1':0,'2':1,'3':2,'4':3,'5':4,'6':5,'7':6,'8':7,
+              'q':8,'w':9,'e':10,'r':11,'t':12,'y':13,'u':14,'i':15};
+addEventListener('keydown', e=>{
+  if(e.repeat) return;
+  const i=KEYMAP[e.key.toLowerCase()];
+  if(i!=null){
+    e.preventDefault();
+    $('hintk').classList.add('hide');
+    playPad(i, 0.9);
+  }
+});
+
+/* ---- 自动演奏 ---- */
+let autoOn=false, autoT=null, lastIdx=4;
+function autoStep(){
+  // 偏向级进，听起来更"有旋律"
+  let i;
+  if(Math.random()<0.62){
+    const step=[-2,-1,1,2,5][(Math.random()*5)|0];
+    i=Math.max(0, Math.min(pads.length-1, lastIdx+step));
+  } else {
+    i=(Math.random()*pads.length)|0;
+  }
+  lastIdx=i;
+  playPad(i, 0.75);
+  autoT=setTimeout(autoStep, 220 + Math.random()*420);
+}
+$('auto').addEventListener('click', e=>{
+  A.init(); A.resume();
+  autoOn=!autoOn;
+  e.target.classList.toggle('on', autoOn);
+  e.target.textContent = autoOn ? '⏸ 停止演奏' : '▶ 自动演奏';
+  if(autoOn){ $('hintk').classList.add('hide'); autoStep(); }
+  else clearTimeout(autoT);
+});
+$('muteBtn').addEventListener('click', e=>{ A.init(); A.muted=!A.muted; e.target.textContent=A.muted?'🔇':'🔊'; });
+setTimeout(()=>$('hintk').classList.add('hide'), 11000);
+
+/* ---- 启动 ---- */
+layout();
+(function loop(now){ requestAnimationFrame(loop); draw(now||0); })();
+</script>
+</body>
+</html>
