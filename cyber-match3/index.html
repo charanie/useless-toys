@@ -872,11 +872,17 @@ function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 const Net={
   get base(){ return (window.SHOP_API||'').replace(/\/+$/,''); },
   get on(){ return !!this.base; },
+  async _fetch(url, opts, ms){
+    const ctl = new AbortController();
+    const t = setTimeout(()=>ctl.abort(), ms || 6000);
+    try{ return await fetch(url, Object.assign({}, opts || {}, {signal:ctl.signal})); }
+    finally{ clearTimeout(t); }
+  },
   async submit(rec){
     if(!this.base) return {online:false};
     try{
-      const r=await fetch(this.base+'/scores',{
-        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(rec)});
+      const r=await this._fetch(this.base+'/scores',{
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(rec)}, 7000);
       const j=await r.json();
       return j.ok ? {online:true, rank:j.rank, total:j.total} : {online:false};
     }catch(e){ return {online:false}; }
@@ -884,7 +890,7 @@ const Net={
   async list(m){
     if(!this.base) return null;
     try{
-      const r=await fetch(this.base+'/scores?mode='+encodeURIComponent(m)+'&limit=20');
+      const r=await this._fetch(this.base+'/scores?mode='+encodeURIComponent(m)+'&limit=20', null, 6000);
       const j=await r.json();
       return j.ok ? j.scores : null;
     }catch(e){ return null; }

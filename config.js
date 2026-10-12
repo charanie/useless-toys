@@ -7,4 +7,4 @@
  * 例：window.SHOP_API = 'https://useless-toys-scores.abc123.workers.dev';
  * 后端怎么搭见 server/README.md
  */
-window.SHOP_API = '';
+window.SHOP_API = 'https://useless-toys-scores.1707374648.workers.dev';
