@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>抽象叠塔 · CYBER STACK</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{min-height:100%;margin:0;background:#08070c}
+  body{
+    background-image:radial-gradient(900px 720px at 50% 14%, #1a1428 0%, #08070c 68%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#eee9f5;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:100vh;padding:16px 14px 22px;gap:12px;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+
+  header{width:min(540px,94vw);display:flex;align-items:flex-end;gap:12px}
+  .brand{flex:1;min-width:0}
+  .brand .t{font-size:11px;letter-spacing:.4em;color:#867b96}
+  .brand h1{margin:4px 0 0;font-size:21px;letter-spacing:.14em;color:#a78bfa;font-weight:800}
+  .brand .s{margin-top:5px;font-size:11.5px;color:#9a90a8}
+  .stats{display:flex;gap:7px}
+  .stat{background:rgba(28,22,40,.84);border:1px solid rgba(255,255,255,.1);border-radius:12px;
+    padding:6px 13px;text-align:center;min-width:62px}
+  .stat .k{font-size:9.5px;letter-spacing:.22em;color:#867b96}
+  .stat .v{font:800 18px/1.3 ui-monospace,Consolas,monospace;color:#a78bfa;font-variant-numeric:tabular-nums}
+  .stat.pf .v{color:#ffd36e}
+  .stat.best .v{color:#8ef0c8;font-size:15px}
+
+  .wrap{position:relative;border-radius:16px;padding:8px;
+    background:linear-gradient(160deg,#1a1428,#0d0a13);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 30px 66px rgba(0,0,0,.72), inset 0 1px 0 rgba(255,255,255,.05);
+    touch-action:none;line-height:0}
+  canvas{display:block;border-radius:10px;background:#0b0813;touch-action:none;cursor:pointer}
+
+  .bar{width:min(540px,94vw);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button.b{font:inherit;font-size:12.5px;color:#eee9f5;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:9px 16px;letter-spacing:.08em;transition:.15s}
+  button.b:hover{background:rgba(167,139,250,.16);border-color:rgba(167,139,250,.5);color:#e0d4ff}
+  button.b.primary{background:linear-gradient(120deg,rgba(167,139,250,.3),rgba(142,240,200,.2));border-color:rgba(167,139,250,.55)}
+  .hint{flex:1;text-align:right;font-size:11px;color:#776d87;letter-spacing:.06em;line-height:1.6}
+  footer{font-size:11px;color:#685f78;letter-spacing:.14em;text-align:center;line-height:1.9}
+  footer b{color:#ffd36e}
+
+  .over{position:fixed;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:20px;
+    background:rgba(7,5,11,.84);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+  .over.show{display:flex}
+  .box{width:min(400px,92vw);text-align:center;padding:30px 26px 24px;border-radius:22px;
+    background:linear-gradient(180deg,rgba(34,26,48,.98),rgba(17,13,23,.98));
+    border:1px solid rgba(167,139,250,.24);box-shadow:0 30px 80px rgba(0,0,0,.72)}
+  .box .em{font-size:38px;line-height:1}
+  .box h2{margin:13px 0 6px;font-size:20px;letter-spacing:.14em;color:#a78bfa}
+  .box p{margin:0 0 18px;font-size:12.5px;line-height:1.95;color:#a89cb8}
+  .box p b{color:#ffd36e}
+  .box .row{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="t">CYBER STACK</div>
+    <h1>抽象叠塔</h1>
+    <div class="s">一块一块往上叠，歪出去的部分会被削掉</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="k">层数</div><div class="v" id="score">0</div></div>
+    <div class="stat pf"><div class="k">完美</div><div class="v" id="perfect">0</div></div>
+    <div class="stat best"><div class="k">最高</div><div class="v" id="best">0</div></div>
+  </div>
+</header>
+
+<div class="wrap"><canvas id="c"></canvas></div>
+
+<div class="bar">
+  <button class="b primary" id="start">开始 (空格)</button>
+  <span class="hint">点一下 / 空格 就是放下去</span>
+</div>
+
+<footer>落在<b>正中间</b>不算窄，还额外加一层 · 叠得越高滑得越快</footer>
+
+<div class="over" id="over">
+  <div class="box">
+    <div class="em" id="oEmoji">🏗</div>
+    <h2 id="oTitle">叠到这里</h2>
+    <p id="oText"></p>
+    <div class="row"><button class="b primary" id="oAgain">再叠一次</button></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 抽象叠塔 ========= */
+const $ = id => document.getElementById(id);
+const W = 520, H = 660;
+const BH = 26;                 // 每层高度
+const TOP_Y = H*0.40;          // 塔顶固定在屏幕这个高度
+const BASE_W = 190;
+
+const HUES = [262, 232, 198, 168, 140, 96, 48, 28, 348, 316];
+
+const cvs = $('c'), ctx = cvs.getContext('2d');
+let floors = [], block = null, debris = [];
+let score = 0, perfect = 0, streak = 0, best = 0;
+let phase = 'idle';            // idle | moving | over
+let camY = 0, camTarget = 0, shake = 0, flash = 0, fx = [];
+let last = 0, t = 0;
+
+/* ---------- 音效 ---------- */
+let actx = null;
+function A(){ if(!actx){ const C = window.AudioContext||window.webkitAudioContext; if(!C) return null; actx = new C(); }
+  if(actx.state === 'suspended') actx.resume(); return actx; }
+function tone(f, dur, gain, type, bend){
+  const c = A(); if(!c) return;
+  const tt = c.currentTime, o = c.createOscillator(), g = c.createGain();
+  o.type = type || 'triangle'; o.frequency.setValueAtTime(f, tt);
+  if(bend) o.frequency.exponentialRampToValueAtTime(Math.max(40,f*bend), tt+dur);
+  g.gain.setValueAtTime(0.0001, tt);
+  g.gain.exponentialRampToValueAtTime(gain, tt+0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, tt+dur);
+  o.connect(g).connect(c.destination); o.start(tt); o.stop(tt+dur+0.04);
+}
+
+/* ---------- 尺寸 ---------- */
+let scale = 1;
+function resize(){
+  const availW = Math.min(window.innerWidth - 46, 540);
+  const availH = window.innerHeight*0.64;
+  const k = Math.min(availW/W, availH/H, 1);
+  const w = Math.round(W*k), h = Math.round(H*k);
+  scale = w/W;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cvs.width = w*dpr; cvs.height = h*dpr;
+  cvs.style.width = w+'px'; cvs.style.height = h+'px';
+  ctx.setTransform(dpr*k, 0, 0, dpr*k, 0, 0);
+  draw();
+}
+
+/* ---------- 一局 ---------- */
+function speed(){ return 150 + Math.min(340, floors.length * 11); }
+function reset(){
+  floors = [{ x: (W-BASE_W)/2, w: BASE_W, hue: HUES[0] }];
+  score = 0; perfect = 0; streak = 0;
+  debris = []; fx = []; shake = 0; flash = 0; t = 0;
+  camY = TOP_Y + BH; camTarget = camY;
+  spawn(); phase = 'moving';
+  $('over').classList.remove('show');
+  updateHUD();
+}
+function spawn(){
+  const top = floors[floors.length-1];
+  block = { x: 24, w: top.w, hue: HUES[floors.length % HUES.length], dir: 1 };
+  block.x = 26 + Math.random()*(W - 52 - block.w);
+}
+function drop(){
+  if(phase !== 'moving' || !block) return;
+  A();
+  const top = floors[floors.length-1];
+  const bx = block.x, bw = block.w;
+  const left = Math.max(bx, top.x), right = Math.min(bx + bw, top.x + top.w);
+  const w = right - left;
+  const off = Math.abs(bx - top.x);
+
+  if(w < 8){
+    phase = 'over';
+    tone(120, .3, .06, 'sawtooth', .5);
+    setTimeout(finish, 420);
+    return;
+  }
+  const isPerfect = off <= 5;
+  let nw = w;
+  if(isPerfect){
+    nw = Math.max(top.w, bw);       // 完美不掉宽度
+    perfect++; streak++;
+    flash = 1;
+    score += 1 + Math.min(3, streak);
+    fx.push({ x: left + nw/2, y: TOP_Y + BH/2, text: streak > 1 ? `完美 ×${streak}` : '完美', color:'#ffd36e', life: 1 });
+    tone(660 + Math.min(5,streak)*90, .13, .05, 'triangle', 1.4);
+  } else {
+    streak = 0;
+    score += 1;
+    tone(300 + Math.random()*70, .09, .04, 'triangle', .8);
+  }
+  // 削掉的部分飞出去
+  if(bx < left) debris.push({ x: bx, w: left - bx, y: TOP_Y - BH, vx: -70 - Math.random()*70, vy: -40, rot: 0, vr: -3, hue: block.hue });
+  if(bx + bw > right) debris.push({ x: right, w: (bx + bw) - right, y: TOP_Y - BH, vx: 70 + Math.random()*70, vy: -40, rot: 0, vr: 3, hue: block.hue });
+
+  const cx = isPerfect ? top.x : left;
+  floors.push({ x: cx, w: nw, hue: block.hue });
+  camTarget = TOP_Y + floors.length*BH;
+  shake = isPerfect ? 0.35 : 0.6;
+  updateHUD();
+  spawn();
+  if(floors.length > 0 && block.w < 10){ phase = 'over'; setTimeout(finish, 300); }
+}
+function updateHUD(){
+  $('score').textContent = floors.length - 1;
+  $('perfect').textContent = perfect;
+  if(floors.length-1 > best){ best = floors.length-1; try{ localStorage.setItem('ut_stack_best', String(best)); }catch(e){} }
+  $('best').textContent = best;
+}
+function finish(){
+  phase = 'over';
+  const n = floors.length - 1;
+  const acc = n ? Math.round(perfect/n*100) : 0;
+  $('oEmoji').textContent = n >= 30 ? '🏆' : n >= 15 ? '🏗' : '🧱';
+  $('oTitle').textContent = n >= 30 ? '叠到天上去了' : n >= 15 ? '叠得挺高' : '叠到这里';
+  $('oText').innerHTML = `叠了 <b>${n}</b> 层 · 完美 <b>${perfect}</b> 次（${acc}%）<br>最高 <b>${best}</b> 层`;
+  $('over').classList.add('show');
+}
+
+/* ---------- 更新 ---------- */
+function update(dt){
+  if(phase === 'moving' && block){
+    block.x += block.dir * speed() * dt;
+    if(block.x <= 22){ block.x = 22; block.dir = 1; }
+    if(block.x + block.w >= W - 22){ block.x = W - 22 - block.w; block.dir = -1; }
+  }
+  camY += (camTarget - camY) * Math.min(1, dt*7);
+  for(let i=debris.length-1;i>=0;i--){
+    const d = debris[i];
+    d.vy += 1400*dt; d.x += d.vx*dt; d.y += d.vy*dt; d.rot += d.vr*dt;
+    if(d.y > H + 200) debris.splice(i,1);
+  }
+  for(let i=fx.length-1;i>=0;i--){
+    const f = fx[i]; f.life -= dt*1.25; f.y -= dt*44;
+    if(f.life <= 0) fx.splice(i,1);
+  }
+  shake = Math.max(0, shake - dt*3.4);
+  flash = Math.max(0, flash - dt*2.6);
+  t += dt;
+}
+
+/* ---------- 绘制 ---------- */
+function rr(x,y,w,h,r){
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function drawFloor(x, w, sy, hue, isTop){
+  const g = ctx.createLinearGradient(x, sy, x + w, sy + BH);
+  g.addColorStop(0, `hsl(${hue},62%,66%)`);
+  g.addColorStop(1, `hsl(${hue},56%,44%)`);
+  ctx.fillStyle = g;
+  rr(x, sy, w, BH-1, 4); ctx.fill();
+  ctx.fillStyle = `hsla(${hue},80%,84%,.34)`;
+  rr(x, sy, w, 5, 3); ctx.fill();
+  if(isTop){
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.5;
+    rr(x+.75, sy+.75, w-1.5, BH-2.5, 4); ctx.stroke();
+  }
+}
+function draw(){
+  const sx = shake > 0 ? (Math.random()-0.5)*9*shake : 0;
+  ctx.save(); ctx.translate(sx, 0);
+  const bg = ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#0e0a18'); bg.addColorStop(1,'#07050d');
+  ctx.fillStyle = bg; ctx.fillRect(-20,0,W+40,H);
+
+  // 背景光晕
+  const gl = ctx.createRadialGradient(W/2, TOP_Y-60, 20, W/2, TOP_Y-60, 320);
+  gl.addColorStop(0, 'rgba(167,139,250,.12)'); gl.addColorStop(1, 'transparent');
+  ctx.fillStyle = gl; ctx.fillRect(-20,0,W+40,H);
+
+  // 塔
+  for(let i=0;i<floors.length;i++){
+    const f = floors[i];
+    const sy = -(i+1)*BH + camY;
+    if(sy > H + 40 || sy < -80) continue;
+    drawFloor(f.x, f.w, sy, f.hue, i === floors.length-1);
+  }
+  // 正在滑动的那块
+  if(phase === 'moving' && block){
+    const sy = -floors.length*BH + camY;
+    const g = ctx.createLinearGradient(block.x, sy, block.x + block.w, sy + BH);
+    g.addColorStop(0, `hsl(${block.hue},66%,72%)`);
+    g.addColorStop(1, `hsl(${block.hue},58%,50%)`);
+    ctx.save();
+    ctx.shadowColor = `hsla(${block.hue},80%,70%,.8)`; ctx.shadowBlur = 16;
+    ctx.fillStyle = g;
+    rr(block.x, sy, block.w, BH-1, 4); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    rr(block.x, sy, block.w, 5, 3); ctx.fill();
+    // 中线参考
+    const top = floors[floors.length-1];
+    ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 1;
+    ctx.setLineDash([4,5]);
+    ctx.beginPath(); ctx.moveTo(top.x, sy-46); ctx.lineTo(top.x, sy+BH+8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(top.x+top.w, sy-46); ctx.lineTo(top.x+top.w, sy+BH+8); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  // 碎块
+  for(const d of debris){
+    ctx.save();
+    ctx.globalAlpha = 0.8;
+    ctx.translate(d.x + d.w/2, d.y + BH/2);
+    ctx.rotate(d.rot);
+    ctx.fillStyle = `hsl(${d.hue},52%,50%)`;
+    rr(-d.w/2, -BH/2, d.w, BH-2, 3); ctx.fill();
+    ctx.restore();
+  }
+  // 完美闪
+  if(flash > 0){
+    ctx.fillStyle = `rgba(255,211,110,${flash*0.12})`;
+    ctx.fillRect(-20,0,W+40,H);
+  }
+  // 飘字
+  for(const f of fx){
+    ctx.globalAlpha = Math.max(0, f.life);
+    ctx.fillStyle = f.color;
+    ctx.font = '800 17px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(f.text, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // 高度刻度
+  ctx.fillStyle = 'rgba(255,255,255,.14)';
+  ctx.font = '700 11px ui-monospace,Consolas,monospace';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  for(let i=Math.max(0,floors.length-8); i<floors.length+3; i+=1){
+    const sy = -(i+1)*BH + camY;
+    if(sy < 40 || sy > H-30) continue;
+    ctx.fillRect(6, sy+BH/2, (i%5===0) ? 12 : 6, 1);
+    if(i%5 === 0 && i > 0) ctx.fillText(String(i), 22, sy+BH/2);
+  }
+
+  if(phase === 'idle'){
+    ctx.fillStyle = 'rgba(11,8,19,.55)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#a78bfa';
+    ctx.font = '800 26px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('点一下开始叠', W/2, H*0.44);
+  }
+}
+
+/* ---------- 主循环与交互 ---------- */
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (ts-last)/1000 || 0.016); last = ts;
+  update(dt); draw();
+}
+function tap(){
+  A();
+  if(phase === 'idle' || phase === 'over'){ reset(); return; }
+  drop();
+}
+cvs.addEventListener('pointerdown', e=>{ e.preventDefault(); tap(); });
+addEventListener('keydown', e=>{ if(e.key === ' '){ e.preventDefault(); tap(); } });
+$('start').addEventListener('click', tap);
+$('oAgain').addEventListener('click', ()=>{ $('over').classList.remove('show'); reset(); });
+addEventListener('resize', resize);
+
+(function boot(){
+  try{ best = parseInt(localStorage.getItem('ut_stack_best')||'0',10) || 0; }catch(e){ best = 0; }
+  resize();
+  floors = [{ x:(W-BASE_W)/2, w:BASE_W, hue:HUES[0] }];
+  block = { x: 60, w: BASE_W, hue: HUES[1], dir: 1 };
+  camY = TOP_Y + BH; camTarget = camY;
+  draw();
+  requestAnimationFrame(loop);
+})();
+
+window.__stack = {
+  get state(){ return { phase, floors: floors.length, score: floors.length-1, perfect, streak, best,
+                        blockX: block ? +block.x.toFixed(1) : null, blockW: block ? +block.w.toFixed(1) : null,
+                        topX: +floors[floors.length-1].x.toFixed(1), topW: +floors[floors.length-1].w.toFixed(1) }; },
+  reset, drop, tap,
+  setBlock(x, w){ if(block){ block.x = x; if(w != null) block.w = w; } }
+};
+</script>
+</body>
+</html>

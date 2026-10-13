@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>抽象华容道 · SLIDE PUZZLE</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{min-height:100%;margin:0;background:#08070b}
+  body{
+    background-image:radial-gradient(900px 700px at 50% 12%, #1e1810 0%, #08070b 68%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#f0eae0;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:100vh;padding:18px 14px 24px;gap:13px;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+
+  header{width:min(520px,94vw);display:flex;align-items:flex-end;gap:12px}
+  .brand{flex:1;min-width:0}
+  .brand .t{font-size:11px;letter-spacing:.4em;color:#8c8272}
+  .brand h1{margin:4px 0 0;font-size:21px;letter-spacing:.14em;color:#ffc46b;font-weight:800}
+  .brand .s{margin-top:5px;font-size:11.5px;color:#9d9384}
+  .stats{display:flex;gap:7px}
+  .stat{background:rgba(32,27,18,.84);border:1px solid rgba(255,255,255,.1);border-radius:12px;
+    padding:6px 13px;text-align:center;min-width:62px}
+  .stat .k{font-size:9.5px;letter-spacing:.22em;color:#8c8272}
+  .stat .v{font:800 18px/1.3 ui-monospace,Consolas,monospace;color:#ffc46b;font-variant-numeric:tabular-nums}
+  .stat.tm .v{color:#8ef0c8}
+  .stat.best .v{color:#6ec8ff;font-size:15px}
+
+  .wrap{position:relative;border-radius:16px;padding:10px;
+    background:linear-gradient(160deg,#231d12,#120e09);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 30px 66px rgba(0,0,0,.72), inset 0 1px 0 rgba(255,255,255,.05);
+    touch-action:none}
+  .board{position:relative;border-radius:10px;background:#0c0a06}
+  .tile{position:absolute;border-radius:9px;display:flex;align-items:center;justify-content:center;
+    font:800 clamp(15px,4.2vw,30px)/1 ui-monospace,Consolas,monospace;
+    background:linear-gradient(160deg,#3a3122,#241d12);
+    border:1px solid rgba(255,255,255,.13);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.14), 0 3px 8px rgba(0,0,0,.5);
+    transition:left .13s cubic-bezier(.3,.9,.4,1), top .13s cubic-bezier(.3,.9,.4,1), background .2s;
+    color:#f3e6cd;cursor:pointer}
+  .tile.ok{background:linear-gradient(160deg,#2a6b52,#174435);color:#d8fff0;
+    border-color:rgba(142,240,200,.5)}
+  .tile:active{transform:scale(.96)}
+
+  .bar{width:min(520px,94vw);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button.b{font:inherit;font-size:12.5px;color:#f0eae0;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:9px 16px;letter-spacing:.08em;transition:.15s}
+  button.b:hover{background:rgba(255,196,107,.15);border-color:rgba(255,196,107,.5);color:#ffe0b0}
+  button.b.primary{background:linear-gradient(120deg,rgba(255,196,107,.3),rgba(142,240,200,.2));border-color:rgba(255,196,107,.55)}
+  button.b.on{background:linear-gradient(160deg,rgba(255,196,107,.3),rgba(255,196,107,.12));border-color:rgba(255,196,107,.6);color:#ffe8c8}
+  .grp{display:flex;gap:5px;align-items:center}
+  .grp .lb{font-size:10px;letter-spacing:.2em;color:#8c8272;margin-right:2px}
+  .hint{flex:1;text-align:right;font-size:11px;color:#7c7364;letter-spacing:.06em;line-height:1.6}
+  footer{font-size:11px;color:#6b6355;letter-spacing:.14em;text-align:center;line-height:1.9}
+  footer b{color:#ffc46b}
+
+  .over{position:fixed;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:20px;
+    background:rgba(6,5,4,.84);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+  .over.show{display:flex}
+  .box{width:min(400px,92vw);text-align:center;padding:30px 26px 24px;border-radius:22px;
+    background:linear-gradient(180deg,rgba(34,29,20,.98),rgba(18,15,11,.98));
+    border:1px solid rgba(255,196,107,.24);box-shadow:0 30px 80px rgba(0,0,0,.72)}
+  .box .em{font-size:38px;line-height:1}
+  .box h2{margin:13px 0 6px;font-size:20px;letter-spacing:.14em;color:#ffc46b}
+  .box p{margin:0 0 18px;font-size:12.5px;line-height:1.95;color:#a69c8b}
+  .box p b{color:#ffd36e}
+  .box .row{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="t">SLIDE PUZZLE</div>
+    <h1>抽象华容道</h1>
+    <div class="s">把工位号按顺序排回去</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="k">步数</div><div class="v" id="moves">0</div></div>
+    <div class="stat tm"><div class="k">用时</div><div class="v" id="time">0.0</div></div>
+    <div class="stat best"><div class="k">最好</div><div class="v" id="best">—</div></div>
+  </div>
+</header>
+
+<div class="wrap"><div class="board" id="board"></div></div>
+
+<div class="bar">
+  <button class="b primary" id="restart">重开一局</button>
+  <div class="grp"><span class="lb">难度</span>
+    <button class="b" data-n="3">3×3</button>
+    <button class="b on" data-n="4">4×4</button>
+    <button class="b" data-n="5">5×5</button>
+  </div>
+  <span class="hint">点空格旁边的块 · 方向键也行</span>
+</div>
+
+<footer><b>绿色的</b>表示这块已经归位了 · 打乱是从还原态倒着走出来的，所以一定有解</footer>
+
+<div class="over" id="over">
+  <div class="box">
+    <div class="em" id="oEmoji">🎉</div>
+    <h2 id="oTitle">归位了</h2>
+    <p id="oText"></p>
+    <div class="row"><button class="b primary" id="oAgain">再来一局</button></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 抽象华容道 · 数字滑块 ========= */
+const $ = id => document.getElementById(id);
+
+let N = 4, tiles = [], blank = 0, moves = 0;
+let started = false, t0 = 0, timer = null, solved = false;
+let best = {}, cell = 80, gap = 8;
+
+function build(shuffle){
+  clearInterval(timer); timer = null; started = false; solved = false;
+  moves = 0; $('time').textContent = '0.0'; $('over').classList.remove('show');
+  tiles = [];
+  const total = N*N;
+  for(let i=0;i<total;i++) tiles.push(i);       // 值是「格子里放的号」，最后一个是空
+  blank = total - 1;                             // 空格所在的下标
+  if(shuffle) scramble();
+  render(); updateHUD();
+}
+function neighbours(idx){
+  const r = (idx/N)|0, c = idx%N, out = [];
+  if(r > 0) out.push(idx - N);
+  if(r < N-1) out.push(idx + N);
+  if(c > 0) out.push(idx - 1);
+  if(c < N-1) out.push(idx + 1);
+  return out;
+}
+let scramblePicks = [];
+function scramble(){
+  // 从还原态倒着走，保证一定可解（记下走法，测试时逆序走回去即可验证）
+  scramblePicks = [];
+  let prev = -1;
+  for(let k=0;k<N*N*26;k++){
+    const nb = neighbours(blank).filter(x => x !== prev);
+    const pick = nb[(Math.random()*nb.length)|0];
+    swap(pick); prev = blank; blank = pick;
+    scramblePicks.push(pick);
+  }
+  // 万一打乱完正好是还原态就再打一次
+  if(isSolved()) scramble();
+}
+function swap(idx){
+  const t = tiles[idx]; tiles[idx] = tiles[blank]; tiles[blank] = t;
+}
+function move(idx){
+  if(solved) return;
+  if(!neighbours(blank).includes(idx)) return;
+  if(!started){ started = true; t0 = performance.now();
+    timer = setInterval(()=>{ $('time').textContent = ((performance.now()-t0)/1000).toFixed(1); }, 100); }
+  swap(idx); blank = idx; moves++;
+  beep(420 + (moves % 5) * 40, 0.045, 0.03);
+  render(); updateHUD();
+  if(isSolved()) win();
+}
+function isSolved(){
+  for(let i=0;i<N*N-1;i++) if(tiles[i] !== i) return false;
+  return true;
+}
+function updateHUD(){
+  $('moves').textContent = moves;
+  const rec = best[N];
+  $('best').textContent = rec ? rec.moves + ' 步' : '—';
+}
+function win(){
+  solved = true; clearInterval(timer);
+  const secs = (performance.now()-t0)/1000;
+  const rec = best[N];
+  const isBest = !rec || moves < rec.moves;
+  if(isBest){ best[N] = { moves, secs }; try{ localStorage.setItem('ut_slide_best', JSON.stringify(best)); }catch(e){} }
+  updateHUD();
+  beep(660,0.14,0.05,1.5); setTimeout(()=>beep(880,0.2,0.05,1.4), 130);
+  $('oEmoji').textContent = isBest ? '🏆' : '🎉';
+  $('oTitle').textContent = isBest ? '最少步数' : '归位了';
+  $('oText').innerHTML = `${N}×${N} 用了 <b>${moves}</b> 步、<b>${secs.toFixed(1)}s</b>` +
+    (isBest ? '<br>🎊 新纪录' : (rec ? `<br>本机最好 <b>${rec.moves}</b> 步` : ''));
+  $('over').classList.add('show');
+}
+
+/* ---------- 渲染 ---------- */
+function sizeBoard(){
+  const avail = Math.min(window.innerWidth - 52, window.innerHeight*0.62, 520);
+  const board = $('board');
+  const side = Math.max(210, Math.floor(avail));
+  gap = Math.max(5, Math.round(side * 0.018));
+  cell = (side - gap*(N+1)) / N;
+  board.style.width = side + 'px';
+  board.style.height = side + 'px';
+}
+function render(){
+  const board = $('board');
+  board.innerHTML = '';
+  for(let i=0;i<N*N;i++){
+    const v = tiles[i];
+    if(v === N*N - 1) continue;                  // 空的那块不画
+    const r = (i/N)|0, c = i%N;
+    const el = document.createElement('div');
+    el.className = 'tile' + (v === i ? ' ok' : '');
+    el.textContent = v + 1;
+    el.style.width = cell + 'px';
+    el.style.height = cell + 'px';
+    el.style.left = (gap + c*(cell+gap)) + 'px';
+    el.style.top  = (gap + r*(cell+gap)) + 'px';
+    el.addEventListener('click', ()=> move(i));
+    board.appendChild(el);
+  }
+}
+
+/* ---------- 音效 ---------- */
+let actx = null;
+function beep(f, dur, gain, bend){
+  try{
+    if(!actx){ const C = window.AudioContext||window.webkitAudioContext; if(!C) return; actx = new C(); }
+    if(actx.state === 'suspended') actx.resume();
+    const c = actx, t = c.currentTime;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(f, t);
+    if(bend) o.frequency.exponentialRampToValueAtTime(f*bend, t+dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+dur+0.03);
+  }catch(e){}
+}
+
+/* ---------- 交互 ---------- */
+addEventListener('keydown', e=>{
+  const br = (blank/N)|0, bc = blank%N;
+  let target = -1;
+  if(e.key === 'ArrowUp'    && br < N-1) target = blank + N;
+  if(e.key === 'ArrowDown'  && br > 0)   target = blank - N;
+  if(e.key === 'ArrowLeft'  && bc < N-1) target = blank + 1;
+  if(e.key === 'ArrowRight' && bc > 0)   target = blank - 1;
+  if(target < 0) return;
+  e.preventDefault(); move(target);
+});
+document.querySelectorAll('[data-n]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    N = parseInt(b.dataset.n, 10);
+    document.querySelectorAll('[data-n]').forEach(x=> x.classList.toggle('on', x===b));
+    sizeBoard(); build(true);
+  });
+});
+$('restart').addEventListener('click', ()=>{ sizeBoard(); build(true); });
+$('oAgain').addEventListener('click', ()=>{ sizeBoard(); build(true); });
+addEventListener('resize', ()=>{ sizeBoard(); render(); });
+
+(function boot(){
+  try{ best = JSON.parse(localStorage.getItem('ut_slide_best')||'{}') || {}; }catch(e){ best = {}; }
+  sizeBoard(); build(true);
+})();
+
+window.__slide = {
+  get N(){ return N; }, get tiles(){ return tiles.slice(); }, get blank(){ return blank; },
+  get picks(){ return scramblePicks.slice(); },
+  get state(){ return { N, moves, blank, solved, timerOn: !!timer,
+                        over: document.getElementById('over').classList.contains('show') }; },
+  move, isSolved, build
+};
+</script>
+</body>
+</html>

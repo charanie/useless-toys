@@ -22,9 +22,9 @@
 
   /* 画 */
   .stage{position:relative}
-  .stage::before{ /* 顶光 */
-    content:'';position:absolute;inset:-70px -60px 40px;pointer-events:none;
-    background:radial-gradient(60% 45% at 50% 0%, rgba(255,240,210,.16), transparent 70%);
+  .stage::before{ /* 顶光：只往上下外扩，左右靠渐变铺开，不然窄屏会被它撑出横向滚动 */
+    content:'';position:absolute;inset:-70px 0 40px;pointer-events:none;
+    background:radial-gradient(85% 45% at 50% 0%, rgba(255,240,210,.16), transparent 70%);
   }
   .frame{
     position:relative;padding:16px;border-radius:6px;

@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>抽象合成 · CYBER MERGE</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{min-height:100%;margin:0;background:#08070b}
+  body{
+    background-image:radial-gradient(900px 720px at 50% 12%, #1c1226 0%, #08070b 68%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#eee9f5;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:100vh;padding:16px 14px 22px;gap:12px;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+
+  header{width:min(540px,94vw);display:flex;align-items:flex-end;gap:12px}
+  .brand{flex:1;min-width:0}
+  .brand .t{font-size:11px;letter-spacing:.4em;color:#867b96}
+  .brand h1{margin:4px 0 0;font-size:21px;letter-spacing:.14em;color:#ff9de2;font-weight:800}
+  .brand .s{margin-top:5px;font-size:11.5px;color:#9a90a8}
+  .stats{display:flex;gap:7px}
+  .stat{background:rgba(28,22,40,.84);border:1px solid rgba(255,255,255,.1);border-radius:12px;
+    padding:6px 13px;text-align:center;min-width:62px}
+  .stat .k{font-size:9.5px;letter-spacing:.22em;color:#867b96}
+  .stat .v{font:800 18px/1.3 ui-monospace,Consolas,monospace;color:#ffd36e;font-variant-numeric:tabular-nums}
+  .stat.top .v{color:#ff9de2;font-size:14px;letter-spacing:.02em}
+  .stat.best .v{color:#8ef0c8;font-size:15px}
+
+  .wrap{position:relative;border-radius:16px;padding:8px;
+    background:linear-gradient(160deg,#1c1428,#0d0a13);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 30px 66px rgba(0,0,0,.72), inset 0 1px 0 rgba(255,255,255,.05);
+    touch-action:none;line-height:0}
+  canvas{display:block;border-radius:10px;background:#0b0813;touch-action:none;cursor:pointer}
+
+  .bar{width:min(540px,94vw);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button.b{font:inherit;font-size:12.5px;color:#eee9f5;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:9px 16px;letter-spacing:.08em;transition:.15s}
+  button.b:hover{background:rgba(255,157,226,.16);border-color:rgba(255,157,226,.5);color:#ffd6f2}
+  button.b.primary{background:linear-gradient(120deg,rgba(255,157,226,.3),rgba(142,240,200,.2));border-color:rgba(255,157,226,.55)}
+  .hint{flex:1;text-align:right;font-size:11px;color:#776d87;letter-spacing:.06em;line-height:1.6}
+  footer{font-size:11px;color:#685f78;letter-spacing:.14em;text-align:center;line-height:1.9}
+  footer b{color:#ff9de2}
+
+  .over{position:fixed;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:20px;
+    background:rgba(7,5,11,.84);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+  .over.show{display:flex}
+  .box{width:min(400px,92vw);text-align:center;padding:30px 26px 24px;border-radius:22px;
+    background:linear-gradient(180deg,rgba(34,24,46,.98),rgba(17,13,23,.98));
+    border:1px solid rgba(255,157,226,.24);box-shadow:0 30px 80px rgba(0,0,0,.72)}
+  .box .em{font-size:38px;line-height:1}
+  .box h2{margin:13px 0 6px;font-size:20px;letter-spacing:.14em;color:#ff9de2}
+  .box p{margin:0 0 18px;font-size:12.5px;line-height:1.95;color:#a89cb8}
+  .box p b{color:#ffd36e}
+  .box .row{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="t">CYBER MERGE · PHYSICS</div>
+    <h1>抽象合成</h1>
+    <div class="s">两个一样的撞在一起，就合成更高级的</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="k">分数</div><div class="v" id="score">0</div></div>
+    <div class="stat top"><div class="k">最高合出</div><div class="v" id="top">—</div></div>
+    <div class="stat best"><div class="k">最佳</div><div class="v" id="best">0</div></div>
+  </div>
+</header>
+
+<div class="wrap"><canvas id="c"></canvas></div>
+
+<div class="bar">
+  <button class="b primary" id="start">开始 (空格)</button>
+  <span class="hint">左右移动鼠标瞄准 · 点一下 / 空格 落子</span>
+</div>
+
+<footer>和 2048 是<b>同一套词</b>，但玩法完全不同 · 堆过线超过一秒半就结束</footer>
+
+<div class="over" id="over">
+  <div class="box">
+    <div class="em" id="oEmoji">🍉</div>
+    <h2 id="oTitle">堆满了</h2>
+    <p id="oText"></p>
+    <div class="row"><button class="b primary" id="oAgain">再来一次</button></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   抽象合成 —— 物理堆叠 + 同色合并（合成大西瓜那套玩法）
+   词汇跟 cyber-2048 是同一套：摸鱼 → 搬砖 → 加班 → … → 提前退休
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const W = 520, H = 660;
+const WALL = 8, FLOOR = H - 52, DANGER = 156, DROP_Y = 66;
+const G = 2100;
+
+const LV = [
+  { n:'摸鱼',     r:15, a:'#8fd9ff', b:'#2f78a8', v:1  },
+  { n:'搬砖',     r:22, a:'#ffa07a', b:'#a83c1e', v:3  },
+  { n:'加班',     r:31, a:'#c8a2ff', b:'#5c2fb8', v:6 },
+  { n:'发薪',     r:41, a:'#ffe08a', b:'#c08a10', v:10 },
+  { n:'放假',     r:52, a:'#8ef0c8', b:'#1f8460', v:15 },
+  { n:'财富自由', r:64, a:'#ffb0e6', b:'#a8387e', v:21 },
+  { n:'提前退休', r:80, a:'#ffd88a', b:'#a86a10', v:28 }
+];
+const DROPPABLE = 3;                 // 只有前三种能落
+
+const cvs = $('c'), ctx = cvs.getContext('2d');
+let balls = [], parts = [], fx = [];
+let score = 0, best = 0, topLv = -1;
+let playing = false, over = true;
+let dropperX = W/2, curLv = 0, nextLv = 0, cooldown = 0;
+let dangerT = 0, last = 0, shakeT = 0;
+
+/* ---------- 音效 ---------- */
+let actx = null;
+function A(){ if(!actx){ const C = window.AudioContext||window.webkitAudioContext; if(!C) return null; actx = new C(); }
+  if(actx.state === 'suspended') actx.resume(); return actx; }
+function tone(f, dur, gain, type, bend){
+  const c = A(); if(!c) return;
+  const t = c.currentTime, o = c.createOscillator(), g = c.createGain();
+  o.type = type || 'triangle'; o.frequency.setValueAtTime(f, t);
+  if(bend) o.frequency.exponentialRampToValueAtTime(Math.max(40,f*bend), t+dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t+0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  o.connect(g).connect(c.destination); o.start(t); o.stop(t+dur+0.04);
+}
+
+/* ---------- 尺寸 ---------- */
+let scale = 1;
+function resize(){
+  const availW = Math.min(window.innerWidth - 46, 540);
+  const availH = window.innerHeight*0.64;
+  const k = Math.min(availW/W, availH/H, 1);
+  const w = Math.round(W*k), h = Math.round(H*k);
+  scale = w/W;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cvs.width = w*dpr; cvs.height = h*dpr;
+  cvs.style.width = w+'px'; cvs.style.height = h+'px';
+  ctx.setTransform(dpr*k, 0, 0, dpr*k, 0, 0);
+  draw();
+}
+
+/* ---------- 一局 ---------- */
+function reset(){
+  balls = []; parts = []; fx = [];
+  score = 0; topLv = -1; dangerT = 0; cooldown = 0; shakeT = 0;
+  playing = true; over = false;
+  curLv = (Math.random()*DROPPABLE)|0;
+  nextLv = (Math.random()*DROPPABLE)|0;
+  dropperX = W/2;
+  $('over').classList.remove('show');
+  updateHUD();
+}
+function updateHUD(){
+  $('score').textContent = score;
+  $('top').textContent = topLv >= 0 ? LV[topLv].n : '—';
+  if(score > best){ best = score; try{ localStorage.setItem('ut_merge_best', String(best)); }catch(e){} }
+  $('best').textContent = best;
+}
+function drop(){
+  if(!playing || over || cooldown > 0) return;
+  A();
+  const r = LV[curLv].r;
+  const x = Math.max(WALL + r, Math.min(W - WALL - r, dropperX));
+  balls.push({ x, y: DROP_Y, vx:0, vy:80, r, lv:curLv, pop:0, born:0 });
+  cooldown = 0.42;
+  curLv = nextLv; nextLv = (Math.random()*DROPPABLE)|0;
+  tone(320, .07, .03, 'sine', .8);
+}
+
+/* ---------- 物理 ----------
+   按质量分配位移/冲量 + 多轮位置松弛。
+   早先是「两两各推一半 + 只松一轮」，堆高之后能量会累积，球被挤得飞出画布。 */
+function solve(iters){
+  for(let it=0; it<iters; it++){
+    for(const b of balls){
+      if(b.x - b.r < WALL){ b.x = WALL + b.r; if(b.vx < 0) b.vx = -b.vx*0.2; }
+      if(b.x + b.r > W - WALL){ b.x = W - WALL - b.r; if(b.vx > 0) b.vx = -b.vx*0.2; }
+      if(b.y + b.r > FLOOR){ b.y = FLOOR - b.r; if(b.vy > 0) b.vy = -b.vy*0.12; b.vx *= 0.9; }
+      if(b.y - b.r < 0){ b.y = b.r; if(b.vy < 0) b.vy = -b.vy*0.2; }     // 顶盖：别飞出去
+    }
+    for(let i=0;i<balls.length;i++){
+      const a = balls[i];
+      const invA = 1/(a.r*a.r);
+      for(let j=i+1;j<balls.length;j++){
+        const b = balls[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const min = a.r + b.r;
+        const d2 = dx*dx + dy*dy;
+        if(d2 >= min*min) continue;
+        const d = Math.sqrt(d2) || 0.0001;
+        const nx = dx/d, ny = dy/d;
+        const ov = min - d;
+        const invB = 1/(b.r*b.r), invSum = invA + invB;
+        a.x -= nx*ov*(invA/invSum); a.y -= ny*ov*(invA/invSum);
+        b.x += nx*ov*(invB/invSum); b.y += ny*ov*(invB/invSum);
+        const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
+        const vn = rvx*nx + rvy*ny;
+        if(vn < 0){
+          const jimp = -(1 + 0.12) * vn / invSum;
+          a.vx -= nx*jimp*invA; a.vy -= ny*jimp*invA;
+          b.vx += nx*jimp*invB; b.vy += ny*jimp*invB;
+        }
+      }
+    }
+  }
+}
+function physics(dt){
+  const SUB = 3, h = dt/SUB;
+  for(let s=0;s<SUB;s++){
+    for(const b of balls){ b.vy += G*h; b.x += b.vx*h; b.y += b.vy*h; }
+    solve(4);
+    // 合并（只在松弛之后判定一次）
+    const merges = [];
+    for(let i=0;i<balls.length;i++){
+      const a = balls[i];
+      if(a.dead) continue;
+      for(let j=i+1;j<balls.length;j++){
+        const b = balls[j];
+        if(b.dead) continue;
+        // 最高级不再合并（两条大鱼只是挤在一起）—— 否则罐子永远堆不满，游戏没有结束条件
+        if(a.lv !== b.lv || a.lv >= LV.length-1) continue;
+        // 「相切」就算碰上：solve() 会把重叠的球推开到刚好相切，所以阈值要留一点余量，
+        // 否则静置在一起的同级球永远等不到合并
+        const dx = b.x - a.x, dy = b.y - a.y, min = a.r + b.r + 0.6;
+        if(dx*dx + dy*dy < min*min){ a.dead = true; b.dead = true; merges.push([a,b]); }
+      }
+    }
+    if(merges.length){
+      for(const [a,b] of merges){
+        const lv = a.lv;
+        const x = (a.x + b.x)/2, y = (a.y + b.y)/2;
+        const vx = (a.vx + b.vx)/2, vy = (a.vy + b.vy)/2;
+        const col = LV[lv];
+        for(let k=0;k<14;k++){
+          const ang = (k/14)*Math.PI*2 + Math.random()*0.5;
+          const sp = 70 + Math.random()*150;
+          parts.push({ x, y, vx: Math.cos(ang)*sp, vy: Math.sin(ang)*sp, life:1, c: col.a });
+        }
+        score += LV[lv+1].v;
+        balls.push({ x, y, vx, vy, r: LV[lv+1].r, lv: lv+1, pop:1, born:0 });
+        if(lv+1 === LV.length-1){
+          fx.push({ x, y, text:'提前退休！', color:'#ffd88a', life:1.6 });
+          tone(660, .18, .055, 'triangle', 1.6);
+          setTimeout(()=>tone(990, .24, .055, 'triangle', 1.4), 140);
+        } else {
+          fx.push({ x, y, text: LV[lv+1].n, color: LV[lv+1].a, life: 1 });
+          tone(430 + lv*90, .11, .045, 'triangle', 1.35);
+        }
+        if(lv+1 > topLv) topLv = lv+1;
+      }
+      balls = balls.filter(b => !b.dead);
+      shakeT = Math.min(1, shakeT + 0.3);
+      updateHUD();
+    }
+  }
+  // 限速，防止堆太高时数值炸掉
+  for(const b of balls){
+    const sp = Math.hypot(b.vx, b.vy);
+    if(sp > 1600){ b.vx *= 1600/sp; b.vy *= 1600/sp; }
+  }
+}
+function step(dt){
+  if(playing && !over){
+    if(cooldown > 0) cooldown = Math.max(0, cooldown - dt);
+    physics(dt);
+    // 危险判定
+    const risky = balls.some(b => b.y - b.r < DANGER && Math.hypot(b.vx, b.vy) < 80);
+    dangerT = risky ? dangerT + dt : Math.max(0, dangerT - dt*2);
+    if(dangerT > 1.5) finish();
+  }
+  for(const b of balls){ if(b.pop > 0) b.pop = Math.max(0, b.pop - dt*4); b.born += dt; }
+  for(let i=parts.length-1;i>=0;i--){
+    const p = parts[i];
+    p.life -= dt*1.7; p.vy += 900*dt; p.x += p.vx*dt; p.y += p.vy*dt;
+    if(p.life <= 0) parts.splice(i,1);
+  }
+  for(let i=fx.length-1;i>=0;i--){
+    const f = fx[i]; f.life -= dt*1.1; f.y -= dt*40;
+    if(f.life <= 0) fx.splice(i,1);
+  }
+  shakeT = Math.max(0, shakeT - dt*3);
+}
+function finish(){
+  if(over) return;
+  playing = false; over = true;
+  tone(180, .32, .06, 'sawtooth', .5);
+  const top = topLv >= 0 ? LV[topLv].n : '没合出来';
+  $('oEmoji').textContent = topLv >= 5 ? '🎉' : topLv >= 3 ? '🍉' : '📦';
+  $('oTitle').textContent = topLv >= 5 ? '合出好东西了' : '堆满了';
+  $('oText').innerHTML = `最高合到「<b>${top}</b>」· 分数 <b>${score}</b><br>本机最好 <b>${best}</b>`;
+  $('over').classList.add('show');
+}
+
+/* ---------- 绘制 ---------- */
+function rr(x,y,w,h,r){
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function draw(){
+  const sx = shakeT > 0 ? (Math.random()-0.5)*7*shakeT : 0;
+  ctx.save(); ctx.translate(sx, 0);
+  const bg = ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#0d0916'); bg.addColorStop(1,'#08060e');
+  ctx.fillStyle = bg; ctx.fillRect(-20,0,W+40,H);
+
+  // 罐子
+  ctx.fillStyle = 'rgba(255,255,255,.025)';
+  rr(WALL, 0, W-WALL*2, FLOOR, 12); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,157,226,.16)'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(WALL+1, 0); ctx.lineTo(WALL+1, FLOOR);
+  ctx.moveTo(W-WALL-1, 0); ctx.lineTo(W-WALL-1, FLOOR);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.06)';
+  rr(WALL, FLOOR, W-WALL*2, H-FLOOR, 0); ctx.fill();
+
+  // 危险线
+  const warn = dangerT > 0.3;
+  ctx.setLineDash([9,7]);
+  ctx.strokeStyle = warn ? `rgba(255,122,107,${0.5 + Math.min(0.5, dangerT)})` : 'rgba(255,255,255,.16)';
+  ctx.lineWidth = warn ? 3 : 2;
+  ctx.beginPath(); ctx.moveTo(WALL, DANGER); ctx.lineTo(W-WALL, DANGER); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 球
+  for(const b of balls){
+    const L = LV[b.lv];
+    const grow = 1 + b.pop*0.22;
+    const r = b.r*grow;
+    ctx.save();
+    ctx.shadowColor = L.a; ctx.shadowBlur = b.pop > 0 ? 22 : 10;
+    const g = ctx.createRadialGradient(b.x - r*0.34, b.y - r*0.4, r*0.12, b.x, b.y, r*1.05);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.28, L.a);
+    g.addColorStop(1, L.b);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, 7); ctx.fill();
+    ctx.restore();
+    if(r >= 19){
+      const n = L.n.length;
+      const fs = Math.min(r*0.52, r*2.0/n);
+      ctx.fillStyle = 'rgba(28,12,32,.82)';
+      ctx.font = `800 ${Math.round(fs)}px "PingFang SC","Microsoft YaHei",sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(L.n, b.x, b.y+1);
+    }
+  }
+
+  // 粒子
+  for(const p of parts){
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.c;
+    ctx.fillRect(p.x-2.4, p.y-2.4, 4.8, 4.8);
+  }
+  ctx.globalAlpha = 1;
+
+  // 投掷器
+  if(playing && !over){
+    const r = LV[curLv].r;
+    const x = Math.max(WALL + r, Math.min(W - WALL - r, dropperX));
+    ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 1;
+    ctx.setLineDash([4,6]);
+    ctx.beginPath(); ctx.moveTo(x, DROP_Y + r); ctx.lineTo(x, FLOOR); ctx.stroke();
+    ctx.setLineDash([]);
+    // 下一个
+    const nr = LV[nextLv].r;
+    const ng = ctx.createRadialGradient(W-52, 30, nr*0.15, W-52, 30, nr);
+    ng.addColorStop(0,'#fff'); ng.addColorStop(.3, LV[nextLv].a); ng.addColorStop(1, LV[nextLv].b);
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = ng;
+    ctx.beginPath(); ctx.arc(W-52, 30, nr, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.font = '700 10px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('下一个', W-52, 30 + nr + 12);
+    // 当前
+    const g = ctx.createRadialGradient(x - r*0.34, DROP_Y - r*0.4, r*0.12, x, DROP_Y, r*1.05);
+    g.addColorStop(0,'#fff'); g.addColorStop(.28, LV[curLv].a); g.addColorStop(1, LV[curLv].b);
+    ctx.save();
+    ctx.globalAlpha = cooldown > 0 ? 0.35 : 1;
+    ctx.shadowColor = LV[curLv].a; ctx.shadowBlur = 14;
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, DROP_Y, r, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+
+  // 飘字
+  for(const f of fx){
+    ctx.globalAlpha = Math.max(0, f.life);
+    ctx.fillStyle = f.color;
+    ctx.font = '800 16px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(f.text, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  if(!playing && !over){
+    ctx.fillStyle = 'rgba(8,6,14,.6)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#ff9de2';
+    ctx.font = '800 24px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('按「开始」放第一个', W/2, H*0.45);
+  }
+}
+
+/* ---------- 主循环与交互 ---------- */
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.04, (ts-last)/1000 || 0.016); last = ts;
+  step(dt); draw();
+}
+function aim(clientX){
+  const r = cvs.getBoundingClientRect();
+  dropperX = (clientX - r.left)/r.width * W;
+}
+cvs.addEventListener('pointerdown', e=>{
+  e.preventDefault();
+  A();
+  if(over || !playing){ if(over) reset(); return; }
+  aim(e.clientX); drop();
+});
+cvs.addEventListener('pointermove', e=>{ if(!over && playing) aim(e.clientX); });
+addEventListener('keydown', e=>{
+  if(e.key === ' '){
+    e.preventDefault(); A();
+    if(over || !playing){ if(over) reset(); return; }
+    drop();
+  }
+  if(e.key === 'ArrowLeft')  dropperX -= 26;
+  if(e.key === 'ArrowRight') dropperX += 26;
+});
+$('start').addEventListener('click', ()=>{ A(); reset(); });
+$('oAgain').addEventListener('click', ()=>{ A(); reset(); });
+addEventListener('resize', resize);
+
+(function boot(){
+  try{ best = parseInt(localStorage.getItem('ut_merge_best')||'0',10) || 0; }catch(e){ best = 0; }
+  resize();
+  curLv = 0; nextLv = 1; score = 0;
+  requestAnimationFrame(loop);
+})();
+
+window.__merge = {
+  get state(){ return { playing, over, score, best, topLv, balls: balls.length,
+                        dangerT: +dangerT.toFixed(2), curLv, nextLv, cooldown: +cooldown.toFixed(2) }; },
+  reset, drop, tick: step,
+  get balls(){ return balls.map(b => ({ x: Math.round(b.x), y: Math.round(b.y), r: b.r, lv: b.lv, top: Math.round(b.y-b.r) })); },
+  get consts(){ return { W, H, WALL, FLOOR, DANGER, LV: LV.map(l=>l.r) }; },
+  setX(x){ dropperX = x; },
+  put(o){ balls.push(Object.assign({ x: W/2, y: 300, vx:0, vy:0, r: LV[0].r, lv:0, pop:0, born:0 }, o)); },
+  clear(){ balls = []; }
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>抽象钓鱼 · GO FISH</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{min-height:100%;margin:0;background:#070a0e}
+  body{
+    background-image:radial-gradient(900px 700px at 50% 10%, #0e1c24 0%, #070a0e 68%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#e4eef2;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:100vh;padding:16px 14px 22px;gap:12px;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+
+  header{width:min(580px,94vw);display:flex;align-items:flex-end;gap:12px}
+  .brand{flex:1;min-width:0}
+  .brand .t{font-size:11px;letter-spacing:.4em;color:#6f8a94}
+  .brand h1{margin:4px 0 0;font-size:21px;letter-spacing:.14em;color:#5fd0e0;font-weight:800}
+  .brand .s{margin-top:5px;font-size:11.5px;color:#87a0a8}
+  .stats{display:flex;gap:7px}
+  .stat{background:rgba(18,30,36,.84);border:1px solid rgba(255,255,255,.1);border-radius:12px;
+    padding:6px 13px;text-align:center;min-width:60px}
+  .stat .k{font-size:9.5px;letter-spacing:.22em;color:#6f8a94}
+  .stat .v{font:800 18px/1.3 ui-monospace,Consolas,monospace;color:#ffd36e;font-variant-numeric:tabular-nums}
+  .stat.n .v{color:#8ef0c8}
+  .stat.best .v{color:#6ec8ff;font-size:15px}
+
+  .wrap{position:relative;border-radius:16px;padding:8px;
+    background:linear-gradient(160deg,#12222a,#081014);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 30px 66px rgba(0,0,0,.72), inset 0 1px 0 rgba(255,255,255,.05);
+    touch-action:none;line-height:0}
+  canvas{display:block;border-radius:10px;background:#0a141a;touch-action:none;cursor:pointer}
+
+  .bar{width:min(580px,94vw);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button.b{font:inherit;font-size:12.5px;color:#e4eef2;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:9px 16px;letter-spacing:.08em;transition:.15s}
+  button.b:hover{background:rgba(95,208,224,.15);border-color:rgba(95,208,224,.5);color:#c8f2fa}
+  button.b.primary{background:linear-gradient(120deg,rgba(95,208,224,.3),rgba(142,240,200,.2));border-color:rgba(95,208,224,.55)}
+  .hint{flex:1;text-align:right;font-size:11px;color:#5f7a84;letter-spacing:.06em;line-height:1.6}
+  footer{font-size:11px;color:#4e6a74;letter-spacing:.14em;text-align:center;line-height:1.9}
+  footer b{color:#ff7a6b}
+
+  .over{position:fixed;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:20px;
+    background:rgba(5,9,11,.84);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+  .over.show{display:flex}
+  .box{width:min(420px,92vw);text-align:center;padding:30px 26px 24px;border-radius:22px;
+    background:linear-gradient(180deg,rgba(18,32,38,.98),rgba(9,16,20,.98));
+    border:1px solid rgba(95,208,224,.24);box-shadow:0 30px 80px rgba(0,0,0,.72)}
+  .box .em{font-size:38px;line-height:1}
+  .box h2{margin:13px 0 6px;font-size:20px;letter-spacing:.14em;color:#5fd0e0}
+  .box p{margin:0 0 18px;font-size:12.5px;line-height:1.95;color:#8fa8b0}
+  .box p b{color:#ffd36e}
+  .box .row{display:flex;gap:9px;justify-content:center;flex-wrap:wrap}
+  .box table{width:100%;border-collapse:collapse;margin:8px 0 4px;font-size:12px}
+  .box td{padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.07);color:#a8c2ca}
+  .box td:last-child{text-align:right;color:#ffd36e;font-family:ui-monospace,Consolas,monospace}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="t">GO FISH · 摸鱼模拟器</div>
+    <h1>抽象钓鱼</h1>
+    <div class="s">抛竿、等咬钩、在它沉下去的那一下提竿</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="k">总重</div><div class="v" id="score">0</div></div>
+    <div class="stat n"><div class="k">上钩</div><div class="v" id="count">0</div></div>
+    <div class="stat best"><div class="k">最好</div><div class="v" id="best">0</div></div>
+  </div>
+</header>
+
+<div class="wrap"><canvas id="c"></canvas></div>
+
+<div class="bar">
+  <button class="b primary" id="cast">抛 竿 (空格)</button>
+  <button class="b" id="bag">看鱼篓</button>
+  <span class="hint">"!" 一出现就点 · 提早了会吓跑它</span>
+</div>
+
+<footer><b>提早了鱼就跑了</b> · 慢一秒它连钩子一起叼走</footer>
+
+<div class="over" id="over">
+  <div class="box">
+    <div class="em" id="oEmoji">🐟</div>
+    <h2 id="oTitle">今天的收获</h2>
+    <div id="bagBox"></div>
+    <div class="row"><button class="b primary" id="oAgain">继续钓</button></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ========= 抽象钓鱼 ========= */
+const $ = id => document.getElementById(id);
+const W = 560, H = 620;
+const WATER = 268;                 // 水面 y
+
+/* 稀有度越高越难咬钩 */
+const FISH = [
+  { e:'🥾', n:'破鞋',   v:1,   w:16, c:'#7d7466' },
+  { e:'🐟', n:'摸鱼',   v:10,  w:38, c:'#6ec8ff' },
+  { e:'🐠', n:'加班鱼', v:25,  w:24, c:'#ffb26b' },
+  { e:'🦑', n:'章鱼',   v:60,  w:12, c:'#c86bff' },
+  { e:'🎁', n:'神秘盒', v:80,  w:6,  c:'#ffd36e' },
+  { e:'🐋', n:'大鱼',   v:150, w:4,  c:'#8ef0c8' }
+];
+
+const cvs = $('c'), ctx = cvs.getContext('2d');
+let phase = 'idle';        // idle | flying | waiting | biting | hooked | gone
+let rod = { x: 90, y: WATER };
+let bob = { x: 280, y: WATER, t: 0 };
+let fly = null, waitT = 0, biteT = 0, biteWindow = 0.9;
+let score = 0, count = 0, best = 0, bag = {};
+let ripples = [], fx = [], fish = [], last = 0, shake = 0, hint = '';
+let bobDip = 0;
+
+/* ---------- 音效 ---------- */
+let actx = null;
+function A(){ if(!actx){ const C = window.AudioContext||window.webkitAudioContext; if(!C) return null; actx = new C(); }
+  if(actx.state === 'suspended') actx.resume(); return actx; }
+function tone(f, dur, gain, type, bend){
+  const c = A(); if(!c) return;
+  const t = c.currentTime, o = c.createOscillator(), g = c.createGain();
+  o.type = type || 'sine'; o.frequency.setValueAtTime(f, t);
+  if(bend) o.frequency.exponentialRampToValueAtTime(Math.max(40,f*bend), t+dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t+0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  o.connect(g).connect(c.destination); o.start(t); o.stop(t+dur+0.04);
+}
+function splash(){ tone(700, .18, .05, 'sine', .3); tone(300, .22, .03, 'triangle', .5, ); }
+
+/* ---------- 尺寸 ---------- */
+let scale = 1;
+function resize(){
+  const availW = Math.min(window.innerWidth - 46, 580);
+  const availH = window.innerHeight*0.62;
+  const k = Math.min(availW/W, availH/H, 1);
+  const w = Math.round(W*k), h = Math.round(H*k);
+  scale = w/W;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cvs.width = w*dpr; cvs.height = h*dpr;
+  cvs.style.width = w+'px'; cvs.style.height = h+'px';
+  ctx.setTransform(dpr*k, 0, 0, dpr*k, 0, 0);
+  draw();
+}
+function reset(){
+  phase = 'idle'; bob.x = 280; bob.y = WATER; fly = null;
+  ripples = []; fx = []; shake = 0; bobDip = 0; hint = '';
+  score = 0; count = 0; bag = {};
+  for(let i=0;i<5;i++) fish.push(newFish(true));
+  updateHUD();
+}
+function newFish(any){
+  return { x: -80 - Math.random()*400, y: WATER + 60 + Math.random()*(H-WATER-120),
+           v: 26 + Math.random()*46, dir: 1, e: FISH[(Math.random()*FISH.length)|0].e };
+}
+
+/* ---------- 一竿 ---------- */
+function cast(){
+  if(phase !== 'idle' && phase !== 'gone') return;
+  A();
+  const tx = 110 + Math.random()*(W - 200);
+  fly = { x: rod.x, y: rod.y, tx, ty: WATER + 6, t: 0, dur: 0.55 + Math.random()*0.2 };
+  phase = 'flying';
+  tone(300, .16, .035, 'sine', 1.8);
+  hint = '';
+}
+function land(){
+  bob.x = fly.tx; bob.y = WATER; fly = null;
+  phase = 'waiting';
+  waitT = 1.2 + Math.random()*3.4;            // 等多久才咬钩
+  biteWindow = 0.90;
+  ripples.push({ x: bob.x, y: WATER, r: 4, life: 1 });
+  splash();
+}
+function startBite(){
+  phase = 'biting'; biteT = 0; bobDip = 0;
+  tone(880, .07, .045, 'square', 1.3);
+  setTimeout(()=>{ if(phase === 'biting') tone(880, .07, .045, 'square', 1.3); }, 130);
+}
+function hook(){
+  if(phase === 'biting'){
+    const t = biteT;
+    // 越接近咬钩瞬间分越高
+    const roll = [];
+    for(const f of FISH) for(let i=0;i<f.w;i++) roll.push(f);
+    const f = roll[(Math.random()*roll.length)|0];
+    const speedBonus = t < 0.28 ? 1.6 : t < 0.55 ? 1.25 : 1;
+    const gain = Math.round(f.v * speedBonus);
+    score += gain; count++; bag[f.n] = (bag[f.n]||0) + 1;
+    if(score > best){ best = score; try{ localStorage.setItem('ut_fish_best', String(best)); }catch(e){} }
+    fx.push({ x: bob.x, y: WATER - 30, text: `${f.e} ${f.n} +${gain}`, color: f.c, life: 1 });
+    ripples.push({ x: bob.x, y: WATER, r: 8, life: 1 });
+    tone(520, .12, .05, 'triangle', 1.6);
+    setTimeout(()=>tone(780, .18, .05, 'triangle', 1.4), 110);
+    phase = 'hooked';
+    setTimeout(()=>{ phase = 'idle'; bob.x = 280; bob.y = WATER; }, 620);
+    updateHUD();
+    return;
+  }
+  if(phase === 'waiting'){
+    // 提早了：鱼被吓跑
+    phase = 'gone'; hint = '提早了，鱼跑了';
+    tone(180, .12, .035, 'sawtooth', .7);
+    ripples.push({ x: bob.x, y: WATER, r: 6, life: 1 });
+    setTimeout(()=>{ phase = 'idle'; bob.x = 280; bob.y = WATER; }, 520);
+  }
+}
+function escape(){
+  phase = 'gone'; hint = '慢了，它把饵叼走了';
+  tone(140, .18, .035, 'sawtooth', .6);
+  setTimeout(()=>{ phase = 'idle'; bob.x = 280; bob.y = WATER; }, 520);
+}
+
+/* ---------- 更新 ---------- */
+function update(dt){
+  // 背景鱼
+  for(const f of fish){
+    f.x += f.v * f.dir * dt;
+    if(f.x > W + 60){ f.x = -80; f.y = WATER + 60 + Math.random()*(H-WATER-120); }
+  }
+  if(phase === 'flying' && fly){
+    fly.t += dt / fly.dur;
+    if(fly.t >= 1){ fly.t = 1; land(); }
+  }
+  if(phase === 'waiting'){
+    waitT -= dt;
+    if(waitT <= 0) startBite();
+  }
+  if(phase === 'biting'){
+    biteT += dt;
+    bobDip = Math.sin(biteT*22) * Math.min(7, biteT*40);
+    if(biteT > biteWindow) escape();
+  }
+  if(phase !== 'biting') bobDip += (0 - bobDip) * Math.min(1, dt*6);
+
+  for(let i=ripples.length-1;i>=0;i--){
+    const r = ripples[i]; r.life -= dt*1.5; r.r += dt*90;
+    if(r.life <= 0) ripples.splice(i,1);
+  }
+  for(let i=fx.length-1;i>=0;i--){
+    const f = fx[i]; f.life -= dt*1.2; f.y -= dt*48;
+    if(f.life <= 0) fx.splice(i,1);
+  }
+  shake = Math.max(0, shake - dt*3);
+}
+function updateHUD(){
+  $('score').textContent = score;
+  $('count').textContent = count;
+  $('best').textContent = best;
+}
+function showBag(){
+  const rows = Object.keys(bag).length
+    ? Object.entries(bag).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td>× ${v}</td></tr>`).join('')
+    : '<tr><td>鱼篓是空的</td><td>—</td></tr>';
+  $('oEmoji').textContent = '🧺';
+  $('oTitle').textContent = '今天的收获';
+  $('bagBox').innerHTML = `<table>${rows}</table><p style="margin-top:12px">总重 <b>${score}</b> · 共 <b>${count}</b> 条 · 最好 <b>${best}</b></p>`;
+  $('over').classList.add('show');
+}
+
+/* ---------- 绘制 ---------- */
+function rr(x,y,w,h,r){
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function draw(){
+  const sx = shake > 0 ? (Math.random()-0.5)*8*shake : 0;
+  ctx.save(); ctx.translate(sx, 0);
+  // 天空
+  const sky = ctx.createLinearGradient(0,0,0,WATER);
+  sky.addColorStop(0,'#0b1a24'); sky.addColorStop(1,'#12303c');
+  ctx.fillStyle = sky; ctx.fillRect(-20,0,W+40,WATER);
+  // 远山
+  ctx.fillStyle = 'rgba(95,208,224,.09)';
+  ctx.beginPath();
+  ctx.moveTo(-20, WATER);
+  for(let x=-20;x<=W+20;x+=70) ctx.lineTo(x, WATER - 40 - Math.sin(x*0.013)*26 - 20);
+  ctx.lineTo(W+20, WATER); ctx.closePath(); ctx.fill();
+  // 月亮
+  ctx.save();
+  ctx.shadowColor = 'rgba(255,236,190,.7)'; ctx.shadowBlur = 22;
+  ctx.fillStyle = '#f2e9cf';
+  ctx.beginPath(); ctx.arc(W-72, 66, 20, 0, 7); ctx.fill();
+  ctx.restore();
+
+  // 水
+  const wa = ctx.createLinearGradient(0,WATER,0,H);
+  wa.addColorStop(0,'#0d2a33'); wa.addColorStop(1,'#061318');
+  ctx.fillStyle = wa; ctx.fillRect(-20, WATER, W+40, H-WATER);
+  // 水波
+  ctx.strokeStyle = 'rgba(95,208,224,.13)'; ctx.lineWidth = 1.5;
+  for(let i=0;i<7;i++){
+    const y = WATER + 26 + i*44;
+    ctx.beginPath();
+    for(let x=-20;x<=W+20;x+=8){
+      const yy = y + Math.sin((x*0.03) + (performance.now()/(1400+i*90))) * 3;
+      x === -20 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy);
+    }
+    ctx.stroke();
+  }
+  // 水下的鱼影
+  for(const f of fish){
+    ctx.globalAlpha = 0.16;
+    ctx.font = '22px "PingFang SC","Apple Color Emoji","Segoe UI Emoji",sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(f.e, f.x, f.y);
+    ctx.globalAlpha = 1;
+  }
+
+  // 涟漪
+  for(const r of ripples){
+    ctx.globalAlpha = Math.max(0, r.life)*0.6;
+    ctx.strokeStyle = '#5fd0e0'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(r.x, r.y, r.r, r.r*0.32, 0, 0, 7); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // 鱼竿
+  ctx.strokeStyle = '#c9a06a'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(24, H+10); ctx.lineTo(rod.x, rod.y); ctx.stroke();
+  ctx.strokeStyle = 'rgba(220,240,245,.7)'; ctx.lineWidth = 1.2;
+  let lx = rod.x, ly = rod.y;
+  if(phase === 'flying' && fly){
+    lx = rod.x + (fly.tx - rod.x)*fly.t;
+    ly = rod.y + (fly.ty - rod.y)*fly.t - Math.sin(fly.t*Math.PI)*120;
+  } else {
+    lx = bob.x; ly = bob.y + bobDip;
+  }
+  ctx.beginPath(); ctx.moveTo(rod.x, rod.y); ctx.lineTo(lx, ly); ctx.stroke();
+  // 浮标
+  if(phase !== 'idle' && phase !== 'flying'){
+    const by = WATER + bobDip;
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,80,80,.8)'; ctx.shadowBlur = 10;
+    ctx.fillStyle = '#ff5a5a';
+    ctx.beginPath(); ctx.arc(bob.x, by - 6, 6, 0, 7); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#f2f2f2';
+    ctx.beginPath(); ctx.arc(bob.x, by - 6, 2.6, 0, 7); ctx.fill();
+  }
+
+  // 提示
+  if(phase === 'biting'){
+    const pulse = 1 + Math.sin(performance.now()/70)*0.18;
+    ctx.save();
+    ctx.translate(bob.x, WATER - 66);
+    ctx.scale(pulse, pulse);
+    ctx.fillStyle = '#ffd36e';
+    ctx.font = '800 42px ui-monospace,Consolas,monospace';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('!', 0, 0);
+    ctx.restore();
+  }
+
+  // 飘字
+  for(const f of fx){
+    ctx.globalAlpha = Math.max(0, f.life);
+    ctx.fillStyle = f.color;
+    ctx.font = '800 17px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(f.text, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // 状态提示
+  ctx.fillStyle = 'rgba(228,238,242,.5)';
+  ctx.font = '600 12.5px "PingFang SC","Microsoft YaHei",sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  const tips = { idle:'点「抛竿」或按空格', waiting:'……等它咬钩……',
+                 biting:'就是现在！点下去！', hooked:'上钩了', gone: hint };
+  if(phase !== 'flying') ctx.fillText(tips[phase] || '', W/2, H - 26);
+  if(phase === 'flying') ctx.fillText('抛——', W/2, H - 26);
+}
+
+/* ---------- 主循环与交互 ---------- */
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (ts-last)/1000 || 0.016); last = ts;
+  update(dt); draw();
+}
+function tap(){
+  A();
+  if(phase === 'idle' || phase === 'gone') cast();
+  else hook();
+}
+cvs.addEventListener('pointerdown', e=>{ e.preventDefault(); tap(); });
+addEventListener('keydown', e=>{
+  if(e.key === ' '){ e.preventDefault(); tap(); }
+  else if(e.key === 'b' || e.key === 'B') showBag();
+});
+$('cast').addEventListener('click', tap);
+$('bag').addEventListener('click', showBag);
+$('oAgain').addEventListener('click', ()=>{ $('over').classList.remove('show'); });
+addEventListener('resize', resize);
+
+(function boot(){
+  try{ best = parseInt(localStorage.getItem('ut_fish_best')||'0',10) || 0; }catch(e){ best = 0; }
+  resize(); reset();
+  requestAnimationFrame(loop);
+})();
+
+window.__fish = {
+  get state(){ return { phase, score, count, best, bag, bobX: bob.x, waitT: +waitT.toFixed(2), biteT: +biteT.toFixed(2) }; },
+  cast, hook, tap,
+  landNow(){ if(phase === 'flying') land(); },
+  biteNow(){ startBite(); },
+  setWait(t){ waitT = t; },
+  forcePhase(p){ phase = p; }
+};
+</script>
+</body>
+</html>
