@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>抽象落键 · CYBER KEYS</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{min-height:100%;margin:0;background:#07080b}
+  body{
+    background-image:radial-gradient(900px 700px at 50% 10%, #101a2c 0%, #07080b 68%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#e8ecf2;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:100vh;padding:16px 14px 22px;gap:11px;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+
+  header{width:min(520px,94vw);display:flex;align-items:flex-end;gap:12px}
+  .brand{flex:1;min-width:0}
+  .brand .t{font-size:11px;letter-spacing:.4em;color:#6f7b8c}
+  .brand h1{margin:4px 0 0;font-size:21px;letter-spacing:.14em;color:#5fd8ff;font-weight:800}
+  .brand .s{margin-top:5px;font-size:11.5px;color:#8492a4}
+  .stats{display:flex;gap:7px}
+  .stat{background:rgba(20,26,36,.82);border:1px solid rgba(255,255,255,.1);border-radius:12px;
+    padding:6px 12px;text-align:center;min-width:60px}
+  .stat .k{font-size:9.5px;letter-spacing:.22em;color:#6f7b8c}
+  .stat .v{font:800 18px/1.3 ui-monospace,Consolas,monospace;color:#5fd8ff;font-variant-numeric:tabular-nums}
+  .stat.cb .v{color:#ffd36e}
+  .stat.acc .v{color:#8ef0c8}
+  .stat.gr .v{color:#c86bff;font-size:20px}
+
+  .wrap{position:relative;border-radius:16px;padding:8px;
+    background:linear-gradient(160deg,#121a26,#0a0e15);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 30px 66px rgba(0,0,0,.72), inset 0 1px 0 rgba(255,255,255,.05);
+    touch-action:none;line-height:0}
+  canvas{display:block;border-radius:10px;background:#080b11;touch-action:none}
+
+  .bar{width:min(520px,94vw);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button.b{font:inherit;font-size:12.5px;color:#e8ecf2;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:9px 16px;letter-spacing:.08em;transition:.15s}
+  button.b:hover{background:rgba(95,216,255,.15);border-color:rgba(95,216,255,.5);color:#cfeaff}
+  button.b.primary{background:linear-gradient(120deg,rgba(95,216,255,.3),rgba(142,240,200,.2));border-color:rgba(95,216,255,.55)}
+  button.b.on{background:linear-gradient(160deg,rgba(95,216,255,.3),rgba(95,216,255,.12));border-color:rgba(95,216,255,.6);color:#d6f2ff}
+  .grp{display:flex;gap:5px;align-items:center}
+  .grp .lb{font-size:10px;letter-spacing:.2em;color:#6f7b8c;margin-right:2px}
+  .hint{flex:1;text-align:right;font-size:11px;color:#67748a;letter-spacing:.06em;line-height:1.6}
+  footer{font-size:11px;color:#57647a;letter-spacing:.14em;text-align:center;line-height:1.9}
+
+  .over{position:fixed;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:18px;
+    background:rgba(5,7,11,.86);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  .over.show{display:flex}
+  .box{width:min(430px,94vw);text-align:center;padding:26px 24px 22px;border-radius:22px;
+    background:linear-gradient(180deg,rgba(24,32,46,.98),rgba(13,17,23,.98));
+    border:1px solid rgba(95,216,255,.24);box-shadow:0 30px 80px rgba(0,0,0,.72);max-height:92vh;overflow:auto}
+  .box .em{font-size:36px;line-height:1}
+  .box h2{margin:11px 0 5px;font-size:19px;letter-spacing:.14em;color:#5fd8ff}
+  .box p{margin:0 0 14px;font-size:12.5px;line-height:1.9;color:#93a2b6}
+  .box p b{color:#ffd36e}
+  .box .row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:6px}
+  .songs{display:grid;gap:7px;margin:6px 0 12px;text-align:left}
+  .song{display:flex;align-items:center;gap:10px;padding:9px 13px;border-radius:12px;cursor:pointer;
+    background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1);transition:.14s}
+  .song:hover{border-color:rgba(95,216,255,.45)}
+  .song.on{background:linear-gradient(120deg,rgba(95,216,255,.24),rgba(142,240,200,.12));
+    border-color:rgba(95,216,255,.6)}
+  .song .nm{flex:1;font-size:13.5px;letter-spacing:.06em}
+  .song .meta{font:600 11px ui-monospace,Consolas,monospace;color:#7f8ea3;letter-spacing:.06em}
+  .song .bk{font:800 13px ui-monospace,Consolas,monospace;color:#8ef0c8;min-width:34px;text-align:right}
+  .lbl{font-size:10px;letter-spacing:.24em;color:#6f7b8c;margin:10px 0 6px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="t">CYBER KEYS · 4 LANES</div>
+    <h1>抽象落键</h1>
+    <div class="s">四条轨道，跟着曲子把活儿敲完</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="k">分数</div><div class="v" id="score">0</div></div>
+    <div class="stat cb"><div class="k">连击</div><div class="v" id="combo">0</div></div>
+    <div class="stat acc"><div class="k">准确</div><div class="v" id="acc">100%</div></div>
+    <div class="stat gr"><div class="k">评级</div><div class="v" id="grade">—</div></div>
+  </div>
+</header>
+
+<div class="wrap"><canvas id="c"></canvas></div>
+
+<div class="bar">
+  <button class="b primary" id="start">开始 (空格)</button>
+  <div class="grp"><span class="lb">速度</span>
+    <button class="b" data-spd="0.8">慢</button>
+    <button class="b on" data-spd="1">中</button>
+    <button class="b" data-spd="1.35">快</button>
+  </div>
+  <span class="hint">D F J K 四键 · 手机上直接点轨道</span>
+</div>
+
+<footer>曲子是现场算出来的 · 谱面也是从曲子里长出来的 · 仓库里没有一个音频文件</footer>
+
+<div class="over show" id="over">
+  <div class="box">
+    <div class="em" id="oEmoji">🎹</div>
+    <h2 id="oTitle">选一首</h2>
+    <p id="oText">四条轨道，音符从上往下掉，落到判定线上敲掉它。</p>
+    <div class="lbl">曲 目</div>
+    <div class="songs" id="songList"></div>
+    <div class="lbl">难 度</div>
+    <div class="row" id="diffRow"></div>
+    <div class="row" style="margin-top:14px"><button class="b primary" id="oStart">开始</button></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   抽象落键 —— 四轨下落式音游
+   音乐与谱面全部运行时生成，仓库内没有任何音频文件。
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+
+/* ---------- 音乐引擎（四个音游共用同一套思路） ---------- */
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const midiHz = n => 440*Math.pow(2,(n-69)/12);
+const MINOR = [0,2,3,5,7,8,10], PENTA = [0,3,5,7,10];
+
+/* 注意：底鼓和军鼓的落点必须互相错开。谱面的去重逻辑是按「最小间隔」滤的，
+   两类鼓点踩同一个十六分音符时，后一个会被整条丢掉（军鼓全丢 = 谱面里一个「咔」都没有）。 */
+const DRUM_PAT = {
+  four:  { kick:'x.....x...x..x..', snare:'....x.......x...', hat:'x.x.x.x.x.x.x.x.' },
+  break: { kick:'x.....x...x.....', snare:'....x.......x..x', hat:'x.xx.xx.x.xx.xx.' },
+  half:  { kick:'x.....x.........', snare:'........x.......', hat:'..x...x...x...x.' },
+  rush:  { kick:'x..x..x.x..x..x.', snare:'....x.......x...', hat:'xxxxxxxxxxxxxxxx' }
+};
+const BASS_PAT = {
+  drive:'x..x..x...x.x...', busy:'x.x..x.xx..x..x.', chill:'x.......x.......', rush:'x.x.x.x.x.x.x.x.'
+};
+const MEL_DENS = { drive:0.42, busy:0.58, chill:0.30, rush:0.50 };
+const PROG = [0, 5, 2, 6];          // i - VI - III - VII
+
+const SONGS = [
+  { id:'mon',  title:'周一早八',   bpm:132, root:45, seed:1101, drums:'four',  bars:24, style:'drive' },
+  { id:'req',  title:'需求又变了', bpm:148, root:43, seed:2202, drums:'break', bars:24, style:'busy'  },
+  { id:'fish', title:'摸鱼进行曲', bpm:104, root:48, seed:3303, drums:'half',  bars:20, style:'chill' },
+  { id:'off',  title:'下班倒计时', bpm:162, root:41, seed:4404, drums:'rush',  bars:22, style:'rush'  }
+];
+
+function buildSong(cfg){
+  const rnd = mulberry32(cfg.seed);
+  const spb = 60/cfg.bpm, step = spb/4, ev = [];
+  const P = DRUM_PAT[cfg.drums], B = BASS_PAT[cfg.style], dens = MEL_DENS[cfg.style];
+  const deg = d => { const n = MINOR.length, o = Math.floor(d/n), i = ((d%n)+n)%n; return MINOR[i] + 12*o; };
+  const pen = d => { const n = PENTA.length, o = Math.floor(d/n), i = ((d%n)+n)%n; return PENTA[i] + 12*o; };
+  let walk = 4;
+  for(let bar=0; bar<cfg.bars; bar++){
+    const t0 = bar*16*step;
+    for(let s=0;s<16;s++){
+      const t = t0 + s*step;
+      if(P.kick[s]==='x')  ev.push({t, kind:'kick'});
+      if(P.snare[s]==='x') ev.push({t, kind:'snare'});
+      if(P.hat[s]==='x')   ev.push({t, kind:'hat'});
+    }
+    const root = cfg.root + deg(PROG[bar % PROG.length]);
+    for(let s=0;s<16;s++) if(B[s]==='x') ev.push({t: t0 + s*step, kind:'bass', midi: root});
+    if(bar % 2 === 0){
+      const dur = step*32;
+      for(const iv of [0, 3, 7]) ev.push({t: t0, kind:'pad', midi: root + iv, dur});
+    }
+    for(let s=0;s<16;s++){
+      const onBeat = (s % 4 === 0);
+      if(rnd() < (onBeat ? dens*1.7 : dens)){
+        walk += [-2,-1,-1,0,1,1,2][(rnd()*7)|0];
+        walk = Math.max(0, Math.min(10, walk));
+        ev.push({t: t0 + s*step, kind:'lead', midi: cfg.root + 24 + pen(walk)});
+      }
+    }
+  }
+  ev.sort((a,b)=> a.t - b.t);
+  return { cfg, events: ev, step, spb, dur: cfg.bars*16*step };
+}
+
+const M = {
+  ctx:null, master:null, noise:null, song:null, t0:0, i:0, on:false, vol:0.85,
+  init(){
+    if(this.ctx) return;
+    const C = window.AudioContext || window.webkitAudioContext; if(!C) return;
+    const c = this.ctx = new C();
+    const comp = c.createDynamicsCompressor();
+    comp.threshold.value = -12; comp.ratio.value = 6; comp.attack.value = 0.004;
+    const g = this.master = c.createGain(); g.gain.value = this.vol;
+    g.connect(comp).connect(c.destination);
+    const len = Math.floor(c.sampleRate*1.2);
+    const b = c.createBuffer(1, len, c.sampleRate), d = b.getChannelData(0);
+    for(let i=0;i<len;i++) d[i] = Math.random()*2-1;
+    this.noise = b;
+  },
+  resume(){ if(this.ctx && this.ctx.state==='suspended') this.ctx.resume(); },
+  now(){ return this.ctx ? this.ctx.currentTime - this.t0 : 0; },
+  start(song, lead){ this.init(); this.resume(); this.song = song; this.i = 0; this.on = true;
+    this.t0 = this.ctx.currentTime + (lead == null ? 3.2 : lead); },
+  stop(){ this.on = false; },
+  tick(){
+    if(!this.on || !this.ctx || !this.song) return;
+    const ahead = this.ctx.currentTime + 0.18;
+    while(this.i < this.song.events.length){
+      const ev = this.song.events[this.i];
+      const at = this.t0 + ev.t;
+      if(at > ahead) break;
+      if(at > this.ctx.currentTime - 0.06) this.play(ev, at);
+      this.i++;
+    }
+  },
+  play(ev, at){
+    const c = this.ctx, K = ev.kind;
+    if(K === 'kick'){
+      const o=c.createOscillator(), g=c.createGain();
+      o.type='sine'; o.frequency.setValueAtTime(150, at);
+      o.frequency.exponentialRampToValueAtTime(44, at+0.11);
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.95, at+0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, at+0.20);
+      o.connect(g).connect(this.master); o.start(at); o.stop(at+0.24);
+    } else if(K === 'snare'){
+      const s=c.createBufferSource(); s.buffer=this.noise;
+      const bp=c.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1900; bp.Q.value=0.9;
+      const g=c.createGain();
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.32, at+0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, at+0.15);
+      s.connect(bp).connect(g).connect(this.master); s.start(at); s.stop(at+0.18);
+      const o=c.createOscillator(), g2=c.createGain();
+      o.type='triangle'; o.frequency.setValueAtTime(210, at);
+      g2.gain.setValueAtTime(0.0001, at);
+      g2.gain.exponentialRampToValueAtTime(0.13, at+0.004);
+      g2.gain.exponentialRampToValueAtTime(0.0001, at+0.09);
+      o.connect(g2).connect(this.master); o.start(at); o.stop(at+0.12);
+    } else if(K === 'hat'){
+      const s=c.createBufferSource(); s.buffer=this.noise;
+      const hp=c.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=7200;
+      const g=c.createGain();
+      g.gain.setValueAtTime(0.09, at);
+      g.gain.exponentialRampToValueAtTime(0.0001, at+0.045);
+      s.connect(hp).connect(g).connect(this.master); s.start(at); s.stop(at+0.07);
+    } else if(K === 'bass'){
+      const o=c.createOscillator(), lp=c.createBiquadFilter(), g=c.createGain();
+      o.type='triangle'; o.frequency.value = midiHz(ev.midi);
+      lp.type='lowpass'; lp.frequency.value=520; lp.Q.value=3;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.28, at+0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, at+0.26);
+      o.connect(lp).connect(g).connect(this.master); o.start(at); o.stop(at+0.30);
+    } else if(K === 'lead'){
+      const o=c.createOscillator(), o2=c.createOscillator(), lp=c.createBiquadFilter(), g=c.createGain();
+      o.type='square'; o2.type='triangle';
+      o.frequency.value = midiHz(ev.midi); o2.frequency.value = midiHz(ev.midi)*1.005;
+      lp.type='lowpass'; lp.frequency.setValueAtTime(4200, at);
+      lp.frequency.exponentialRampToValueAtTime(1400, at+0.24);
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.075, at+0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, at+0.26);
+      o.connect(lp); o2.connect(lp); lp.connect(g).connect(this.master);
+      o.start(at); o2.start(at); o.stop(at+0.30); o2.stop(at+0.30);
+    } else if(K === 'pad'){
+      const d = ev.dur || 1.6;
+      for(const det of [-6, 6]){
+        const o=c.createOscillator(), lp=c.createBiquadFilter(), g=c.createGain();
+        o.type='sawtooth'; o.frequency.value = midiHz(ev.midi)*Math.pow(2, det/1200);
+        lp.type='lowpass'; lp.frequency.value=1000;
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.linearRampToValueAtTime(0.028, at+0.5);
+        g.gain.setValueAtTime(0.028, at+Math.max(0.6, d-0.6));
+        g.gain.linearRampToValueAtTime(0.0001, at+d);
+        o.connect(lp).connect(g).connect(this.master); o.start(at); o.stop(at+d+0.05);
+      }
+    }
+  }
+};
+
+/* ---------- 谱面：从音乐里长出来 ----------
+   按十六分音符网格采样，难度只管「每隔几格取一个」。
+   早先按「最小时间间隔」过滤是错的：它总是保留先出现的那类鼓点，
+   于是军鼓会被整类吃掉（谱面里一个「咔」都没有）。 */
+const DIFFS = {
+  easy:   { name:'摸鱼', stride:6, kick:1, snare:1, lead:0, hat:0, mult:0.85 },
+  normal: { name:'正常', stride:3, kick:1, snare:1, lead:1, hat:0, mult:1.0  },
+  hard:   { name:'加班', stride:2, kick:1, snare:1, lead:1, hat:1, mult:1.2  }
+};
+const LANES = 4;
+function gridSample(song, D){
+  const step = song.step, grid = new Map();
+  for(const ev of song.events){
+    if(!D[ev.kind]) continue;
+    const s = Math.round(ev.t/step);
+    if(!grid.has(s)) grid.set(s, ev);       // 同一格只留一个；同刻的优先级是 kick > snare > hat
+  }
+  return { grid, last: Math.round(song.dur/step) };
+}
+function buildChart(song, diffKey){
+  const D = DIFFS[diffKey];
+  const rnd = mulberry32(song.cfg.seed*7 + diffKey.length*131);
+  const { grid, last } = gridSample(song, D);
+  const out = [];
+  for(let s=0; s<=last; s+=D.stride){
+    let ev = null;
+    for(let k=0; k<D.stride && !ev; k++) ev = grid.get(s+k) || null;
+    if(!ev) continue;
+    let lane;
+    if(ev.kind === 'kick')       lane = rnd() < 0.5 ? 0 : 3;
+    else if(ev.kind === 'snare') lane = rnd() < 0.5 ? 1 : 2;
+    else if(ev.kind === 'hat')   lane = out.length % LANES;
+    else                         lane = ((ev.midi - song.cfg.root) % LANES + LANES) % LANES;
+    // 别让相邻两个音符挤在同一条轨道上
+    const prev = out[out.length-1];
+    if(prev && prev.lane === lane && ev.t - prev.t < 0.09) lane = (lane + 1 + ((rnd()*2)|0)) % LANES;
+    out.push({ t: ev.t, lane, kind: ev.kind, judged:false, result:null });
+  }
+  return out;
+}
+
+/* ---------- 游戏状态 ---------- */
+const W = 480, H = 660;
+const JUDGE_Y = H * 0.84;
+const WIN = { perfect:0.045, good:0.090, ok:0.140 };
+const TIER = { perfect:{ n:'完美', s:300, c:'#8ef0c8' }, good:{ n:'良好', s:200, c:'#5fd8ff' },
+               ok:{ n:'凑合', s:100, c:'#ffd36e' }, miss:{ n:'错过', s:0, c:'#ff7a6b' } };
+
+const cvs = $('c'), ctx = cvs.getContext('2d');
+let song=null, chart=[], playing=false, paused=false, finished=false;
+let score=0, combo=0, maxCombo=0, judgeCount={perfect:0,good:0,ok:0,miss:0};
+let hits=0, totalNotes=0, speed=1, songIdx=0, diffKey='normal';
+let fx=[], laneFlash=[0,0,0,0], last=0, countBeep=-9;
+let best = {};
+let autoPlay = false;      // 自动打（给自动化测试和「演示」用）
+
+/* ---------- 尺寸 ---------- */
+let geo = { laneW:0, left:0, noteH:18 };
+function resize(){
+  const availW = Math.min(window.innerWidth - 46, 520);   // 46 = body 与 wrap 的内边距
+  const availH = window.innerHeight*0.66;
+  let w = W, h = H;
+  const k = Math.min(availW/W, availH/H, 1);
+  w = Math.round(W*k); h = Math.round(H*k);
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cvs.width = w*dpr; cvs.height = h*dpr;
+  cvs.style.width = w+'px'; cvs.style.height = h+'px';
+  ctx.setTransform(dpr*w/W, 0, 0, dpr*h/H, 0, 0);
+  const margin = 22;
+  geo.laneW = (W - margin*2) / LANES;
+  geo.left = margin;
+  geo.noteH = 19;
+  draw(M.now());
+}
+
+/* ---------- 开局 ---------- */
+function currentSong(){
+  const base = SONGS[songIdx];
+  const full = buildSong(base);
+  chart = buildChart(full, diffKey);
+  song = full;
+  return full;
+}
+function reset(){
+  playing = false; paused = false; finished = false;
+  score = 0; combo = 0; maxCombo = 0; hits = 0;
+  judgeCount = {perfect:0,good:0,ok:0,miss:0};
+  fx = []; laneFlash = [0,0,0,0]; countBeep = -9;
+  const s = currentSong();
+  totalNotes = chart.length;
+  M.stop();
+  updateHUD();
+  return s;
+}
+function play(){
+  reset();
+  M.start(song, 3.2);
+  playing = true;
+  $('over').classList.remove('show');
+}
+function updateHUD(){
+  $('score').textContent = score;
+  $('combo').textContent = combo;
+  const denom = (judgeCount.perfect + judgeCount.good + judgeCount.ok + judgeCount.miss) || 1;
+  const acc = (judgeCount.perfect*300 + judgeCount.good*200 + judgeCount.ok*100) / (denom*300);
+  $('acc').textContent = totalNotes ? (acc*100).toFixed(1)+'%' : '100%';
+  $('grade').textContent = totalNotes ? gradeOf(acc) : '—';
+}
+function gradeOf(acc){
+  if(acc >= 0.96) return 'S';
+  if(acc >= 0.90) return 'A';
+  if(acc >= 0.80) return 'B';
+  if(acc >= 0.65) return 'C';
+  return 'D';
+}
+
+/* ---------- 判定 ---------- */
+function judgeNote(n, tier){
+  n.judged = true; n.result = tier;
+  const s = TIER[tier], D = DIFFS[diffKey];
+  judgeCount[tier]++;
+  if(tier === 'miss'){ combo = 0; }
+  else {
+    hits++; combo++; if(combo > maxCombo) maxCombo = combo;
+    const comboBonus = 1 + Math.min(1, combo/100);
+    score += Math.round(s.s * D.mult * comboBonus);
+  }
+  updateHUD();
+}
+function tryHit(lane){
+  if(!playing || paused || finished) return;
+  const now = M.now();
+  let best_n = null, bd = 1e9;
+  for(const n of chart){
+    if(n.judged || n.lane !== lane) continue;
+    const d = Math.abs(n.t - now);
+    if(d < bd){ bd = d; best_n = n; }
+  }
+  laneFlash[lane] = 1;
+  if(!best_n || bd > WIN.ok) return;          // 空击，不罚
+  const tier = bd <= WIN.perfect ? 'perfect' : bd <= WIN.good ? 'good' : 'ok';
+  judgeNote(best_n, tier);
+  const px = geo.left + (lane+0.5)*geo.laneW;
+  fx.push({ x:px, y:JUDGE_Y, text:TIER[tier].n, color:TIER[tier].c, life:1 });
+  if(tier === 'perfect') fx.push({ x:px, y:JUDGE_Y, ring:1, life:1, color:'#8ef0c8' });
+}
+function update(st){
+  if(!playing || paused) return;
+  M.tick();
+  for(const n of chart){
+    if(n.judged) continue;
+    if(autoPlay && st >= n.t){ judgeNote(n, 'perfect'); continue; }
+    if(st > n.t + WIN.ok){
+      judgeNote(n, 'miss');
+      const px = geo.left + (n.lane+0.5)*geo.laneW;
+      fx.push({ x:px, y:JUDGE_Y, text:'错过', color:TIER.miss.c, life:1 });
+    }
+  }
+  for(let i=fx.length-1;i>=0;i--){
+    const f = fx[i];
+    f.life -= 0.022; f.y -= 0.7;
+    if(f.life <= 0) fx.splice(i,1);
+  }
+  for(let i=0;i<4;i++) laneFlash[i] = Math.max(0, laneFlash[i] - 0.06);
+  if(st > song.dur + 1.4) finish();
+  // 倒计时音
+  const cnt = Math.ceil(-st);
+  if(st < 0 && cnt !== countBeep && cnt <= 3 && cnt >= 1){ countBeep = cnt; A.tick(cnt); }
+}
+function finish(){
+  playing = false; finished = true;
+  M.stop();
+  const denom = totalNotes || 1;
+  const acc = (judgeCount.perfect*300 + judgeCount.good*200 + judgeCount.ok*100) / (denom*300);
+  const g = gradeOf(acc);
+  const key = SONGS[songIdx].id + ':' + diffKey;
+  const prev = best[key];
+  const isBest = !prev || score > prev.score;
+  if(isBest){ best[key] = { score, grade:g, acc }; try{ localStorage.setItem('ut_keys_best', JSON.stringify(best)); }catch(e){} }
+  $('oEmoji').textContent = g === 'S' ? '🏆' : g === 'A' ? '🎉' : g === 'D' ? '😵' : '🎹';
+  $('oTitle').textContent = g === 'S' ? '满分级表现' : g === 'D' ? '手有点跟不上' : '打完了';
+  $('oText').innerHTML =
+    `《${SONGS[songIdx].title}》· ${DIFFS[diffKey].name}<br>` +
+    `分数 <b>${score}</b> · 准确率 <b>${(acc*100).toFixed(1)}%</b> · 评级 <b>${g}</b><br>` +
+    `完美 <b>${judgeCount.perfect}</b> · 良好 <b>${judgeCount.good}</b> · 凑合 <b>${judgeCount.ok}</b> · 错过 <b>${judgeCount.miss}</b>` +
+    (maxCombo ? ` · 最高连击 <b>${maxCombo}</b>` : '') +
+    (isBest ? '<br>🎊 新纪录' : (prev ? `<br>本机最好 <b>${prev.score}</b>` : ''));
+  $('oStart').textContent = '再来一次';
+  $('over').classList.add('show');
+  updateHUD();
+}
+
+/* ---------- 音效（判定/界面，跟音乐引擎分开） ---------- */
+const A = {
+  tick(n){
+    M.init(); if(!M.ctx) return;
+    const c = M.ctx, t = c.currentTime;
+    const o=c.createOscillator(), g=c.createGain();
+    o.type='sine'; o.frequency.value = 660 + (3-n)*110;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.07, t+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+0.12);
+    o.connect(g).connect(M.master); o.start(t); o.stop(t+0.15);
+  }
+};
+
+/* ---------- 绘制 ---------- */
+function rr(x,y,w,h,r){
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+const LANE_COL = ['#5fd8ff', '#8ef0c8', '#ffd36e', '#c86bff'];
+function laneX(i){ return geo.left + i*geo.laneW; }
+function draw(st){
+  if(!song) return;                       // boot 时 resize() 会先调一次 draw，那时还没有曲子
+  ctx.clearRect(0,0,W,H);
+  const bg = ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#0a0e16'); bg.addColorStop(1,'#070a10');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+
+  // 轨道
+  for(let i=0;i<LANES;i++){
+    const x = laneX(i);
+    ctx.fillStyle = i%2 ? 'rgba(255,255,255,.022)' : 'rgba(255,255,255,.038)';
+    ctx.fillRect(x, 0, geo.laneW, H);
+    if(laneFlash[i] > 0){
+      ctx.fillStyle = LANE_COL[i];
+      ctx.globalAlpha = laneFlash[i]*0.16;
+      ctx.fillRect(x, 0, geo.laneW, JUDGE_Y);
+      ctx.globalAlpha = 1;
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x+.5,0); ctx.lineTo(x+.5,H); ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,.05)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(laneX(LANES)+.5,0); ctx.lineTo(laneX(LANES)+.5,H); ctx.stroke();
+
+  // 判定线
+  ctx.save();
+  ctx.shadowColor = 'rgba(95,216,255,.8)'; ctx.shadowBlur = 14;
+  ctx.fillStyle = 'rgba(95,216,255,.75)';
+  ctx.fillRect(laneX(0), JUDGE_Y-1.5, geo.laneW*LANES, 3);
+  ctx.restore();
+
+  // 音符
+  const fallT = 1.75 / speed;
+  for(const n of chart){
+    if(n.judged && n.result !== 'miss') continue;
+    const y = JUDGE_Y * (1 - (n.t - st)/fallT);
+    if(y < -30 || y > H+30) continue;
+    const x = laneX(n.lane), w = geo.laneW;
+    ctx.save();
+    ctx.globalAlpha = n.result === 'miss' ? 0.25 : 1;
+    ctx.shadowColor = LANE_COL[n.lane]; ctx.shadowBlur = 12;
+    ctx.fillStyle = LANE_COL[n.lane];
+    rr(x+4, y-geo.noteH/2, w-8, geo.noteH, 6); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = 'rgba(8,12,18,.55)';
+    rr(x+4, y-geo.noteH/2, w-8, 4, 3); ctx.fill();
+  }
+
+  // 判定键位提示
+  ctx.fillStyle = 'rgba(255,255,255,.16)';
+  ctx.font = '800 13px ui-monospace,Consolas,monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const KEYS = ['D','F','J','K'];
+  for(let i=0;i<LANES;i++){
+    ctx.fillStyle = laneFlash[i] > 0 ? LANE_COL[i] : 'rgba(255,255,255,.18)';
+    ctx.fillText(KEYS[i], laneX(i)+geo.laneW/2, JUDGE_Y+26);
+  }
+
+  // 特效
+  for(const f of fx){
+    ctx.globalAlpha = Math.max(0, f.life);
+    if(f.ring){
+      ctx.strokeStyle = f.color; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(f.x, JUDGE_Y, 12 + (1-f.life)*34, 0, 7); ctx.stroke();
+    } else {
+      ctx.fillStyle = f.color;
+      ctx.font = '800 15px "PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(f.text, f.x, f.y);
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // 进度条
+  const prog = Math.max(0, Math.min(1, st / song.dur));
+  ctx.fillStyle = 'rgba(255,255,255,.07)';
+  ctx.fillRect(0, 0, W, 4);
+  ctx.fillStyle = '#5fd8ff';
+  ctx.fillRect(0, 0, W*prog, 4);
+
+  // 连击
+  if(combo >= 5 && playing){
+    ctx.fillStyle = 'rgba(255,211,110,.9)';
+    ctx.font = `800 ${Math.min(52, 26 + combo*0.25)}px ui-monospace,Consolas,monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.globalAlpha = 0.30;
+    ctx.fillText(combo, W/2, H*0.40);
+    ctx.globalAlpha = 1;
+    ctx.font = '700 12px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillStyle = 'rgba(255,211,110,.75)';
+    ctx.fillText('连击', W/2, H*0.40 + 30);
+  }
+
+  // 倒计时
+  if(playing && !paused && st < 0){
+    const n = Math.ceil(-st);
+    ctx.fillStyle = 'rgba(8,11,17,.55)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#5fd8ff';
+    ctx.font = '800 68px ui-monospace,Consolas,monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(n <= 3 ? n : 3, W/2, H*0.45);
+    ctx.font = '600 13px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.45)';
+    ctx.fillText('《' + SONGS[songIdx].title + '》· ' + DIFFS[diffKey].name, W/2, H*0.45 + 56);
+  }
+  if(paused){
+    ctx.fillStyle = 'rgba(8,11,17,.72)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#5fd8ff';
+    ctx.font = '800 30px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('已暂停', W/2, H*0.45);
+    ctx.font = '600 12px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.fillText('按空格继续', W/2, H*0.45 + 34);
+  }
+}
+
+/* ---------- 主循环 ---------- */
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt = Math.min(60, ts - last || 16); last = ts;
+  const st = M.now();
+  update(st);
+  draw(st);
+}
+
+/* ---------- 交互 ---------- */
+const KEYMAP = { d:0, D:0, f:1, F:1, j:2, J:2, k:3, K:3 };
+addEventListener('keydown', e=>{
+  if(e.key === ' '){
+    e.preventDefault();
+    if(!playing){ play(); }
+    else if(!finished){ paused = !paused; }
+    return;
+  }
+  if(e.key === 'Escape' && playing){ paused = !paused; return; }
+  const lane = KEYMAP[e.key];
+  if(lane == null || e.repeat) return;
+  e.preventDefault();
+  tryHit(lane);
+});
+cvs.addEventListener('pointerdown', e=>{
+  if(!playing){ return; }
+  const r = cvs.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width * W;
+  const lane = Math.floor((x - geo.left) / geo.laneW);
+  if(lane >= 0 && lane < LANES) tryHit(lane);
+});
+$('start').addEventListener('click', ()=>{ M.init(); M.resume(); play(); });
+$('oStart').addEventListener('click', ()=>{ M.init(); M.resume(); play(); });
+document.querySelectorAll('[data-spd]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    speed = parseFloat(b.dataset.spd);
+    document.querySelectorAll('[data-spd]').forEach(x=> x.classList.toggle('on', x === b));
+  });
+});
+addEventListener('resize', resize);
+
+/* ---------- 选曲 / 难度 ---------- */
+(function buildPicker(){
+  const list = $('songList');
+  SONGS.forEach((s, i)=>{
+    const el = document.createElement('div');
+    el.className = 'song' + (i === 0 ? ' on' : '');
+    el.innerHTML = `<span class="nm">${s.title}</span><span class="meta">${s.bpm} BPM</span><span class="bk" data-bk="${s.id}"></span>`;
+    el.addEventListener('click', ()=>{
+      songIdx = i;
+      [...list.children].forEach((c,j)=> c.classList.toggle('on', j === i));
+    });
+    list.appendChild(el);
+  });
+  const dr = $('diffRow');
+  Object.keys(DIFFS).forEach(k=>{
+    const b = document.createElement('button');
+    b.className = 'b' + (k === 'normal' ? ' on' : '');
+    b.textContent = DIFFS[k].name;
+    b.addEventListener('click', ()=>{
+      diffKey = k;
+      [...dr.children].forEach(x=> x.classList.toggle('on', x === b));
+    });
+    dr.appendChild(b);
+  });
+})();
+function paintBest(){
+  for(const s of SONGS){
+    const el = document.querySelector(`[data-bk="${s.id}"]`);
+    if(!el) continue;
+    const rec = best[s.id + ':' + diffKey];
+    el.textContent = rec ? rec.grade + ' ' + rec.score : '—';
+  }
+}
+
+/* ---------- 启动 ---------- */
+(function boot(){
+  try{ best = JSON.parse(localStorage.getItem('ut_keys_best') || '{}') || {}; }catch(e){ best = {}; }
+  resize(); reset();
+  paintBest();
+  const _paint = paintBest;
+  document.querySelectorAll('#diffRow button').forEach(b=> b.addEventListener('click', ()=> setTimeout(_paint, 0)));
+  requestAnimationFrame(loop);
+})();
+
+/* 供自动化测试 / 演示用 */
+window.__keys = {
+  get chart(){ return chart; }, get song(){ return song; }, get state(){ return { playing, paused, finished, score, combo, maxCombo, judgeCount, totalNotes }; },
+  setAuto(v){ autoPlay = !!v; }, hit: tryHit, play, finish
+};
+</script>
+</body>
+</html>

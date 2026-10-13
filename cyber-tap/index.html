@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>抽象点音 · CYBER TAP</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{min-height:100%;margin:0;background:#08070c}
+  body{
+    background-image:radial-gradient(900px 720px at 50% 12%, #221433 0%, #08070c 68%);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:#efe9f5;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:100vh;padding:16px 14px 22px;gap:11px;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+
+  header{width:min(560px,94vw);display:flex;align-items:flex-end;gap:12px}
+  .brand{flex:1;min-width:0}
+  .brand .t{font-size:11px;letter-spacing:.4em;color:#867b96}
+  .brand h1{margin:4px 0 0;font-size:21px;letter-spacing:.14em;color:#c86bff;font-weight:800}
+  .brand .s{margin-top:5px;font-size:11.5px;color:#9a90a8}
+  .stats{display:flex;gap:7px}
+  .stat{background:rgba(30,22,42,.84);border:1px solid rgba(255,255,255,.1);border-radius:12px;
+    padding:6px 12px;text-align:center;min-width:58px}
+  .stat .k{font-size:9.5px;letter-spacing:.22em;color:#867b96}
+  .stat .v{font:800 18px/1.3 ui-monospace,Consolas,monospace;color:#ffd36e;font-variant-numeric:tabular-nums}
+  .stat.cb .v{color:#c86bff}
+  .stat.acc .v{color:#8ef0c8}
+  .stat.gr .v{color:#5fd8ff;font-size:20px}
+
+  .wrap{position:relative;border-radius:16px;padding:8px;
+    background:linear-gradient(160deg,#1c1428,#0d0a13);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 30px 66px rgba(0,0,0,.72), inset 0 1px 0 rgba(255,255,255,.05);
+    touch-action:none;line-height:0}
+  canvas{display:block;border-radius:10px;background:#0c0912;touch-action:none;cursor:crosshair}
+
+  .bar{width:min(560px,94vw);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button.b{font:inherit;font-size:12.5px;color:#efe9f5;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:9px 16px;letter-spacing:.08em;transition:.15s}
+  button.b:hover{background:rgba(200,107,255,.16);border-color:rgba(200,107,255,.5);color:#e8ccff}
+  button.b.primary{background:linear-gradient(120deg,rgba(200,107,255,.3),rgba(142,240,200,.18));border-color:rgba(200,107,255,.55)}
+  button.b.on{background:linear-gradient(160deg,rgba(200,107,255,.3),rgba(200,107,255,.12));border-color:rgba(200,107,255,.6);color:#eed6ff}
+  .grp{display:flex;gap:5px;align-items:center}
+  .grp .lb{font-size:10px;letter-spacing:.2em;color:#867b96;margin-right:2px}
+  .hint{flex:1;text-align:right;font-size:11px;color:#776d87;letter-spacing:.06em;line-height:1.6}
+  footer{font-size:11px;color:#685f78;letter-spacing:.14em;text-align:center;line-height:1.9}
+
+  .over{position:fixed;inset:0;z-index:5;display:none;align-items:center;justify-content:center;padding:18px;
+    background:rgba(7,5,11,.86);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  .over.show{display:flex}
+  .box{width:min(430px,94vw);text-align:center;padding:26px 24px 22px;border-radius:22px;
+    background:linear-gradient(180deg,rgba(34,24,46,.98),rgba(17,13,23,.98));
+    border:1px solid rgba(200,107,255,.24);box-shadow:0 30px 80px rgba(0,0,0,.72);max-height:92vh;overflow:auto}
+  .box .em{font-size:36px;line-height:1}
+  .box h2{margin:11px 0 5px;font-size:19px;letter-spacing:.14em;color:#c86bff}
+  .box p{margin:0 0 14px;font-size:12.5px;line-height:1.9;color:#a89cb8}
+  .box p b{color:#ffd36e}
+  .box .row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:6px}
+  .songs{display:grid;gap:7px;margin:6px 0 12px;text-align:left}
+  .song{display:flex;align-items:center;gap:10px;padding:9px 13px;border-radius:12px;cursor:pointer;
+    background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1);transition:.14s}
+  .song:hover{border-color:rgba(200,107,255,.45)}
+  .song.on{background:linear-gradient(120deg,rgba(200,107,255,.24),rgba(142,240,200,.12));
+    border-color:rgba(200,107,255,.6)}
+  .song .nm{flex:1;font-size:13.5px;letter-spacing:.06em}
+  .song .meta{font:600 11px ui-monospace,Consolas,monospace;color:#8f85a0;letter-spacing:.06em}
+  .song .bk{font:800 13px ui-monospace,Consolas,monospace;color:#8ef0c8;min-width:34px;text-align:right}
+  .lbl{font-size:10px;letter-spacing:.24em;color:#867b96;margin:10px 0 6px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="t">CYBER TAP · RHYTHM CIRCLES</div>
+    <h1>抽象点音</h1>
+    <div class="s">圈缩到刚好时点它，早一秒晚一秒都不算</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="k">分数</div><div class="v" id="score">0</div></div>
+    <div class="stat cb"><div class="k">连击</div><div class="v" id="combo">0</div></div>
+    <div class="stat acc"><div class="k">准确</div><div class="v" id="acc">100%</div></div>
+    <div class="stat gr"><div class="k">评级</div><div class="v" id="grade">—</div></div>
+  </div>
+</header>
+
+<div class="wrap"><canvas id="c"></canvas></div>
+
+<div class="bar">
+  <button class="b primary" id="start">开始 (空格)</button>
+  <div class="grp"><span class="lb">缩圈</span>
+    <button class="b" data-spd="0.75">慢</button>
+    <button class="b on" data-spd="1">中</button>
+    <button class="b" data-spd="1.4">快</button>
+  </div>
+  <span class="hint">鼠标 / 手指点圈 · 点空不扣分</span>
+</div>
+
+<footer>圈出现的位置也是从曲子里算出来的 · 每首曲子的圈位固定</footer>
+
+<div class="over show" id="over">
+  <div class="box">
+    <div class="em" id="oEmoji">🎯</div>
+    <h2 id="oTitle">选一首</h2>
+    <p id="oText">圈会缩到刚好，缩到最小时点它。</p>
+    <div class="lbl">曲 目</div>
+    <div class="songs" id="songList"></div>
+    <div class="lbl">难 度</div>
+    <div class="row" id="diffRow"></div>
+    <div class="row" style="margin-top:14px"><button class="b primary" id="oStart">开始</button></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   抽象点音 —— 圆圈点按时机的音游
+   与其它三件共用同一套「现场合成音乐 + 从音乐长谱面」的做法。
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+
+/* ---------- 音乐引擎 ---------- */
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const midiHz = n => 440*Math.pow(2,(n-69)/12);
+const MINOR = [0,2,3,5,7,8,10], PENTA = [0,3,5,7,10];
+
+const DRUM_PAT = {
+  four:  { kick:'x.....x...x..x..', snare:'....x.......x...', hat:'x.x.x.x.x.x.x.x.' },
+  break: { kick:'x.....x...x.....', snare:'....x.......x..x', hat:'x.xx.xx.x.xx.xx.' },
+  half:  { kick:'x.....x.........', snare:'........x.......', hat:'..x...x...x...x.' },
+  rush:  { kick:'x..x..x.x..x..x.', snare:'....x.......x...', hat:'xxxxxxxxxxxxxxxx' },
+  pop:   { kick:'x.....x...x.x...', snare:'....x.......x...', hat:'x.x.x.xxx.x.x.xx' }
+};
+const BASS_PAT = {
+  drive:'x..x..x...x.x...', busy:'x.x..x.xx..x..x.', chill:'x.......x.......', rush:'x.x.x.x.x.x.x.x.', pop:'x..x..x.x...x.x.'
+};
+const MEL_DENS = { drive:0.42, busy:0.58, chill:0.30, rush:0.50, pop:0.46 };
+const PROG = [0, 5, 2, 6];
+
+const SONGS = [
+  { id:'ot',   title:'加班到十点', bpm:124, root:45, seed:6101, drums:'four',  bars:20, style:'drive' },
+  { id:'ping', title:'消息轰炸',   bpm:150, root:44, seed:6202, drums:'break', bars:20, style:'busy'  },
+  { id:'tea',  title:'下午茶',     bpm:100, root:50, seed:6303, drums:'half',  bars:18, style:'chill' },
+  { id:'ddd',  title:'Deadline',   bpm:164, root:42, seed:6404, drums:'rush',  bars:20, style:'rush'  }
+];
+
+function buildSong(cfg){
+  const rnd = mulberry32(cfg.seed);
+  const spb = 60/cfg.bpm, step = spb/4, ev = [];
+  const P = DRUM_PAT[cfg.drums], B = BASS_PAT[cfg.style], dens = MEL_DENS[cfg.style];
+  const deg = d => { const n = MINOR.length, o = Math.floor(d/n), i = ((d%n)+n)%n; return MINOR[i] + 12*o; };
+  const pen = d => { const n = PENTA.length, o = Math.floor(d/n), i = ((d%n)+n)%n; return PENTA[i] + 12*o; };
+  let walk = 4;
+  for(let bar=0; bar<cfg.bars; bar++){
+    const t0 = bar*16*step;
+    for(let s=0;s<16;s++){
+      const t = t0 + s*step;
+      if(P.kick[s]==='x')  ev.push({t, kind:'kick'});
+      if(P.snare[s]==='x') ev.push({t, kind:'snare'});
+      if(P.hat[s]==='x')   ev.push({t, kind:'hat'});
+    }
+    const root = cfg.root + deg(PROG[bar % PROG.length]);
+    for(let s=0;s<16;s++) if(B[s]==='x') ev.push({t: t0 + s*step, kind:'bass', midi: root});
+    if(bar % 2 === 0){
+      const dur = step*32;
+      for(const iv of [0, 3, 7]) ev.push({t: t0, kind:'pad', midi: root + iv, dur});
+    }
+    for(let s=0;s<16;s++){
+      const onBeat = (s % 4 === 0);
+      if(rnd() < (onBeat ? dens*1.7 : dens)){
+        walk += [-2,-1,-1,0,1,1,2][(rnd()*7)|0];
+        walk = Math.max(0, Math.min(10, walk));
+        ev.push({t: t0 + s*step, kind:'lead', midi: cfg.root + 24 + pen(walk)});
+      }
+    }
+  }
+  ev.sort((a,b)=> a.t - b.t);
+  return { cfg, events: ev, step, spb, dur: cfg.bars*16*step };
+}
+
+const M = {
+  ctx:null, master:null, noise:null, song:null, t0:0, i:0, on:false, vol:0.85,
+  init(){
+    if(this.ctx) return;
+    const C = window.AudioContext || window.webkitAudioContext; if(!C) return;
+    const c = this.ctx = new C();
+    const comp = c.createDynamicsCompressor();
+    comp.threshold.value = -12; comp.ratio.value = 6; comp.attack.value = 0.004;
+    const g = this.master = c.createGain(); g.gain.value = this.vol;
+    g.connect(comp).connect(c.destination);
+    const len = Math.floor(c.sampleRate*1.2);
+    const b = c.createBuffer(1, len, c.sampleRate), d = b.getChannelData(0);
+    for(let i=0;i<len;i++) d[i] = Math.random()*2-1;
+    this.noise = b;
+  },
+  resume(){ if(this.ctx && this.ctx.state==='suspended') this.ctx.resume(); },
+  now(){ return this.ctx ? this.ctx.currentTime - this.t0 : 0; },
+  start(song, lead){ this.init(); this.resume(); this.song = song; this.i = 0; this.on = true;
+    this.t0 = this.ctx.currentTime + (lead == null ? 3.2 : lead); },
+  stop(){ this.on = false; },
+  tick(){
+    if(!this.on || !this.ctx || !this.song) return;
+    const ahead = this.ctx.currentTime + 0.18;
+    while(this.i < this.song.events.length){
+      const ev = this.song.events[this.i];
+      const at = this.t0 + ev.t;
+      if(at > ahead) break;
+      if(at > this.ctx.currentTime - 0.06) this.play(ev, at);
+      this.i++;
+    }
+  },
+  play(ev, at){
+    const c = this.ctx, K = ev.kind;
+    if(K === 'kick'){
+      const o=c.createOscillator(), g=c.createGain();
+      o.type='sine'; o.frequency.setValueAtTime(150, at);
+      o.frequency.exponentialRampToValueAtTime(44, at+0.11);
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.95, at+0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, at+0.20);
+      o.connect(g).connect(this.master); o.start(at); o.stop(at+0.24);
+    } else if(K === 'snare'){
+      const s=c.createBufferSource(); s.buffer=this.noise;
+      const bp=c.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1900; bp.Q.value=0.9;
+      const g=c.createGain();
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.32, at+0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, at+0.15);
+      s.connect(bp).connect(g).connect(this.master); s.start(at); s.stop(at+0.18);
+      const o=c.createOscillator(), g2=c.createGain();
+      o.type='triangle'; o.frequency.setValueAtTime(210, at);
+      g2.gain.setValueAtTime(0.0001, at);
+      g2.gain.exponentialRampToValueAtTime(0.13, at+0.004);
+      g2.gain.exponentialRampToValueAtTime(0.0001, at+0.09);
+      o.connect(g2).connect(this.master); o.start(at); o.stop(at+0.12);
+    } else if(K === 'hat'){
+      const s=c.createBufferSource(); s.buffer=this.noise;
+      const hp=c.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=7200;
+      const g=c.createGain();
+      g.gain.setValueAtTime(0.09, at);
+      g.gain.exponentialRampToValueAtTime(0.0001, at+0.045);
+      s.connect(hp).connect(g).connect(this.master); s.start(at); s.stop(at+0.07);
+    } else if(K === 'bass'){
+      const o=c.createOscillator(), lp=c.createBiquadFilter(), g=c.createGain();
+      o.type='triangle'; o.frequency.value = midiHz(ev.midi);
+      lp.type='lowpass'; lp.frequency.value=520; lp.Q.value=3;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.28, at+0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, at+0.26);
+      o.connect(lp).connect(g).connect(this.master); o.start(at); o.stop(at+0.30);
+    } else if(K === 'lead'){
+      const o=c.createOscillator(), o2=c.createOscillator(), lp=c.createBiquadFilter(), g=c.createGain();
+      o.type='square'; o2.type='triangle';
+      o.frequency.value = midiHz(ev.midi); o2.frequency.value = midiHz(ev.midi)*1.005;
+      lp.type='lowpass'; lp.frequency.setValueAtTime(4200, at);
+      lp.frequency.exponentialRampToValueAtTime(1400, at+0.24);
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.075, at+0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, at+0.26);
+      o.connect(lp); o2.connect(lp); lp.connect(g).connect(this.master);
+      o.start(at); o2.start(at); o.stop(at+0.30); o2.stop(at+0.30);
+    } else if(K === 'pad'){
+      const d = ev.dur || 1.6;
+      for(const det of [-6, 6]){
+        const o=c.createOscillator(), lp=c.createBiquadFilter(), g=c.createGain();
+        o.type='sawtooth'; o.frequency.value = midiHz(ev.midi)*Math.pow(2, det/1200);
+        lp.type='lowpass'; lp.frequency.value=1000;
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.linearRampToValueAtTime(0.028, at+0.5);
+        g.gain.setValueAtTime(0.028, at+Math.max(0.6, d-0.6));
+        g.gain.linearRampToValueAtTime(0.0001, at+d);
+        o.connect(lp).connect(g).connect(this.master); o.start(at); o.stop(at+d+0.05);
+      }
+    }
+  }
+};
+
+/* ---------- 谱面：时间来自音乐，位置由种子决定 ---------- */
+const DIFFS = {
+  easy:   { name:'轻轻点', stride:6, kick:1, snare:1, lead:0, hat:0, mult:0.85 },
+  normal: { name:'正常点', stride:3, kick:1, snare:1, lead:1, hat:0, mult:1.0  },
+  hard:   { name:'疯狂点', stride:2, kick:1, snare:1, lead:1, hat:1, mult:1.2  }
+};
+const PAD = 96, MIN_DIST = 158;
+function buildChart(song, diffKey, size){
+  const D = DIFFS[diffKey];
+  const rnd = mulberry32(song.cfg.seed*13 + diffKey.length*71);
+  const step = song.step, grid = new Map();
+  for(const ev of song.events){
+    if(!D[ev.kind]) continue;
+    const s = Math.round(ev.t/step);
+    if(!grid.has(s)) grid.set(s, ev);
+  }
+  const last = Math.round(song.dur/step);
+  const out = [], anchors = [];
+  for(let s=0; s<=last; s+=D.stride){
+    let ev = null;
+    for(let k=0; k<D.stride && !ev; k++) ev = grid.get(s+k) || null;
+    if(!ev) continue;
+    // 位置：随机撒点，但跟前两个圈保持距离，别叠在一起
+    let x=0, y=0, tries=0;
+    do {
+      x = PAD + rnd()*(size - PAD*2);
+      y = PAD + rnd()*(size - PAD*2);
+      tries++;
+      if(tries > 60) break;
+    } while(anchors.slice(-2).some(a => Math.hypot(a.x-x, a.y-y) < MIN_DIST));
+    anchors.push({x, y});
+    out.push({ t: ev.t, x, y, kind: ev.kind, judged:false, result:null, pop:0 });
+  }
+  return out;
+}
+
+/* ---------- 状态 ---------- */
+const W = 620, H = 620, R = 44;
+const WIN = { perfect:0.045, good:0.090, ok:0.140 };
+const TIER = { perfect:{ n:'完美', s:300, c:'#8ef0c8' }, good:{ n:'良好', s:200, c:'#5fd8ff' },
+               ok:{ n:'凑合', s:100, c:'#ffd36e' }, miss:{ n:'错过', s:0, c:'#ff7a6b' } };
+const HUES = { kick:'#ff8a6b', snare:'#c86bff', lead:'#5fd8ff', hat:'#8ef0c8' };
+
+const cvs = $('c'), ctx = cvs.getContext('2d');
+let song=null, chart=[], playing=false, paused=false, finished=false;
+let score=0, combo=0, maxCombo=0, hits=0, totalNotes=0, speed=1, songIdx=0, diffKey='normal';
+let judgeCount={perfect:0,good:0,ok:0,miss:0};
+let parts=[], ripples=[], last=0, countBeep=-9;
+let best={}, autoPlay=false, scale=1;
+
+function resize(){
+  const avail = Math.min(window.innerWidth - 46, window.innerHeight*0.62, 620);  // 46 = body 与 wrap 的内边距
+  const size = Math.max(280, Math.floor(avail));
+  scale = size/W;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cvs.width = size*dpr; cvs.height = size*dpr;
+  cvs.style.width = size+'px'; cvs.style.height = size+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.scale(scale, scale);
+  draw(M.now());
+}
+function currentSong(){
+  const full = buildSong(SONGS[songIdx]);
+  chart = buildChart(full, diffKey, W);
+  song = full; return full;
+}
+function reset(){
+  playing=false; paused=false; finished=false;
+  score=0; combo=0; maxCombo=0; hits=0;
+  judgeCount={perfect:0,good:0,ok:0,miss:0};
+  parts=[]; ripples=[]; countBeep=-9;
+  currentSong(); totalNotes = chart.length;
+  M.stop(); updateHUD();
+}
+function play(){ reset(); M.start(song, 3.2); playing = true; $('over').classList.remove('show'); }
+function updateHUD(){
+  $('score').textContent = score;
+  $('combo').textContent = combo;
+  const denom = (judgeCount.perfect+judgeCount.good+judgeCount.ok+judgeCount.miss) || 1;
+  const acc = (judgeCount.perfect*300+judgeCount.good*200+judgeCount.ok*100)/(denom*300);
+  $('acc').textContent = totalNotes ? (acc*100).toFixed(1)+'%' : '100%';
+  $('grade').textContent = totalNotes ? gradeOf(acc) : '—';
+}
+function gradeOf(a){ return a>=.96?'S':a>=.90?'A':a>=.80?'B':a>=.65?'C':'D'; }
+
+function judgeNote(n, tier){
+  n.judged=true; n.result=tier;
+  const s=TIER[tier], D=DIFFS[diffKey];
+  judgeCount[tier]++;
+  if(tier==='miss'){ combo=0; }
+  else{
+    hits++; combo++; if(combo>maxCombo) maxCombo=combo;
+    score += Math.round(s.s * D.mult * (1 + Math.min(1, combo/100)));
+    n.pop = 1;
+    for(let i=0;i<12;i++){
+      const a = (i/12)*Math.PI*2 + Math.random()*0.4;
+      const sp = 90 + Math.random()*150;
+      parts.push({ x:n.x, y:n.y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:1, c:s.c });
+    }
+  }
+  ripples.push({ x:n.x, y:n.y, life:1, c:tier==='miss'?TIER.miss.c:s.c });
+  updateHUD();
+}
+function tryTap(px, py){
+  if(!playing || paused || finished) return;
+  const now = M.now();
+  let bn=null, bd=1e9;
+  for(const n of chart){
+    if(n.judged) continue;
+    const d = Math.abs(n.t - now);
+    if(d > WIN.ok) continue;
+    // 点得够近才算（判定圈半径放宽一点）
+    if(Math.hypot(n.x-px, n.y-py) > R*2.1) continue;
+    if(d < bd){ bd = d; bn = n; }
+  }
+  if(!bn) return;
+  const tier = bd<=WIN.perfect?'perfect':bd<=WIN.good?'good':'ok';
+  judgeNote(bn, tier);
+}
+function update(st){
+  if(!playing || paused) return;
+  M.tick();
+  for(const n of chart){
+    if(n.judged) continue;
+    if(autoPlay && st >= n.t){ judgeNote(n,'perfect'); continue; }
+    if(st > n.t + WIN.ok) judgeNote(n,'miss');
+  }
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i];
+    p.life -= 0.022; p.x += p.vx*0.016; p.y += p.vy*0.016; p.vy += 240*0.016;
+    if(p.life<=0) parts.splice(i,1);
+  }
+  for(let i=ripples.length-1;i>=0;i--){
+    const r=ripples[i]; r.life -= 0.026;
+    if(r.life<=0) ripples.splice(i,1);
+  }
+  if(st > song.dur + 1.4) finish();
+  const cnt = Math.ceil(-st);
+  if(st < 0 && cnt !== countBeep && cnt <= 3 && cnt >= 1){ countBeep = cnt; beep(cnt); }
+}
+function beep(n){
+  M.init(); if(!M.ctx) return;
+  const c=M.ctx, t=c.currentTime;
+  const o=c.createOscillator(), g=c.createGain();
+  o.type='sine'; o.frequency.value = 660 + (3-n)*110;
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(0.07, t+0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+0.12);
+  o.connect(g).connect(M.master); o.start(t); o.stop(t+0.15);
+}
+function finish(){
+  playing=false; finished=true; M.stop();
+  const denom = totalNotes || 1;
+  const acc = (judgeCount.perfect*300+judgeCount.good*200+judgeCount.ok*100)/(denom*300);
+  const g = gradeOf(acc);
+  const key = SONGS[songIdx].id + ':' + diffKey;
+  const prev = best[key];
+  const isBest = !prev || score > prev.score;
+  if(isBest){ best[key] = { score, grade:g }; try{ localStorage.setItem('ut_tap_best', JSON.stringify(best)); }catch(e){} }
+  paintBest();
+  $('oEmoji').textContent = g==='S'?'🏆':g==='D'?'😵':'🎯';
+  $('oTitle').textContent = g==='S'?'圈全被你点没了':g==='D'?'手速还得练':'打完了';
+  $('oText').innerHTML =
+    `《${SONGS[songIdx].title}》· ${DIFFS[diffKey].name}<br>` +
+    `分数 <b>${score}</b> · 准确率 <b>${(acc*100).toFixed(1)}%</b> · 评级 <b>${g}</b><br>` +
+    `完美 <b>${judgeCount.perfect}</b> · 良好 <b>${judgeCount.good}</b> · 凑合 <b>${judgeCount.ok}</b> · 错过 <b>${judgeCount.miss}</b>` +
+    (maxCombo?` · 最高连击 <b>${maxCombo}</b>`:'') +
+    (isBest?'<br>🎊 新纪录' : (prev?`<br>本机最好 <b>${prev.score}</b>`:''));
+  $('oStart').textContent = '再来一次';
+  $('over').classList.add('show');
+  updateHUD();
+}
+
+/* ---------- 绘制 ---------- */
+function draw(st){
+  if(!song) return;                       // boot 时 resize() 会先调一次 draw，那时还没有曲子
+  ctx.clearRect(0,0,W,H);
+  const bg = ctx.createLinearGradient(0,0,W,H);
+  bg.addColorStop(0,'#0d0913'); bg.addColorStop(1,'#08060c');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+
+  // 背景网格
+  ctx.strokeStyle = 'rgba(200,107,255,.05)'; ctx.lineWidth = 1;
+  for(let i=0;i<=W;i+=62){
+    ctx.beginPath(); ctx.moveTo(i+.5,0); ctx.lineTo(i+.5,H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,i+.5); ctx.lineTo(W,i+.5); ctx.stroke();
+  }
+
+  const preempt = 1.25/speed;
+  // 未命中的圈
+  for(const n of chart){
+    if(n.judged && n.result !== 'miss') continue;
+    const dt = n.t - st;
+    if(dt > preempt) continue;
+    if(dt < -WIN.ok - 0.1) continue;
+    const k = Math.max(0, Math.min(1, dt/preempt));      // 1 → 0
+    const ringR = R * (1 + 0.85*k);
+    const col = HUES[n.kind] || '#c86bff';
+    const fade = n.result === 'miss' ? 0.20 : 1;
+
+    ctx.save();
+    ctx.globalAlpha = fade;
+    // 缩圈
+    ctx.strokeStyle = col; ctx.lineWidth = 4;
+    ctx.globalAlpha = fade * (0.25 + 0.75*(1-k));
+    ctx.beginPath(); ctx.arc(n.x, n.y, ringR, 0, 7); ctx.stroke();
+    // 圈本体
+    ctx.globalAlpha = fade;
+    ctx.fillStyle = 'rgba(12,9,18,.82)';
+    ctx.beginPath(); ctx.arc(n.x, n.y, R, 0, 7); ctx.fill();
+    ctx.shadowColor = col; ctx.shadowBlur = 14;
+    ctx.strokeStyle = col; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(n.x, n.y, R, 0, 7); ctx.stroke();
+    ctx.restore();
+  }
+
+  // 波纹
+  for(const r of ripples){
+    ctx.globalAlpha = Math.max(0, r.life)*0.8;
+    ctx.strokeStyle = r.c; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(r.x, r.y, R + (1-r.life)*70, 0, 7); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // 粒子
+  for(const p of parts){
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.c;
+    ctx.fillRect(p.x-2.5, p.y-2.5, 5, 5);
+  }
+  ctx.globalAlpha = 1;
+
+  // 进度
+  const prog = Math.max(0, Math.min(1, st/song.dur));
+  ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fillRect(0,0,W,6);
+  ctx.fillStyle = '#c86bff'; ctx.fillRect(0,0,W*prog,6);
+
+  // 连击（放右上角，别糊在圈上）
+  if(combo >= 5 && playing){
+    ctx.globalAlpha = .34;
+    ctx.fillStyle = '#ffd36e';
+    ctx.font = `800 ${Math.min(76, 34+combo*0.34)}px ui-monospace,Consolas,monospace`;
+    ctx.textAlign='right'; ctx.textBaseline='middle';
+    ctx.fillText(combo, W-34, 78);
+    ctx.globalAlpha = 1;
+    ctx.font = '700 12px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillStyle = 'rgba(255,211,110,.7)';
+    ctx.fillText('连击', W-34, 112);
+  }
+
+  if(playing && !paused && st < 0){
+    ctx.fillStyle = 'rgba(8,6,12,.55)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#c86bff';
+    ctx.font = '800 76px ui-monospace,Consolas,monospace';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(Math.min(3, Math.ceil(-st)), W/2, H*0.44);
+    ctx.font = '600 14px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.45)';
+    ctx.fillText('《'+SONGS[songIdx].title+'》· '+DIFFS[diffKey].name, W/2, H*0.44+58);
+  }
+  if(paused){
+    ctx.fillStyle = 'rgba(8,6,12,.76)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#c86bff';
+    ctx.font = '800 32px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('已暂停', W/2, H*0.45);
+    ctx.font = '600 13px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.fillText('按空格继续', W/2, H*0.45+34);
+  }
+}
+
+/* ---------- 主循环与交互 ---------- */
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt = Math.min(60, ts-last || 16); last = ts;
+  const st = M.now();
+  update(st); draw(st);
+}
+addEventListener('keydown', e=>{
+  if(e.key === ' '){
+    e.preventDefault();
+    if(!playing) play();
+    else if(!finished) paused = !paused;
+  }
+});
+cvs.addEventListener('pointerdown', e=>{
+  M.init(); M.resume();
+  if(!playing) return;
+  const r = cvs.getBoundingClientRect();
+  const x = (e.clientX - r.left)/r.width * W;
+  const y = (e.clientY - r.top)/r.height * H;
+  tryTap(x, y);
+});
+$('start').addEventListener('click', ()=>{ M.init(); M.resume(); play(); });
+$('oStart').addEventListener('click', ()=>{ M.init(); M.resume(); play(); });
+document.querySelectorAll('[data-spd]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    speed = parseFloat(b.dataset.spd);
+    document.querySelectorAll('[data-spd]').forEach(x=> x.classList.toggle('on', x===b));
+  });
+});
+addEventListener('resize', resize);
+
+(function buildPicker(){
+  const list = $('songList');
+  SONGS.forEach((s,i)=>{
+    const el = document.createElement('div');
+    el.className = 'song' + (i===0?' on':'');
+    el.innerHTML = `<span class="nm">${s.title}</span><span class="meta">${s.bpm} BPM</span><span class="bk" data-bk="${s.id}"></span>`;
+    el.addEventListener('click', ()=>{
+      songIdx = i;
+      [...list.children].forEach((c,j)=> c.classList.toggle('on', j===i));
+    });
+    list.appendChild(el);
+  });
+  const dr = $('diffRow');
+  Object.keys(DIFFS).forEach(k=>{
+    const b = document.createElement('button');
+    b.className = 'b' + (k==='normal'?' on':'');
+    b.textContent = DIFFS[k].name;
+    b.addEventListener('click', ()=>{
+      diffKey = k;
+      [...dr.children].forEach(x=> x.classList.toggle('on', x===b));
+      paintBest();
+    });
+    dr.appendChild(b);
+  });
+})();
+function paintBest(){
+  for(const s of SONGS){
+    const el = document.querySelector(`[data-bk="${s.id}"]`);
+    if(!el) continue;
+    const rec = best[s.id+':'+diffKey];
+    el.textContent = rec ? rec.grade+' '+rec.score : '—';
+  }
+}
+
+(function boot(){
+  try{ best = JSON.parse(localStorage.getItem('ut_tap_best')||'{}') || {}; }catch(e){ best = {}; }
+  resize(); reset(); paintBest();
+  requestAnimationFrame(loop);
+})();
+
+window.__tap = {
+  get chart(){ return chart; }, get song(){ return song; },
+  get state(){ return { playing, paused, finished, score, combo, maxCombo, judgeCount, totalNotes }; },
+  setAuto(v){ autoPlay = !!v; }, tap: tryTap, play, finish
+};
+</script>
+</body>
+</html>
