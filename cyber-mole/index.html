@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>抽象打地鼠 · WHACK THE WORK</title>
+<title>摸鱼 · SNEAK OUT</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#08070b}
@@ -22,12 +22,19 @@
   .brand .s{margin-top:5px;font-size:11.5px;color:#918799}
   .stats{display:flex;gap:7px}
   .stat{background:rgba(28,22,32,.82);border:1px solid rgba(255,255,255,.1);border-radius:12px;
-    padding:6px 13px;text-align:center;min-width:62px}
-  .stat .k{font-size:9.5px;letter-spacing:.22em;color:#7e7286}
+    padding:6px 10px;text-align:center;min-width:54px}
+  .stat .k{font-size:9.5px;letter-spacing:.18em;color:#7e7286}
   .stat .v{font:800 18px/1.3 ui-monospace,Consolas,monospace;color:#ffd36e;font-variant-numeric:tabular-nums}
   .stat.tm .v{color:#8fd9ff}
   .stat.cb .v{color:#ff8a9c}
+  .stat.hp .v{color:#ff6b8a;letter-spacing:1px;font-size:14px}
   .stat.best .v{color:#8ef0c8}
+  /* 五个数字块在窄屏会把标题挤成竖排，干脆让标题自己占一行 */
+  @media (max-width:560px){
+    header{flex-wrap:wrap;gap:9px}
+    .brand{flex:1 1 100%}
+    .stats{flex:1 1 100%;justify-content:space-between}
+  }
 
   .wrap{position:relative;border-radius:16px;padding:8px;
     background:linear-gradient(160deg,#1a1420,#0d0a12);
@@ -63,13 +70,14 @@
 
 <header>
   <div class="brand">
-    <div class="t">WHACK THE WORK</div>
-    <h1>抽象打地鼠</h1>
-    <div class="s">从洞里冒出来的是加班、催进度、临时会议</div>
+    <div class="t">SNEAK OUT</div>
+    <h1>摸鱼</h1>
+    <div class="s">这回不能砸了 —— 你就是那只地鼠</div>
   </div>
   <div class="stats">
     <div class="stat"><div class="k">分数</div><div class="v" id="score">0</div></div>
     <div class="stat cb"><div class="k">连击</div><div class="v" id="combo">0</div></div>
+    <div class="stat hp"><div class="k">命</div><div class="v" id="lives">❤❤❤</div></div>
     <div class="stat tm"><div class="k">剩余</div><div class="v" id="time">45</div></div>
     <div class="stat best"><div class="k">最佳</div><div class="v" id="best">0</div></div>
   </div>
@@ -79,10 +87,11 @@
 
 <div class="bar">
   <button class="b primary" id="start">开始 (空格)</button>
-  <span class="hint">鼠标 / 手指点地鼠 · 空格开始</span>
+  <span class="hint">按住一个洞不松 = 从那儿探出头<br>键盘 1–9 对应九宫格 · 松手就缩回去</span>
 </div>
 
-<footer><b>领导不能砸</b> —— 砸到扣分并清空连击 · 漏掉一只正常地鼠也会断连击</footer>
+<footer><b>按住洞探头去吃外卖，但领导看过来的洞千万别探头</b><br>
+警告先黄后红 —— 红的就是已经看见了 · 探头要 0.4 秒才够得着 · 外卖三秒半不吃就凉</footer>
 
 <div class="over" id="over">
   <div class="box">
@@ -97,21 +106,34 @@
 
 <script>
 "use strict";
-/* ========= 抽象打地鼠 ========= */
+/* ========= 摸鱼 ========= */
 const $ = id => document.getElementById(id);
 const G = 3;                       // 3×3 个洞
 const W = 560, H = 560;
 const ROUND = 45;                  // 一局多少秒
+const LIVES = 3;
+const FOOD_N = 3;                  // 场上同时摆几份外卖
+const RISE_MS = 400;               // 探头要 0.4 秒才够得着
+const FOOD_LIFE = 3.6;             // 外卖几秒凉
+const GAZE_MAX = 2;                // 同时最多几道视线
 
-const WORDS  = ['加班','催进度','临时会议','拉个群','改一版','对齐一下','走个流程','再同步'];
-const BOSS   = '领导';
+const FOODS = [
+  {ic:'🍜', name:'外卖',   pts:10},
+  {ic:'☕', name:'续命咖啡', pts:10},
+  {ic:'🍗', name:'加餐',   pts:20},
+  {ic:'🍰', name:'下午茶', pts:20}
+];
 
 const cvs = $('c'), ctx = cvs.getContext('2d');
-let slots = [], fx = [];
-let score = 0, combo = 0, bestCombo = 0, best = 0;
+let foods = [];                    // {idx, kind, t, life}
+let gazes = [];                    // {idx, phase:'warn'|'lock', t, warn, lock}
+let me = {hole:-1, rise:0, ateThisHold:false};   // 你：在哪个洞探头、冒了多高
+let fx = [];
+let score = 0, combo = 0, bestCombo = 0, best = 0, lives = LIVES;
+let eaten = 0, caught = 0, missed = 0;
 let running = false, over = true;
-let timeLeft = ROUND, spawnT = 0, spawnEvery = 620;
-let last = 0, hitCount = 0, bossHit = 0;
+let timeLeft = ROUND, gazeT = 0, flash = 0;
+let last = 0, gen = 0;
 let geo = {};
 
 /* ---------- 音效 ---------- */
@@ -132,11 +154,14 @@ const A = {
     o.connect(g).connect(c.destination);
     o.start(t0); o.stop(t0+dur+0.04);
   },
-  whack(mult){
-    this.tone(180 * Math.pow(1.09, mult), .11, 'square', .065, .55);
-    this.tone(90, .09, 'sine', .05, .8, .01);
+  eat(mult){
+    this.tone(300 * Math.pow(1.08, mult), .1, 'triangle', .06, 1.5);
+    this.tone(620 * Math.pow(1.06, mult), .08, 'sine', .03, 1.4, .03);
   },
-  boss(){ [0,.07,.14].forEach((d,i)=> this.tone(150*Math.pow(.8,i), .18, 'sawtooth', .06, .6, d)); },
+  warn(){ this.tone(420, .07, 'sine', .022, 1.25); },
+  lock(){ this.tone(150, .2, 'sawtooth', .055, .6); this.tone(96, .22, 'square', .035, .7, .04); },
+  caught(){ [0,.08,.17].forEach((d,i)=> this.tone(190*Math.pow(.72,i), .22, 'square', .07, .55, d)); },
+  cold(){ this.tone(210, .1, 'triangle', .028, .7); },
   miss(){ this.tone(120, .06, 'triangle', .025, .8); },
   start(){ [0,5,9].forEach((n,i)=> this.tone(392*Math.pow(2,n/12), .22, 'triangle', .06, 1, i*.07)); },
   end(){ [0,.13,.26,.4].forEach((d,i)=> this.tone(330*Math.pow(.8,i), .3, 'sine', .07, .75, d)); }
@@ -180,14 +205,15 @@ function holeAt(px, py){
 
 /* ---------- 一局 ---------- */
 function reset(){
-  slots = new Array(G*G).fill(null);
-  fx = [];
-  score = 0; combo = 0; bestCombo = 0;
-  timeLeft = ROUND; spawnT = 0; spawnEvery = 620;
-  hitCount = 0; bossHit = 0;
+  gen++;                       // 重开一代：上一局的延时弹窗认这一代才不会糊到新局上
+  foods = []; gazes = []; fx = [];
+  me = {hole:-1, rise:0, ateThisHold:false};
+  score = 0; combo = 0; bestCombo = 0; lives = LIVES;
+  eaten = 0; caught = 0; missed = 0;
+  timeLeft = ROUND; gazeT = 520; flash = 0;
   running = false; over = true;
   $('over').classList.remove('show');
-  updateHUD(); draw();
+  placeFoods(); updateHUD(); draw();
 }
 function begin(){
   reset();
@@ -197,112 +223,153 @@ function begin(){
 }
 function finish(){
   running = false; over = true;
+  retract();
   A.end();
   if(score > best){ best = score; try{ localStorage.setItem('ut_mole_best', String(best)); }catch(e){} }
   updateHUD();
-  const rate = hitCount ? Math.round(bossHit / hitCount * 100) : 0;
   let chop;
-  if(score >= 1500) chop = '你砸出了本层的年度最高产出。';
-  else if(score >= 800) chop = '手速不错，可惜砸完明天还会有。';
-  else if(score >= 300) chop = '勉强及格，明天继续。';
-  else chop = '你今天好像不太想上班。';
+  if(score >= 1200) chop = '摸得炉火纯青，今天领导压根没发现你。';
+  else if(score >= 600) chop = '吃得不错，就是有点贪。';
+  else if(score >= 250) chop = '摸到了几条鱼，勉强算上过班。';
+  else chop = '你今天好像在认真工作。';
+  const g = gen;
   setTimeout(()=>{
-    $('oEmoji').textContent = '🔨';
-    $('oTitle').textContent = '下班了';
-    $('oText').innerHTML = `${chop}<br>砸中 <b>${hitCount}</b> 只 · 最高连击 <b>${bestCombo}</b> · 误伤领导 <b>${bossHit}</b> 次<br>本局 <b>${score}</b> 分 · 最佳 <b>${best}</b> 分`;
+    if(g !== gen) return;      // 这中间已经重开了一局，别把结算糊到新局上
+    $('oEmoji').textContent = lives > 0 ? '🐹' : '👀';
+    $('oTitle').textContent = lives > 0 ? '摸鱼结束' : '被抓住了';
+    $('oText').innerHTML = `${chop}<br>吃到 <b>${eaten}</b> 份 · 被抓 <b>${caught}</b> 次 · 放凉 <b>${missed}</b> 份 · 最高连击 <b>${bestCombo}</b><br>本局 <b>${score}</b> 分 · 最佳 <b>${best}</b> 分`;
     $('over').classList.add('show');
-  }, 260);
+  }, 280);
 }
 function updateHUD(){
   $('score').textContent = score;
   $('combo').textContent = combo;
+  $('lives').textContent = lives > 0 ? '❤'.repeat(lives) : '—';
   $('time').textContent = Math.max(0, Math.ceil(timeLeft));
   if(score > best){ best = score; try{ localStorage.setItem('ut_mole_best', String(best)); }catch(e){} }
   $('best').textContent = best;
 }
 
-/* ---------- 地鼠 ---------- */
-function spawn(){
-  const free = [];
-  for(let i=0;i<slots.length;i++) if(!slots[i]) free.push(i);
-  if(!free.length) return;
-  const i = free[(Math.random()*free.length)|0];
-  const t = 1 - timeLeft/ROUND;                     // 0 → 1 难度进度
-  const bossChance = 0.06 + t*0.20;
-  const boss = Math.random() < bossChance;
-  const life = boss ? (900 + Math.random()*350) : (1250 - t*560 + Math.random()*180);
-  slots[i] = {
-    kind: boss ? 'boss' : 'normal',
-    word: boss ? BOSS : WORDS[(Math.random()*WORDS.length)|0],
-    age: 0, life, hit: false, shake: 0
-  };
-}
+/* ---------- 外卖 ---------- */
 function mult(){ return Math.min(5, 1 + Math.floor(combo/5)); }
 function popup(holeIdx, text, color){
   const h = geo.holes[holeIdx];
-  fx.push({x: h.x, y: h.y - h.rw*1.15, text, color, life: 1});   // 飘在脑袋上方，别糊脸上
+  fx.push({x: h.x, y: h.y - h.rw*1.15, text, color, life: 1});
 }
-function whack(i){
-  if(!running || over) return;
-  const h = geo.holes[i];
-  const s = slots[i];
-  if(!s){ combo = 0; A.miss(); updateHUD(); draw(); return; }
-  if(s.hit) return;
-  const prog = riseOf(s);
-  if(prog < 0.45){ combo = 0; A.miss(); updateHUD(); return; }
-
-  s.hit = true; s.shake = 1;
-  if(s.kind === 'boss'){
-    score = Math.max(0, score - 20);
-    combo = 0; bossHit++;
-    A.boss();
-    popup(i, '−20 领导不能砸', '#ff7a6b');
-  } else {
-    combo++; hitCount++;
-    if(combo > bestCombo) bestCombo = combo;
-    const m = mult();
-    const gain = 10 * m;
-    score += gain;
-    A.whack(m);
-    popup(i, '+' + gain + (m>1 ? ' ×'+m : ''), m>1 ? '#ffd36e' : '#8ef0c8');
+function placeFoods(){
+  while(foods.length < FOOD_N){
+    const used = new Set(foods.map(f => f.idx));
+    const free = [];
+    for(let i=0;i<G*G;i++) if(!used.has(i) && i !== me.hole) free.push(i);
+    if(!free.length) break;
+    const i = free[(Math.random()*free.length)|0];
+    foods.push({idx:i, kind:(Math.random()*FOODS.length)|0, t:0, life:FOOD_LIFE});
   }
+}
+function updateFoods(dt){
+  for(let i=foods.length-1;i>=0;i--){
+    const f = foods[i];
+    f.t += dt/1000;
+    if(f.t >= f.life){
+      popup(f.idx, '凉了', '#9aa3b0');
+      foods.splice(i,1);
+      combo = 0; missed++;
+      A.cold(); updateHUD();
+    }
+  }
+  placeFoods();
+}
+
+/* ---------- 领导的视线 ---------- */
+function spawnGaze(){
+  const taken = new Set(gazes.map(g => g.idx));
+  const free = [];
+  for(let i=0;i<G*G;i++) if(!taken.has(i)) free.push(i);
+  if(!free.length) return;
+  const i = free[(Math.random()*free.length)|0];
+  // 先黄一段当警告，再转红锁定 —— 红的时候你在那个洞里探着头就是找死
+  gazes.push({idx:i, phase:'warn', t:0,
+              warn: 560 + Math.random()*190,
+              lock: 950 + Math.random()*900});
+  A.warn();
+}
+function updateGazes(dt){
+  gazeT -= dt;
+  if(gazeT <= 0 && gazes.length < GAZE_MAX){
+    spawnGaze();
+    gazeT = 620 + Math.random()*820;
+  }
+  for(let i=gazes.length-1;i>=0;i--){
+    const g = gazes[i];
+    g.t += dt;
+    if(g.phase === 'warn' && g.t >= g.warn){ g.phase = 'lock'; g.t = 0; A.lock(); }
+    else if(g.phase === 'lock' && g.t >= g.lock) gazes.splice(i,1);
+  }
+}
+
+/* ---------- 你 ---------- */
+function probe(i){
+  if(!running || over) return;
+  if(me.hole === i) return;
+  me.hole = i; me.rise = 0; me.ateThisHold = false;
+  A.resume();
+}
+function retract(){ me.hole = -1; me.rise = 0; me.ateThisHold = false; }
+function tryEat(){
+  if(me.ateThisHold || me.rise < 1) return;
+  const fi = foods.findIndex(f => f.idx === me.hole);
+  if(fi < 0) return;
+  const k = FOODS[foods[fi].kind];
+  foods.splice(fi,1);
+  combo++; if(combo > bestCombo) bestCombo = combo;
+  eaten++;
+  const m = mult();
+  const gain = k.pts * m;
+  score += gain;
+  me.ateThisHold = true;              // 一次探头只吃一份，别一直按着狂吃
+  popup(me.hole, '+' + gain + (m > 1 ? ' ×' + m : ''), m > 1 ? '#ffd36e' : '#8ef0c8');
+  A.eat(m);
+  placeFoods();
   updateHUD();
 }
-function riseOf(s){
-  if(s.hit) return Math.max(0, 1 - s.age/120);
-  if(s.age < 130) return s.age/130;
-  if(s.age > s.life - 170) return Math.max(0, (s.life - s.age)/170);
-  return 1;
+function caughtNow(){
+  lives--; combo = 0; caught++; flash = 1;
+  popup(me.hole, '被看见了', '#ff6b6b');
+  A.caught();
+  retract();
+  updateHUD();
+  if(lives <= 0){
+    over = true;
+    const g = gen;
+    setTimeout(()=>{ if(g === gen) finish(); }, 300);
+  }
+}
+function stepGame(dt){
+  timeLeft -= dt/1000;
+  if(timeLeft <= 0){ timeLeft = 0; finish(); return; }
+  updateGazes(dt);
+  updateFoods(dt);
+  if(flash > 0) flash = Math.max(0, flash - dt/420);
+
+  if(me.hole >= 0){
+    me.rise = Math.min(1, me.rise + dt/RISE_MS);
+    tryEat();
+    if(me.rise > 0.55 && gazes.some(g => g.idx === me.hole && g.phase === 'lock')){
+      caughtNow(); return;
+    }
+  }
+  for(let i=fx.length-1;i>=0;i--){
+    const f = fx[i];
+    f.life -= dt/850; f.y -= dt*0.045;
+    if(f.life <= 0) fx.splice(i,1);
+  }
 }
 
 /* ---------- 主循环 ---------- */
 function loop(ts){
   requestAnimationFrame(loop);
   const dt = Math.min(60, ts - last || 16); last = ts;
-  if(running && !over){
-    timeLeft -= dt/1000;
-    if(timeLeft <= 0){ timeLeft = 0; finish(); }
-    spawnEvery = 620 - (1 - timeLeft/ROUND) * 350;
-    spawnT += dt;
-    if(spawnT >= spawnEvery){ spawnT = 0; spawn(); }
-
-    for(let i=0;i<slots.length;i++){
-      const s = slots[i];
-      if(!s) continue;
-      s.age += dt;
-      if(s.shake > 0) s.shake = Math.max(0, s.shake - dt/220);
-      if(s.age >= s.life + 120){
-        if(!s.hit && s.kind === 'normal') combo = 0;   // 漏掉一只正常地鼠 → 断连击
-        slots[i] = null;
-        updateHUD();
-      }
-    }
-    for(let i=fx.length-1;i>=0;i--){
-      const f = fx[i];
-      f.life -= dt/850; f.y -= dt*0.045;
-      if(f.life <= 0) fx.splice(i,1);
-    }
-  }
+  if(running && !over) stepGame(dt);
   draw();
 }
 
@@ -314,7 +381,8 @@ function rr(x,y,w,h,r){
   ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
 }
 function draw(){
-  const size = geo.size || W, s = geo.s || 1;
+  if(!geo.holes) return;                 // resize() 会先打一枪，那时还没有洞
+  const size = geo.size, s = geo.s;
   ctx.clearRect(0,0,size,size);
   ctx.fillStyle = '#0c0910'; ctx.fillRect(0,0,size,size);
 
@@ -326,24 +394,41 @@ function draw(){
     ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(size, p); ctx.stroke();
   }
 
+  // 被锁定的洞先铺一层红光
+  for(const g of gazes){
+    if(g.phase !== 'lock') continue;
+    const h = geo.holes[g.idx];
+    const rg = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.rw*2.3);
+    rg.addColorStop(0, 'rgba(255,70,90,.32)');
+    rg.addColorStop(1, 'rgba(255,70,90,0)');
+    ctx.fillStyle = rg;
+    ctx.beginPath(); ctx.arc(h.x, h.y, h.rw*2.3, 0, 7); ctx.fill();
+  }
+
   // 洞（后半）
   for(const h of geo.holes){
     ctx.fillStyle = '#07050a';
     ctx.beginPath(); ctx.ellipse(h.x, h.y, h.rw, h.rh, 0, 0, 7); ctx.fill();
   }
 
-  // 地鼠（裁剪到洞底之上，做出「从洞里冒出来」）
+  // 外卖和你（都裁在洞沿之上，做出「从洞里冒出来」）
   ctx.save();
-  for(let i=0;i<slots.length;i++){
-    const sl = slots[i]; if(!sl) continue;
-    const h = geo.holes[i];
-    const rise = riseOf(sl);
-    if(rise <= 0) continue;
+  for(const f of foods){
+    const h = geo.holes[f.idx];
     ctx.save();
     ctx.beginPath();
     ctx.rect(h.x - h.rw*1.4, 0, h.rw*2.8, h.y - h.rh*0.15);
     ctx.clip();
-    drawMole(h, sl, rise, s);
+    drawFood(h, f, s);
+    ctx.restore();
+  }
+  if(me.hole >= 0 && me.rise > 0.02){
+    const h = geo.holes[me.hole];
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(h.x - h.rw*1.4, 0, h.rw*2.8, h.y - h.rh*0.15);
+    ctx.clip();
+    drawMe(h, me.rise, s);
     ctx.restore();
   }
   ctx.restore();
@@ -359,6 +444,36 @@ function draw(){
     ctx.beginPath(); ctx.ellipse(h.x, h.y, h.rw, h.rh, 0, 0, 7); ctx.fill();
     ctx.strokeStyle = 'rgba(255,138,156,.16)'; ctx.lineWidth = Math.max(1, s*1.4);
     ctx.beginPath(); ctx.ellipse(h.x, h.y, h.rw, h.rh, 0, 0, 7); ctx.stroke();
+  }
+
+  // 视线：黄虚线＝警告，红实线＝已经看见了
+  for(const g of gazes){
+    const h = geo.holes[g.idx];
+    const lock = g.phase === 'lock';
+    const pulse = 0.5 + 0.5*Math.sin(performance.now()/(lock ? 140 : 300));
+    ctx.save();
+    ctx.setLineDash(lock ? [] : [Math.max(3, s*5), Math.max(3, s*4)]);
+    ctx.lineWidth = Math.max(1.6, s*(lock ? 3.4 : 2.2));
+    ctx.strokeStyle = lock ? `rgba(255,70,90,${(.62+pulse*.38).toFixed(3)})`
+                           : `rgba(255,206,110,${(.42+pulse*.3).toFixed(3)})`;
+    ctx.beginPath(); ctx.ellipse(h.x, h.y, h.rw*1.3, h.rh*2.0, 0, 0, 7); ctx.stroke();
+    ctx.restore();
+    // 洞里那只眼睛
+    ctx.globalAlpha = lock ? 1 : 0.72;
+    ctx.font = `${Math.round(h.rw*0.82)}px system-ui,sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(lock ? '👀' : '👁', h.x, h.y);
+    ctx.globalAlpha = 1;
+  }
+
+  // 探头进度环
+  if(me.hole >= 0 && me.rise < 1){
+    const h = geo.holes[me.hole];
+    ctx.strokeStyle = 'rgba(142,240,200,.8)';
+    ctx.lineWidth = Math.max(1.6, s*2.6);
+    ctx.beginPath();
+    ctx.ellipse(h.x, h.y, h.rw*1.55, h.rh*2.35, 0, -Math.PI/2, -Math.PI/2 + me.rise*Math.PI*2);
+    ctx.stroke();
   }
 
   // 飘字
@@ -379,89 +494,138 @@ function draw(){
   ctx.fillStyle = k > .3 ? '#8fd9ff' : '#ff7a6b';
   rr(bx, by, Math.max(bh, bw*k), bh, bh/2); ctx.fill();
 
+  // 被抓的红闪
+  if(flash > 0){
+    ctx.fillStyle = `rgba(255,60,80,${(flash*0.3).toFixed(3)})`;
+    ctx.fillRect(0,0,size,size);
+  }
+
   if(!running){
-    ctx.fillStyle = 'rgba(10,7,14,.72)'; ctx.fillRect(0,0,size,size);
+    ctx.fillStyle = 'rgba(10,7,14,.74)'; ctx.fillRect(0,0,size,size);
     ctx.fillStyle = '#ff8a9c';
-    ctx.font = `800 ${Math.round(26*s)}px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.font = `800 ${Math.round(24*s)}px "PingFang SC","Microsoft YaHei",sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('点「开始」砸它', size/2, size*0.47);
-    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.fillText('按住一个洞，探出头去吃', size/2, size*0.44);
+    ctx.fillStyle = 'rgba(255,255,255,.45)';
     ctx.font = `600 ${Math.round(13*s)}px "PingFang SC","Microsoft YaHei",sans-serif`;
-    ctx.fillText('领导混进来的时候千万别砸', size/2, size*0.47 + 30*s);
+    ctx.fillText('红圈＝领导正在看，别探头', size/2, size*0.44 + 30*s);
+    ctx.fillText('黄虚线＝快看过来了，还来得及缩回去', size/2, size*0.44 + 52*s);
   }
 }
-function drawMole(h, sl, rise, s){
-  const R = h.rw * 0.72;                       // 头别比洞还宽
-  const boss = sl.kind === 'boss';
-  // rise=0 时整个头压在洞里（正好被裁掉），rise=1 时抬到洞上方
+/* 外卖：浮在洞口正上方，快凉了会闪 */
+function drawFood(h, f, s){
+  const k = FOODS[f.kind];
+  const bob = Math.sin(performance.now()/380 + f.idx)*3*s;
+  const cy = h.y - h.rh*3.0 + bob;
+  const left = Math.max(0, 1 - f.t/f.life);
+  const blink = left < 0.34 && Math.sin(performance.now()/90) < 0;
+  ctx.save();
+  ctx.globalAlpha = blink ? 0.35 : 1;
+  ctx.shadowColor = 'rgba(255,206,110,.8)'; ctx.shadowBlur = 13*s;
+  ctx.font = `${Math.round(h.rw*1.16)}px system-ui,sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(k.ic, h.x, cy);
+  ctx.restore();
+}
+
+/* 你：一只心虚的地鼠 */
+function drawMe(h, rise, s){
+  const R = h.rw * 0.72;
   const cy = h.y + R - rise * R * 1.9;
-  const cx = h.x + (sl.shake ? Math.sin(sl.shake*38)*5*s*sl.shake : 0);
+  const cx = h.x;
 
   ctx.save();
-  ctx.shadowColor = boss ? 'rgba(255,90,90,.75)' : 'rgba(0,0,0,.6)';
-  ctx.shadowBlur = boss ? 16*s : 10*s;
+  ctx.shadowColor = 'rgba(142,240,200,.7)'; ctx.shadowBlur = 14*s;
   const g = ctx.createLinearGradient(cx, cy-R, cx, cy+R);
-  if(boss){ g.addColorStop(0, '#ff8a7a'); g.addColorStop(1, '#a8283a'); }
-  else { g.addColorStop(0, '#d8ab72'); g.addColorStop(1, '#8a6034'); }
+  g.addColorStop(0, '#c6e0cf'); g.addColorStop(1, '#5d8471');
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill();
   ctx.restore();
 
   // 耳朵
-  ctx.fillStyle = boss ? '#8e2233' : '#7a5228';
+  ctx.fillStyle = '#4e7361';
   for(const sgn of [-1,1]){
-    ctx.beginPath(); ctx.arc(cx + sgn*R*0.64, cy - R*0.58, R*0.22, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + sgn*R*0.66, cy - R*0.56, R*0.21, 0, 7); ctx.fill();
   }
-
-  // 眼睛
-  const eyeY = cy - R*0.32, eyeX = R*0.33, er = R*0.19;
+  // 睁大眼睛（心虚）
+  const eyeY = cy - R*0.30, eyeX = R*0.34, er = R*0.23;
   ctx.fillStyle = '#fff';
   for(const sgn of [-1,1]){
     ctx.beginPath(); ctx.arc(cx + sgn*eyeX, eyeY, er, 0, 7); ctx.fill();
   }
-  ctx.fillStyle = '#161016';
+  ctx.fillStyle = '#141c18';
   for(const sgn of [-1,1]){
-    ctx.beginPath(); ctx.arc(cx + sgn*eyeX, eyeY + er*0.12, er*0.52, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + sgn*eyeX, eyeY + er*0.10, er*0.5, 0, 7); ctx.fill();
   }
-  // 领导皱个眉，一眼就能认出来
-  if(boss){
-    ctx.strokeStyle = '#5e1420'; ctx.lineWidth = Math.max(2, R*0.10); ctx.lineCap = 'round';
-    for(const sgn of [-1,1]){
+  // 鼻子
+  ctx.fillStyle = '#ff9db4';
+  ctx.beginPath(); ctx.arc(cx, cy + R*0.17, R*0.16, 0, 7); ctx.fill();
+  // 胡须
+  ctx.strokeStyle = 'rgba(20,28,24,.45)';
+  ctx.lineWidth = Math.max(1, R*0.05);
+  for(const sgn of [-1,1]){
+    for(let k=0;k<2;k++){
       ctx.beginPath();
-      ctx.moveTo(cx + sgn*(eyeX - er), eyeY - er*1.5);
-      ctx.lineTo(cx + sgn*(eyeX + er), eyeY - er*2.1);
+      ctx.moveTo(cx + sgn*R*0.32, cy + R*(0.12 + k*0.16));
+      ctx.lineTo(cx + sgn*R*0.88, cy + R*(0.02 + k*0.24));
       ctx.stroke();
     }
   }
-
-  // 字
-  const n = sl.word.length;
-  const fs = Math.round(R * (n<=2 ? 0.50 : n===3 ? 0.38 : 0.30));
-  ctx.fillStyle = boss ? 'rgba(48,8,14,.95)' : 'rgba(20,10,6,.9)';
-  ctx.font = `800 ${fs}px "PingFang SC","Microsoft YaHei",sans-serif`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(sl.word, cx, cy + R*0.36);
 }
 
 /* ---------- 交互 ---------- */
 cvs.addEventListener('pointerdown', e=>{
   if($('over').classList.contains('show')) return;
-  if(!running){ return; }
+  if(!running){ begin(); return; }          // 第一下是「开始」，不是探头
   const r = cvs.getBoundingClientRect();
   const x = (e.clientX - r.left) / r.width * geo.size;
   const y = (e.clientY - r.top) / r.height * geo.size;
   const i = holeAt(x, y);
-  if(i >= 0) whack(i);
+  if(i >= 0) probe(i);
 });
+// 松开就缩回去 —— 在哪松都算，免得拖出去之后一直探着头
+cvs.addEventListener('pointerup', retract);
+cvs.addEventListener('pointercancel', retract);
+cvs.addEventListener('pointerleave', retract);
+addEventListener('pointerup', retract);
 addEventListener('keydown', e=>{
-  if(e.key === ' '){
-    e.preventDefault();
-    if(!running) begin();
-  }
+  if(e.key === ' '){ e.preventDefault(); if(!running) begin(); return; }
+  const n = '123456789'.indexOf(e.key);
+  if(n >= 0 && running){ e.preventDefault(); probe(n); }
+});
+addEventListener('keyup', e=>{
+  if('123456789'.indexOf(e.key) >= 0) retract();
 });
 $('start').addEventListener('click', ()=>{ if(!running) begin(); });
 $('oAgain').addEventListener('click', ()=>{ begin(); });
 addEventListener('resize', resize);
+
+/* ---------- 测试钩子 ---------- */
+window.__m = {
+  begin, reset, probe, retract, spawnGaze, placeFoods, stepGame, holeAt,
+  step(sec){ if(running && !over) stepGame(sec*1000); },
+  get score(){ return score; },
+  get combo(){ return combo; },
+  get lives(){ return lives; },
+  get eaten(){ return eaten; },
+  get caught(){ return caught; },
+  get missed(){ return missed; },
+  get over(){ return over; },
+  get running(){ return running; },
+  get me(){ return {hole:me.hole, rise:me.rise, ate:me.ateThisHold}; },
+  get foods(){ return foods.map(f => f.idx); },
+  get gazes(){ return gazes.map(g => g.idx + ':' + g.phase); },
+  get holes(){ return geo.holes ? geo.holes.length : 0; },
+  holeXY(i){
+    const h = geo.holes[i], r = cvs.getBoundingClientRect();
+    return {x: r.left + h.x/geo.size*r.width, y: r.top + h.y/geo.size*r.height};
+  },
+  putFood(i){ foods = foods.filter(f => f.idx !== i); foods.push({idx:i, kind:0, t:0, life:FOOD_LIFE}); },
+  clearFoods(){ foods = []; },
+  setGaze(i, phase){ gazes = [{idx:i, phase, t:0, warn:1e9, lock:1e9}]; },
+  clearGazes(){ gazes = []; },
+  setTime(v){ timeLeft = v; }
+};
 
 /* ---------- 启动 ---------- */
 (function boot(){

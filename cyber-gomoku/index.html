@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>五子棋 vs 杠精 · GOMOKU vs THE NITPICKER</title>
+<title>杠精棋 · NITPICK GOMOKU</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#08070b}
@@ -38,6 +38,10 @@
   .say .av::before{left:9px}.say .av::after{left:22px}
   .say .tx{flex:1;min-width:0}
   .say .who{font-size:10px;letter-spacing:.26em;color:#a58;color:#b07dd8}
+  /* 它行使过几次「杠精特权」 */
+  .say .who .priv{margin-left:9px;padding:2px 8px;border-radius:999px;letter-spacing:.14em;
+    border:1px solid rgba(255,255,255,.14);color:#7e7286;transition:.2s}
+  .say .who .priv.hot{color:#ffd36e;border-color:rgba(255,211,110,.55);background:rgba(255,211,110,.12)}
   .say .ln{margin-top:4px;font-size:13.5px;line-height:1.65;color:#e2d6ee;letter-spacing:.04em}
 
   .wrap{position:relative;border-radius:16px;padding:8px;
@@ -75,9 +79,9 @@
 
 <header>
   <div class="brand">
-    <div class="t">GOMOKU vs NITPICKER</div>
-    <h1>五子棋 vs 杠精</h1>
-    <div class="s">它会认真下棋，也会嘴你</div>
+    <div class="t">NITPICK GOMOKU</div>
+    <h1>杠精棋</h1>
+    <div class="s">它不光跟你下棋，还随时改规则</div>
   </div>
   <div class="stats">
     <div class="stat d"><div class="k">棋力</div><div class="v" id="diffLab">普通</div></div>
@@ -89,7 +93,7 @@
 <div class="say">
   <div class="av"></div>
   <div class="tx">
-    <div class="who">杠 精</div>
+    <div class="who">杠 精<span class="priv" id="priv">特权 0 次</span></div>
     <div class="ln" id="line">来吧，你先下。我让你先手。</div>
   </div>
 </div>
@@ -110,7 +114,9 @@
   <button class="b" id="undo">悔棋</button>
 </div>
 
-<footer>五子连珠即胜 · 悔棋会把它的那一手也一起收回</footer>
+<footer><b style="color:#ffd36e">规则解释权归它</b> —— 五子连珠本来就算赢，但它偶尔会行使杠精特权：<br>
+「我补充一句」多下一颗 · 「这步不算」撤掉你一颗 · 一局一次「这不算五连」（拆掉你连珠里的一颗）<br>
+棋力越高，它耍赖越勤 · 悔棋会把它的那一手也一起收回</footer>
 
 <div class="over" id="over">
   <div class="box">
@@ -179,6 +185,30 @@ const L_EARLY = [
   '我准备好了。你准备好面对结果了吗。'
 ];
 
+/* 杠精特权：它不只是算棋，它还会临时改规则。棋力越高，耍赖越勤 */
+const PRIV = { easy: 0.06, normal: 0.15, hard: 0.26 };
+const L_ADD = [
+  '等等，我补充一句。',
+  '我再说一句，就一句。',
+  '刚才那句我说漏了 —— 补一颗。',
+  '不行，我还得再落一颗，这叫补充说明。',
+  '我这不叫多下一手，我这叫把话说完。'
+];
+const L_TAKEBACK = [
+  '你这步不算啊，我没看清楚。',
+  '慢着，那颗是我没想好，收回。',
+  '我重新理解一下你这一步。',
+  '这步有争议，先撤了，回头再议。',
+  '你下的这个我没同意过。'
+];
+const L_VETO = [
+  '这不算五连。我说的是「连续」的五颗。',
+  '中间那颗我从来没同意过。',
+  '五连是五连，你这个是四连加一颗。',
+  '规则里写了，得我先点头才算。',
+  '连珠我认，但你这连得不规整。'
+];
+
 const cvs = $('c'), ctx = cvs.getContext('2d');
 // 先铺好空盘：resize() 会在 newGame() 之前就调一次 draw()
 let board = Array.from({length:N}, ()=> new Array(N).fill(EMPTY));
@@ -186,6 +216,7 @@ let hist = [], cur = HUMAN, moves = 0;
 let diff = 'normal', humanSide = HUMAN;
 let over = false, winLine = null, lastMove = null, hover = null;
 let wins = 0, losses = 0, thinking = false;
+let vetoUsed = false, privCount = 0, privForce = null;   // privForce 只给自动化测试用
 let geom = {};
 
 /* ---------- 音效 ---------- */
@@ -216,6 +247,8 @@ const A = {
 function newGame(keepScore){
   board = Array.from({length:N}, ()=> new Array(N).fill(EMPTY));
   hist = []; moves = 0; over = false; winLine = null; lastMove = null; hover = null;
+  vetoUsed = false; privCount = 0;
+  paintPriv();
   $('over').classList.remove('show');
   $('diffLab').textContent = DIFF_LABEL[diff];
   if(!keepScore){ wins = 0; losses = 0; }
@@ -248,6 +281,30 @@ function checkWin(r, c, role){
   return null;
 }
 function boardFull(){ return moves >= N*N; }
+/* 撤掉一颗已经下在盘上的子（它要改规则的时候用） */
+function removeStoneAt(r, c){
+  if(board[r][c] === EMPTY) return false;
+  board[r][c] = EMPTY;
+  moves = Math.max(0, moves - 1);
+  const i = hist.findIndex(h => h.r === r && h.c === c);
+  if(i >= 0) hist.splice(i, 1);
+  if(lastMove && lastMove.r === r && lastMove.c === c) lastMove = null;
+  return true;
+}
+function paintPriv(){
+  const el = $('priv');
+  if(!el) return;
+  el.textContent = '特权 ' + privCount + ' 次';
+  el.classList.toggle('hot', privCount > 0);
+}
+function privUsed(){
+  privCount++;
+  paintPriv();
+  const el = $('priv');
+  el.classList.add('hot');
+  clearTimeout(el._t);
+  el._t = setTimeout(()=> el.classList.toggle('hot', privCount > 0), 1400);
+}
 
 /* ---------- 棋型打分 ---------- */
 const PATTERNS = [
@@ -359,12 +416,45 @@ function aiTurn(){
     place(m.r, m.c, AI);
     const w = checkWin(m.r, m.c, AI);
     draw();
-    if(w){ winLine = w; endGame(AI); return; }
+    if(w){ winLine = w; draw(); endGame(AI); return; }
     if(boardFull()){ endGame(0); return; }
+
+    // 杠精特权：偶尔当场改一下规则
+    let fired = false;
+    const roll = privForce !== null ? privForce : (Math.random() < PRIV[diff]);
+    privForce = null;
+    if(roll){
+      if(Math.random() < 0.55){
+        // 「我补充一句」：再落一颗
+        const m2 = aiChoose();
+        if(m2 && board[m2.r][m2.c] === EMPTY){
+          place(m2.r, m2.c, AI);
+          privUsed();
+          say(rand(L_ADD));
+          draw();
+          const w2 = checkWin(m2.r, m2.c, AI);
+          if(w2){ winLine = w2; endGame(AI); return; }
+          if(boardFull()){ endGame(0); return; }
+          fired = true;
+        }
+      } else {
+        // 「这步不算」：把对方刚下那颗撤了
+        const yours = [...hist].reverse().find(h => h.role === HUMAN);
+        if(yours && removeStoneAt(yours.r, yours.c)){
+          privUsed();
+          say(rand(L_TAKEBACK));
+          draw();
+          fired = true;
+        }
+      }
+    }
+
     cur = HUMAN;
     // 挡完嘴一句
-    const humanThreat = scorePoint(m.r, m.c, HUMAN);
-    say(humanThreat >= 40000 ? rand(L_BLOCK) : rand(L_GENERIC));
+    if(!fired){
+      const humanThreat = scorePoint(m.r, m.c, HUMAN);
+      say(humanThreat >= 40000 ? rand(L_BLOCK) : rand(L_GENERIC));
+    }
     draw();
   }, diff === 'hard' ? 260 : 180);
 }
@@ -376,7 +466,22 @@ function humanPlay(r, c){
   place(r, c, HUMAN);
   const w = checkWin(r, c, HUMAN);
   draw();
-  if(w){ winLine = w; endGame(HUMAN); return; }
+  if(w){
+    // 「这不算五连」：一局只赖一次，拆掉你连珠里的一颗，棋接着下
+    if(!vetoUsed){
+      vetoUsed = true;
+      const mid = w[2];
+      removeStoneAt(mid.r, mid.c);
+      privUsed();
+      winLine = null;
+      cur = AI;
+      say(rand(L_VETO));
+      draw();
+      aiTurn();
+      return;
+    }
+    winLine = w; endGame(HUMAN); return;
+  }
   if(boardFull()){ endGame(0); return; }
   cur = AI;
   if(before >= 40000) say(rand(L_FOUR));
@@ -576,6 +681,27 @@ document.querySelectorAll('[data-side]').forEach(b=>{
   });
 });
 addEventListener('resize', resize);
+
+/* ---------- 测试钩子 ---------- */
+window.__g = {
+  newGame, humanPlay, aiTurn, checkWin, removeStoneAt, scorePoint,
+  get board(){ return board.map(row => row.join('')); },
+  get cur(){ return cur; },
+  get over(){ return over; },
+  get thinking(){ return thinking; },
+  get vetoUsed(){ return vetoUsed; },
+  get privCount(){ return privCount; },
+  get wins(){ return wins; },
+  get losses(){ return losses; },
+  get line(){ return $('line').textContent; },
+  get badge(){ return $('priv').textContent; },
+  get stones(){ let n = 0; for(const row of board) for(const v of row) if(v) n++; return n; },
+  at(r, c){ return board[r][c]; },
+  put(r, c, role){ if(board[r][c] === EMPTY) place(r, c, role); },
+  setDiff(d){ diff = d; $('diffLab').textContent = DIFF_LABEL[d]; },
+  setCur(role){ cur = role; },
+  forcePriv(v){ privForce = v; }
+};
 
 /* ---------- 启动 ---------- */
 (function boot(){

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>抽象推箱子 · ABSTRACT SOKOBAN</title>
+<title>排期 · SCHEDULING</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#07080b}
@@ -36,6 +36,18 @@
   .lvbar button.on{background:linear-gradient(160deg,rgba(255,178,107,.34),rgba(255,178,107,.14));
     border-color:rgba(255,178,107,.65);color:#ffe6c8}
   .lvbar button.done{color:#8ef0c8;border-color:rgba(142,240,200,.28)}
+
+  /* 工期条：只统计推箱，所以在办公室里瞎溜达是不走表的 */
+  .budget{width:min(660px,94vw);display:flex;align-items:center;gap:9px}
+  .budget .k{font-size:9.5px;letter-spacing:.22em;color:#7d7466;white-space:nowrap}
+  .budget .track{flex:1;height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
+  .budget .track i{display:block;height:100%;width:100%;transform-origin:left center;
+    background:linear-gradient(90deg,#8ef0c8,#ffd36e);transition:transform .12s linear}
+  .budget .n{font:800 13px/1 ui-monospace,Consolas,monospace;color:#ffd36e;min-width:58px;
+    text-align:right;font-variant-numeric:tabular-nums}
+  .budget.low .track i{background:linear-gradient(90deg,#ff8a5c,#ff4d4d)}
+  .budget.low .n{color:#ff6b6b;animation:blip .7s steps(2,end) infinite}
+  @keyframes blip{50%{opacity:.4}}
 
   .wrap{position:relative;border-radius:16px;padding:9px;
     background:linear-gradient(160deg,#1b1712,#0d0b09);
@@ -70,8 +82,8 @@
 
 <header>
   <div class="brand">
-    <div class="t">ABSTRACT SOKOBAN</div>
-    <h1>抽象推箱子</h1>
+    <div class="t">SCHEDULING</div>
+    <h1>排期</h1>
     <div class="s">把加班、需求、临时加塞统统推进垃圾桶</div>
   </div>
   <div class="stats">
@@ -83,6 +95,12 @@
 
 <div class="lvbar" id="lvbar"></div>
 
+<div class="budget" id="budgetRow">
+  <span class="k">剩余工期</span>
+  <span class="track"><i id="budgetBar"></i></span>
+  <span class="n" id="budgetLeft">0 / 0</span>
+</div>
+
 <div class="wrap"><canvas id="c"></canvas></div>
 
 <div class="bar">
@@ -92,7 +110,8 @@
   <span class="hint">方向键 / WASD / 手指滑动</span>
 </div>
 
-<footer>箱子只能推、不能拉 · 推进死角的箱子就再也出不来了</footer>
+<footer>箱子只能推、不能拉 · 推进死角的箱子就再也出不来了 · 撤销不花工时<br>
+<b style="color:#ffb26b">工期只统计推箱</b> —— 在办公室里到处走是不走表的，只有真的推动一件活才算数</footer>
 
 <div class="over" id="over">
   <div class="box">
@@ -113,6 +132,11 @@ const $ = id => document.getElementById(id);
 const WALL = 1, GOAL = 2;
 
 const LABELS = ['加班','需求','临时加塞','已读不回','甩锅','走流程','对齐','复盘','催进度','再评估'];
+
+/* 工期 = 这一关允许推箱的次数。走路不花工时，只有真的推动一件活才走表。
+   BUDGET 由「最少推箱次数」推出来（1.6 倍向上取整 + 3），PAR 是最少推几下能干完 */
+const BUDGET = [6, 6, 8, 6, 22, 8, 13, 13, 16, 11];
+const PAR    = [2, 2, 3, 2, 12, 3, 6,  6,  8,  5];
 
 /* 关卡：# 墙  . 垃圾桶  $ 箱子  * 箱子在桶里  @ 人  + 人在桶上 */
 const LEVELS = [
@@ -207,6 +231,7 @@ const cvs = $('c'), ctx = cvs.getContext('2d');
 let grid = [], boxes = [], player = {r:0,c:0};
 let cols = 0, rows = 0, cell = 44;
 let levelIdx = 0, moves = 0, pushes = 0, won = false, history = [];
+let budget = 10, overdueFlag = false, gen = 0;
 let unlocked = 1;
 let touchStart = null;
 let labelSeed = 0;
@@ -233,15 +258,19 @@ const A = {
   push(){ this.tone(110, .12, 'triangle', .06, .8); },
   place(){ this.tone(680, .16, 'triangle', .06, 1.3); },
   blocked(){ this.tone(90, .09, 'square', .03, .85); },
-  win(){ [0,4,7,12,16,19].forEach((n,i)=> this.tone(523*Math.pow(2,n/12), .38, 'triangle', .075, 1, i*.075)); }
+  win(){ [0,4,7,12,16,19].forEach((n,i)=> this.tone(523*Math.pow(2,n/12), .38, 'triangle', .075, 1, i*.075)); },
+  overdue(){ [0,.14,.3,.48].forEach((d,i)=> this.tone(300*Math.pow(.68,i), .32, 'sawtooth', .065, .55, d)); }
 };
 
 /* ---------- 读关 ---------- */
 function loadLevel(idx){
+  gen++;                       // 重开一代：上一关排的延时弹窗认这一代才不会糊到新关上
   levelIdx = Math.max(0, Math.min(LEVELS.length-1, idx));
   const rowsArr = LEVELS[levelIdx];
   rows = rowsArr.length; cols = rowsArr[0].length;
   grid = []; boxes = []; moves = 0; pushes = 0; won = false; history = [];
+  budget = BUDGET[levelIdx] || 12;
+  overdueFlag = false;
   for(let r=0;r<rows;r++){
     grid.push([]);
     for(let c=0;c<cols;c++){
@@ -266,6 +295,10 @@ function solved(){ return boxes.every(onGoal); }
 function updateHUD(){
   $('moves').textContent = moves;
   $('pushes').textContent = pushes;
+  const left = Math.max(0, budget - pushes);
+  $('budgetLeft').textContent = left + ' / ' + budget;
+  $('budgetBar').style.transform = 'scaleX(' + (budget ? Math.max(0, left/budget) : 1).toFixed(3) + ')';
+  $('budgetRow').classList.toggle('low', left <= Math.max(1, Math.round(budget*0.25)));
 }
 function renderLvBar(){
   const bar = $('lvbar');
@@ -308,7 +341,8 @@ function tryMove(dr, dc){
     A.resume(); A.step();
   }
   updateHUD(); draw();
-  if(solved()) finish();
+  if(solved()) return finish();
+  if(pushes >= budget) overdue();      // 工期用完还没交付 = 延期
 }
 function finish(){
   won = true;
@@ -318,21 +352,44 @@ function finish(){
   }
   A.win(); renderLvBar();
   const last = levelIdx >= LEVELS.length - 1;
+  const spare = budget - pushes;
+  const par = PAR[levelIdx];
+  const grade = pushes <= par ? '这就是最短解' : (spare >= Math.round(budget*0.5) ? '工期还富余' : '踩着点交付');
+  const g = gen;
   setTimeout(()=>{
+    if(g !== gen) return;
     $('oEmoji').textContent = last ? '🏆' : '🗑';
-    $('oTitle').textContent = last ? '整层都清空了' : '清空完成';
-    $('oText').innerHTML = last
-      ? `十关全部推完，用时 <b>${moves}</b> 步、推箱 <b>${pushes}</b> 次。<br>你可以下班了。`
-      : `第 <b>${levelIdx+1}</b> 关搞定：<b>${moves}</b> 步 · 推箱 <b>${pushes}</b> 次。`;
+    $('oTitle').textContent = last ? '整层都清空了' : '按期交付';
+    $('oText').innerHTML = (last
+      ? `十关全部推完，一共推箱 <b>${pushes}</b> 次、走了 <b>${moves}</b> 步。<br>你可以下班了。`
+      : `第 <b>${levelIdx+1}</b> 关交付：推箱 <b>${pushes}</b> 次（最少 ${par} 次）· 走 <b>${moves}</b> 步。<br>${grade}，工期还剩 <b>${spare}</b>。`);
     $('oNext').style.display = last ? 'none' : '';
     $('over').classList.add('show');
   }, 420);
 }
+/* 工期用完还没搞定 —— 这是「排期」唯一的新死法 */
+function overdue(){
+  if(overdueFlag || won) return;
+  overdueFlag = true; won = true;
+  A.overdue();
+  const g = gen;
+  setTimeout(()=>{
+    if(g !== gen) return;
+    $('oEmoji').textContent = '📅';
+    $('oTitle').textContent = '延期了';
+    $('oText').innerHTML =
+      `工期用完了 —— 推了 <b>${pushes}</b> 次，活还没交付。<br>` +
+      `最少其实只要 <b>${PAR[levelIdx]}</b> 次。<br>排期这事，得先想好再动手。`;
+    $('oNext').style.display = 'none';
+    $('over').classList.add('show');
+  }, 400);
+}
+/* 撤销把棋盘倒回去，但已经花掉的工时不会退 —— 改需求也是要花时间的。
+   想彻底重排就按重来：那是重新排期，工时从头算。 */
 function undo(){
   if(won || !history.length) return;
   const h = history.pop();
   player = h.p; boxes = h.b;
-  moves = Math.max(0, moves - 1);
   updateHUD(); draw(); A.resume(); A.step();
 }
 
@@ -481,6 +538,32 @@ $('next').addEventListener('click', ()=>{ A.init(); A.resume(); loadLevel(levelI
 $('oNext').addEventListener('click', ()=>{ A.init(); A.resume(); loadLevel(levelIdx+1); });
 $('oAgain').addEventListener('click', ()=>{ A.init(); A.resume(); loadLevel(levelIdx); });
 addEventListener('resize', resize);
+
+/* ---------- 测试钩子 ---------- */
+window.__s = {
+  loadLevel, tryMove, undo, solved,
+  get level(){ return levelIdx; },
+  get moves(){ return moves; },
+  get pushes(){ return pushes; },
+  get budget(){ return budget; },
+  get overdue(){ return overdueFlag; },
+  get won(){ return won; },
+  get over(){ return document.getElementById('over').classList.contains('show'); },
+  get unlocked(){ return unlocked; },
+  state(){
+    return {
+      player: player.r + ',' + player.c,
+      boxes: boxes.map(b => b.r + ',' + b.c).sort().join(' '),
+      goals: ((g) => { const o = []; for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (g[r][c] === GOAL) o.push(r + ',' + c); return o.sort().join(' '); })(grid),
+      boxesDone: boxes.filter(b => grid[b.r][b.c] === GOAL).length
+    };
+  },
+  key(k){ const m = {U:[-1,0],D:[1,0],L:[0,-1],R:[0,1]}[k]; if (m) tryMove(m[0], m[1]); },
+  setBudget(v){ budget = v; updateHUD(); },
+  run(str){ for (const ch of str) this.key(ch); },
+  LEVELS_N: LEVELS.length,
+  BUDGET, PAR
+};
 
 /* ---------- 启动 ---------- */
 (function boot(){

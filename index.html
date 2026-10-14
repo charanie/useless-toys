@@ -334,23 +334,28 @@
     52%,74%{transform:translateX(23px);background:linear-gradient(160deg,#7fe3bd,#2f8f68)}
     100%{transform:translateX(0);background:linear-gradient(160deg,#c98a4a,#7d4c22)}}
 
-  /* 打地鼠 */
+  /* 摸鱼（这次你是那只地鼠，绿的那只；红圈是领导正看着的洞） */
   .tmp-mole{display:grid;grid-template-columns:repeat(3,24px);grid-auto-rows:26px;gap:4px;align-items:end}
   .tmp-mole i{display:block;width:24px;height:11px;border-radius:50%;background:rgba(0,0,0,.66);
     box-shadow:inset 0 0 0 1px rgba(255,138,156,.2)}
   .tmp-mole i.m{position:relative;height:24px;border-radius:50%;
-    background:linear-gradient(160deg,#d8ab72,#8a6034);animation:molup 1.9s ease-in-out infinite}
+    background:linear-gradient(160deg,#c6e0cf,#5d8471);animation:molup 1.9s ease-in-out infinite}
   .tmp-mole i.m::before,.tmp-mole i.m::after{content:'';position:absolute;top:8px;width:4px;height:4px;
-    border-radius:50%;background:#161016}
+    border-radius:50%;background:#141c18}
   .tmp-mole i.m::before{left:6px}.tmp-mole i.m::after{left:14px}
   @keyframes molup{0%,100%{transform:translateY(11px);opacity:.25}38%,72%{transform:translateY(-5px);opacity:1}}
+  .tmp-mole i.g{border-radius:50%;background:rgba(255,70,90,.07);animation:gazelock 1.7s ease-in-out infinite}
+  @keyframes gazelock{0%,100%{box-shadow:inset 0 0 0 2px rgba(255,70,90,.22)}
+    50%{box-shadow:inset 0 0 0 2px rgba(255,70,90,.9)}}
 
-  /* 一键跳 */
-  .tmp-jump{position:relative;width:118px;height:72px}
+  /* 跳槽（脚下那家正在往下沉） */
+  .tmp-jump{position:relative;width:118px;height:78px}
   .tmp-jump .p{position:absolute;bottom:0;height:26px;border-radius:5px;
     background:linear-gradient(180deg,#2c4a63,#141c26);box-shadow:inset 0 0 0 1px rgba(143,217,255,.3)}
-  .tmp-jump .p.a{left:0;width:38px}
+  .tmp-jump .p.a{left:0;width:38px;animation:sinkA 3.4s ease-in-out infinite}
   .tmp-jump .p.b{right:0;width:30px}
+  @keyframes sinkA{0%,30%{transform:translateY(0)}72%,100%{transform:translateY(13px)}}
+  .tmp-jump .sinkline{position:absolute;left:0;right:0;bottom:3px;border-top:2px dashed rgba(255,110,90,.45)}
   .tmp-jump .dot{position:absolute;width:16px;height:16px;border-radius:50%;
     background:linear-gradient(180deg,#bfe6ff,#4f9ed6);box-shadow:0 0 12px rgba(143,217,255,.85);
     animation:jumpArc 2.1s ease-in-out infinite}
@@ -715,7 +720,7 @@
     </a>
   </div>
 
-  <div class="shelf"><span class="label"><b>VOL.7</b> · 继续能玩</span><span class="rule"></span></div>
+  <div class="shelf"><span class="label"><b>VOL.7</b> · 规则越来越怪</span><span class="rule"></span></div>
   <div class="grid">
     <a class="card" href="cyber-sokoban/">
       <span class="go">进入 →</span>
@@ -724,32 +729,35 @@
         <i class="b"></i><i class="g"></i><i></i><i></i>
         <i></i><i></i><i></i><i></i>
       </div></div>
-      <h2>抽象推箱子</h2>
-      <p>把加班、需求、临时加塞一个个推进垃圾桶。十关手工设计的关卡，
-         箱子<b>只能推不能拉</b>，推进死角就再也出不来了。带撤销、重来和步数统计。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">十关</span><span class="tag">解谜</span></div>
+      <h2>排期</h2>
+      <p>把加班、需求、临时加塞一个个推进垃圾桶，箱子只能推不能拉。<b>但每关有工期</b>——
+         而且工期只统计推箱：在办公室里到处走是不走表的，只有真的推动一件活才算数。
+         推超了就是延期。十关手工设计，最少推几下能干完，写在结算里。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">工期只算推箱</span><span class="tag">十关</span></div>
     </a>
     <a class="card" href="cyber-mole/">
       <span class="go">进入 →</span>
       <div class="thumb"><div class="tmp-mole">
-        <i></i><i></i><i></i>
+        <i></i><i></i><i class="g"></i>
         <i></i><i class="m"></i><i></i>
         <i></i><i></i><i></i>
       </div></div>
-      <h2>抽象打地鼠</h2>
-      <p>洞里冒出来的是加班、催进度、临时会议，拿锤子砸。越冒越快、越冒越多，
-         还会有<b>「领导」混进来</b>——砸到扣分还清空连击。45 秒，纯拼手速和眼力。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">45 秒</span><span class="tag">连击</span></div>
+      <h2>摸鱼</h2>
+      <p><b>这回不能砸了——你就是那只地鼠。</b>按住一个洞不松，从那儿探出头去吃外卖；
+         松手就缩回去。领导会把视线扫过来，红圈里的洞千万别探头。
+         探头要 0.4 秒才够得着，外卖三秒半不吃就凉，被抓三次就下班。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">角色反转</span><span class="tag">躲视线</span></div>
     </a>
     <a class="card" href="cyber-jump/">
       <span class="go">进入 →</span>
       <div class="thumb"><div class="tmp-jump">
-        <div class="dot"></div><div class="p a"></div><div class="p b"></div>
+        <div class="sinkline"></div><div class="dot"></div><div class="p a"></div><div class="p b"></div>
       </div></div>
-      <h2>一键跳 KPI</h2>
-      <p>按住蓄力、松手起跳，落到下一个工位上。<b>只有一个键</b>，
-         但工位会越来越窄、越来越远。落在正中间算「完美」，连续完美额外加分。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">一个键</span><span class="tag">记最远</span></div>
+      <h2>跳槽</h2>
+      <p>按住蓄力、松手起跳到下一家公司。落点越靠正中越能谈成，落在边上就被压价。
+         <b>而蓄力的时候，脚底下这家公司的地基在下沉</b>——蓄得越久跳得越远，但也沉得越深，
+         沉到底就跟着一起塌。被压价的那家更不靠谱，沉得还更快。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">蓄力有代价</span><span class="tag">谈薪</span></div>
     </a>
     <a class="card" href="cyber-gomoku/">
       <span class="go">进入 →</span>
@@ -762,10 +770,12 @@
         <span class="s r" style="left:45px;top:26px"></span>
         <span class="s r" style="left:26px;top:64px"></span>
       </div></div>
-      <h2>五子棋 vs 杠精</h2>
-      <p>跟铺子里那个杠精坐下来下一盘。它会认真下棋，<b>也会嘴你</b>——
-         你每落一子它评一句，你凑出活三它还要再阴阳一句。三档棋力，可选先手后手，能悔棋。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">有 AI</span><span class="tag">会对线</span></div>
+      <h2>杠精棋</h2>
+      <p>跟铺子里那个杠精下一盘。<b>它不光下棋，还随时改规则</b>：
+         你说五连，它说「这不算五连」（拆掉你连珠里的一颗，一局只赖一次）；
+         它偶尔「我补充一句」多下一颗，或者「这步不算」把你刚下那颗撤了。
+         棋力越高，它耍赖越勤——它行使过几次特权，聊天框里给你记着。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">对手会改规则</span><span class="tag">有 AI</span></div>
     </a>
   </div>
 

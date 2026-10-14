@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>一键跳 KPI · ONE-TAP KPI JUMP</title>
+<title>跳槽 · JOB HOPPING</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#07080c}
@@ -27,6 +27,12 @@
   .stat .v{font:800 18px/1.3 ui-monospace,Consolas,monospace;color:#8fd9ff;font-variant-numeric:tabular-nums}
   .stat.pf .v{color:#ffd36e}
   .stat.best .v{color:#8ef0c8}
+  /* 窄屏时三个数字块会把标题挤成竖排，让标题自己占一行 */
+  @media (max-width:520px){
+    header{flex-wrap:wrap;gap:9px}
+    .brand{flex:1 1 100%}
+    .stats{flex:1 1 100%;justify-content:space-between}
+  }
 
   .wrap{position:relative;border-radius:16px;padding:8px;
     background:linear-gradient(160deg,#141a26,#0b0f16);
@@ -62,13 +68,13 @@
 
 <header>
   <div class="brand">
-    <div class="t">ONE-TAP KPI JUMP</div>
-    <h1>一键跳 KPI</h1>
-    <div class="s">按住蓄力，松手起跳，落在下一个工位上</div>
+    <div class="t">JOB HOPPING</div>
+    <h1>跳槽</h1>
+    <div class="s">按住蓄力，松手起跳，落在下一家公司上</div>
   </div>
   <div class="stats">
-    <div class="stat"><div class="k">工位</div><div class="v" id="score">0</div></div>
-    <div class="stat pf"><div class="k">完美</div><div class="v" id="perfect">0</div></div>
+    <div class="stat"><div class="k">年薪</div><div class="v" id="score">0</div></div>
+    <div class="stat pf"><div class="k">跳槽</div><div class="v" id="hops">0</div></div>
     <div class="stat best"><div class="k">最佳</div><div class="v" id="best">0</div></div>
   </div>
 </header>
@@ -77,10 +83,11 @@
 
 <div class="bar">
   <button class="b primary" id="start">开始 (空格)</button>
-  <span class="hint">按住蓄力 · 松手起跳 · 落在正中间算「完美」</span>
+  <span class="hint">按住蓄力 · 松手起跳<br>落在公司正中间 = 谈成了，落在边上 = 被压价</span>
 </div>
 
-<footer>只用一个键 · 但距离和宽度都会越来越刻薄</footer>
+<footer><b>蓄力的时候脚下的地基在下沉</b> —— 蓄得越久跳得越远，但也沉得越深，沉到虚线就塌<br>
+落点越靠正中越能谈成，落在边上就被压价 —— 而且被压价的那家更不靠谱，地基沉得更快</footer>
 
 <div class="over" id="over">
   <div class="box">
@@ -103,18 +110,23 @@ const PLAT_H = 104;          // 工位高度
 const MIN_D = 86;            // 最短跳跃距离
 const MAX_D = 344;           // 满蓄力距离
 const CHARGE_MS = 950;       // 蓄满需要的时间
-const PERFECT = 8;           // 落在中心多少 px 内算完美
+const PERFECT = 8;           // 落在中心多少 px 内算「谈成了」
+const SINK_MAX = 88;         // 地基一共能沉多深，沉透就塌
+const SINK_LO = 0.13, SINK_HI = 0.26;   // 每家公司的下沉速度（每秒占 SINK_MAX 的比例）
+const LOWBALL_SINK = 1.7;    // 被压价的那家更不靠谱，地基沉得更快
 
-const ROOMS = ['工位','会议室','茶水间','打印区','电梯口','楼梯间','天台','食堂','前台','财务室','机房','休息区'];
+const ROOMS = ['某某科技','不睡网络','摸鱼集团','打工人力','加班信息','内卷科技','画饼智能',
+               'OKR 咨询','对齐网络','闭环数据','抓手科技','复盘文化','赋能集团','颗粒度研究',
+               '方法论股份','跨界整合','生态位科技','下半场资本','宣发一号','元宇宙筹备'];
 
 const cvs = $('c'), ctx = cvs.getContext('2d');
-let plats = [];              // {x, w, room}
-let cur = 0;                 // 当前站在第几个工位上
-let score = 0, perfect = 0, perfectStreak = 0, best = 0;
+let plats = [];              // {x, w, room, offer, sink, sinkV}
+let cur = 0;                 // 当前站在第几家公司上
+let score = 0, hops = 0, perfect = 0, perfectStreak = 0, best = 0;
 let camX = 0, camTarget = 0;
 let charging = false, chargeStart = 0, power = 0;
 let phase = 'idle';          // idle | charging | jumping | falling | over
-let jump = null, fall = null;
+let jump = null, fall = null, deathWhy = '';
 let fx = [];
 let last = 0, s = 1;
 let player = {x:0, y:0, rot:0};
@@ -170,37 +182,51 @@ const A = {
 
 /* ---------- 关卡生成 ---------- */
 function randRange(a, b){ return a + Math.random()*(b - a); }
-function makePlat(x, w, i){ return {x, w, room: ROOMS[i % ROOMS.length]}; }
+function makePlat(x, w, i, offer){
+  return {x, w, room: ROOMS[i % ROOMS.length], offer, sink: 0,
+          sinkV: randRange(SINK_LO, SINK_HI)};
+}
+/* 站在 from 上（不管站在哪儿）都至少有一档蓄力能落到 p 上。
+   保守判法：最左边那一跳也得够得着 p 的右沿，最右边那一跳也不能越过 p 的左沿 */
+function reachable(from, p){
+  return p.x <= from.x + MAX_D && (p.x + p.w) >= (from.x + from.w) + MIN_D;
+}
 function nextPlat(){
-  const t = Math.min(1, score/22);
+  const i = plats.length;
+  const prev = plats[i-1];
+  const t = Math.min(1, hops/22);
   const w = randRange(104 - t*58, 118 - t*56);          // 越来越窄
   const gap = randRange(64 + t*18, 132 + t*104);        // 越来越远
-  const last_ = plats[plats.length-1];
-  // 保证满蓄力够得着（留一点余量，免得出现必死题）
-  const maxGap = MAX_D - w - 26;
-  const g = Math.min(gap, Math.max(46, maxGap));
-  plats.push(makePlat(last_.x + last_.w + g, w, plats.length));
+  let x = prev.x + prev.w + Math.max(46, gap);
+  const loX = prev.x + prev.w + MIN_D - w;              // 再近也不能近到落不上
+  const hiX = prev.x + MAX_D;                           // 再远也不能远到满蓄力够不着
+  if(loX <= hiX) x = Math.max(loX, Math.min(x, hiX));
+  x = Math.max(x, prev.x + prev.w + 30);                // 别和上一家叠一起
+  const offer = 8 + Math.floor(hops*1.7) + Math.floor(randRange(0, 12));
+  plats.push(makePlat(x, w, i, offer));
 }
 function reset(){
-  plats = [makePlat(0, 118, 0)];
+  plats = [makePlat(0, 118, 0, 8)];
   nextPlat();
-  cur = 0; score = 0; perfect = 0; perfectStreak = 0;
+  cur = 0; score = 0; hops = 0; perfect = 0; perfectStreak = 0;
   charging = false; power = 0; phase = 'idle';
-  jump = null; fall = null; fx = [];
+  jump = null; fall = null; fx = []; deathWhy = '';
   camX = -W*0.18; camTarget = camX;
   placePlayer();
   $('over').classList.remove('show');
   updateHUD();
 }
+/* 脚下这块地沉了多少 */
+function sinkOff(p){ return p ? p.sink * SINK_MAX : 0; }
 function placePlayer(){
   const p = plats[cur];
   player.x = p.x + p.w/2;
-  player.y = GROUND - PLAT_H;
+  player.y = GROUND - PLAT_H + sinkOff(p);
   player.rot = 0;
 }
 function updateHUD(){
   $('score').textContent = score;
-  $('perfect').textContent = perfect;
+  $('hops').textContent = hops;
   $('best').textContent = best;
 }
 
@@ -223,47 +249,60 @@ function release(){
     t: 0,
     dur: 0.30 + dist/900,
     x0: from, x1: to,
-    y0: GROUND - PLAT_H,
+    y0: player.y,                 // 从已经沉下去的位置起跳
     apex: 92 + power*54
   };
   phase = 'jumping';
   A.jump();
 }
+function dropOut(x, straight){
+  phase = 'falling';
+  fall = { t: 0, x, y: GROUND - PLAT_H + (straight ? SINK_MAX : 0), vx: 0, vy: 0, target: x,
+           straight: !!straight };
+  A.fail();
+  updateHUD();
+}
 function land(){
   const lx = jump.x1;
-  const next = plats[cur+1];
-  if(lx < next.x || lx > next.x + next.w){
-    // 掉下去
-    phase = 'falling';
-    fall = { t: 0, x: lx, y: GROUND - PLAT_H, vx: 0, vy: 0, target: lx };
-    A.fail();
-    updateHUD();
-    return;
+  // 落在哪家就是哪家 —— 这样才能一脚跨过一家皮包公司
+  let hit = -1;
+  for(let i = cur+1; i < plats.length; i++){
+    const q = plats[i];
+    if(lx >= q.x && lx <= q.x + q.w){ hit = i; break; }
   }
-  // 站上去
-  cur++;
+  if(hit < 0){
+    deathWhy = 'miss';
+    return dropOut(lx, false);
+  }
+  const next = plats[hit];
+  // 站上去，开始谈
+  cur = hit; hops++;
   const center = next.x + next.w/2;
   const off = Math.abs(lx - center);
-  let gain = 1, msg = null;
+  let gain, msg, gold = false;
   if(off <= PERFECT){
     perfect++; perfectStreak++;
-    gain = 1 + Math.min(4, perfectStreak);
+    gain = next.offer + 5*Math.min(3, perfectStreak);
+    gold = true;
     A.perfect();
-    msg = perfectStreak > 1 ? `完美 ×${perfectStreak}  +${gain}` : '完美 +2';
+    msg = perfectStreak > 1 ? `谈成了 ×${perfectStreak}  +${gain}` : `谈成了 +${gain}`;
   } else {
     perfectStreak = 0;
+    gain = Math.max(1, Math.round(next.offer * 0.55));
+    // 谈崩了的那家更不靠谱：地基沉得比别家快，留给你的蓄力时间更短
+    next.sinkV *= LOWBALL_SINK;
     A.land();
-    msg = '+1';
+    msg = `被压价 +${gain}`;
   }
   score += gain;
   player.x = clamp(lx, next.x + 10, next.x + next.w - 10);
   player.y = GROUND - PLAT_H;
   player.rot = 0;
   phase = 'idle';
-  fx.push({x: player.x, y: player.y - 46, text: msg, life: 1, gold: off <= PERFECT});
-  if(score > best){ best = score; try{ localStorage.setItem('ut_jump_best', String(best)); }catch(e){} }
+  fx.push({x: player.x, y: player.y - 46, text: msg, life: 1, gold});
+  if(score > best){ best = score; try{ localStorage.setItem('ut_jump_salary', String(best)); }catch(e){} }
   updateHUD();
-  nextPlat();                       // 前面再造一个
+  while(plats.length < cur + 4) nextPlat();   // 前面始终留几家
 }
 function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
 
@@ -274,6 +313,19 @@ function loop(ts){
 
   if(phase === 'charging'){
     power = Math.min(1, (performance.now() - chargeStart) / CHARGE_MS);
+  }
+  // 脚下这块地基在下沉：蓄力越久沉得越深，沉透了就连人带工位一起塌
+  if((phase === 'idle' || phase === 'charging') && plats[cur]){
+    const p = plats[cur];
+    p.sink += dt * p.sinkV;
+    if(p.sink >= 1){
+      p.sink = 1;
+      A.chargeOff(); charging = false;
+      deathWhy = 'sink';
+      dropOut(player.x, true);
+    } else {
+      player.y = GROUND - PLAT_H + sinkOff(p);   // 站着的人跟着往下走
+    }
   }
   if(phase === 'jumping' && jump){
     jump.t += dt / jump.dur;
@@ -286,10 +338,12 @@ function loop(ts){
   }
   if(phase === 'falling' && fall){
     fall.t += dt;
-    // 掉出工位边缘，往下坠
-    const nx = plats[cur+1];
-    const edge = fall.x < nx.x ? nx.x : nx.x + nx.w;
-    fall.x += (edge - fall.x) * Math.min(1, dt*4);
+    // 掉出公司边缘就往那侧斜着坠；地基塌了就是原地直着下去
+    if(!fall.straight){
+      const nx = plats[cur+1];
+      const edge = fall.x < nx.x ? nx.x : nx.x + nx.w;
+      fall.x += (edge - fall.x) * Math.min(1, dt*4);
+    }
     fall.vy += 1500*dt;
     fall.y += fall.vy*dt;
     player.x = fall.x; player.y = fall.y;
@@ -312,13 +366,20 @@ function loop(ts){
 function finish(){
   if(phase === 'over') return;
   phase = 'over';
-  const chop = score >= 40 ? '你跳完了整层楼，前面还有一层。'
-            : score >= 20 ? '跳得不错，但工位是无限的。'
-            : score >= 8  ? '还行，手别抖。'
-            : '刚起步就摔了，今天不宜上班。';
-  $('oEmoji').textContent = score >= 20 ? '🏢' : '🕳';
-  $('oTitle').textContent = score >= 20 ? '跳穿了' : '掉下去了';
-  $('oText').innerHTML = `${chop}<br>跳过 <b>${score}</b> 个工位 · 完美落点 <b>${perfect}</b> 次<br>最高 <b>${best}</b>`;
+  let emoji, title, chop;
+  if(deathWhy === 'sink'){
+    emoji = '🕳'; title = '地基塌了';
+    chop = '你在这家公司待太久了，地基都是你踩塌的。';
+  } else {
+    emoji = score >= 400 ? '🏢' : '🕳';
+    title = score >= 400 ? '跳到对手公司去了' : '掉下去了';
+    chop = score >= 400 ? '年薪谈上去了，但公司和公司之间是有缝的。'
+         : score >= 150 ? '跳得还行，就是手一抖。'
+         : '刚起步就摔了，今天不宜面谈。';
+  }
+  $('oEmoji').textContent = emoji;
+  $('oTitle').textContent = title;
+  $('oText').innerHTML = `${chop}<br>跳了 <b>${hops}</b> 家 · 年薪谈到 <b>${score}</b> 万 · 一次谈成 <b>${perfect}</b> 次<br>历史最高 <b>${best}</b> 万`;
   $('over').classList.add('show');
 }
 
@@ -358,34 +419,57 @@ function draw(){
   ctx.save();
   ctx.translate(-camX, 0);
 
-  // 工位
+  // 地基塌陷线：平台顶沉到这条线上就完了
+  ctx.save();
+  ctx.setLineDash([6,7]);
+  ctx.strokeStyle = 'rgba(255,110,90,.28)'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(camX - 40, GROUND - PLAT_H + SINK_MAX);
+  ctx.lineTo(camX + W + 40, GROUND - PLAT_H + SINK_MAX);
+  ctx.stroke();
+  ctx.restore();
+
+  // 一家家公司
   for(let i=0;i<plats.length;i++){
     const p = plats[i];
     if(p.x + p.w < camX - 60 || p.x > camX + W + 60) continue;
-    const top = GROUND - PLAT_H;
-    const g = ctx.createLinearGradient(p.x, top, p.x, GROUND);
-    g.addColorStop(0, i === cur ? '#2c4a63' : '#22303f');
+    const top = GROUND - PLAT_H + sinkOff(p);
+    const here = i === cur;
+    const g = ctx.createLinearGradient(p.x, top, p.x, top + PLAT_H);
+    g.addColorStop(0, here ? '#2c4a63' : '#22303f');
     g.addColorStop(1, '#141c26');
     ctx.fillStyle = g;
     rr(p.x, top, p.w, PLAT_H, 8); ctx.fill();
-    ctx.strokeStyle = i === cur ? 'rgba(143,217,255,.55)' : 'rgba(143,217,255,.18)';
+    ctx.strokeStyle = here ? 'rgba(143,217,255,.55)' : 'rgba(143,217,255,.18)';
     ctx.lineWidth = 2;
     rr(p.x+1, top+1, p.w-2, PLAT_H-2, 8); ctx.stroke();
-    // 桌面高光
-    ctx.fillStyle = i === cur ? 'rgba(143,217,255,.28)' : 'rgba(143,217,255,.10)';
+    ctx.fillStyle = here ? 'rgba(143,217,255,.28)' : 'rgba(143,217,255,.10)';
     rr(p.x+2, top+2, p.w-4, 6, 4); ctx.fill();
 
-    // 房间名
+    // 公司名
     const n = p.room.length;
     ctx.fillStyle = 'rgba(200,225,245,.5)';
-    ctx.font = `700 ${n>3 ? 11 : 13}px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.font = `700 ${n>4 ? 10.5 : 13}px "PingFang SC","Microsoft YaHei",sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(p.room, p.x + p.w/2, top + 34);
-    // 中心刻度
-    ctx.strokeStyle = 'rgba(255,211,110,.32)'; ctx.lineWidth = 1.5;
+    ctx.fillText(p.room, p.x + p.w/2, top + 28);
+
+    // 报的价
+    ctx.fillStyle = 'rgba(255,211,110,.78)';
+    ctx.font = `800 12px ui-monospace,Consolas,monospace`;
+    ctx.fillText(p.offer + ' 万', p.x + p.w/2, top + 50);
+
+    // 中心刻度：落在这条线上就是「谈成了」
+    ctx.strokeStyle = 'rgba(255,211,110,.32)';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(p.x + p.w/2, top + 6); ctx.lineTo(p.x + p.w/2, top + 18);
+    ctx.moveTo(p.x + p.w/2, top + 6); ctx.lineTo(p.x + p.w/2, top + 17);
     ctx.stroke();
+
+    // 正在下沉就顶上发红
+    if(here && p.sink > 0.02){
+      ctx.fillStyle = `rgba(255,110,90,${Math.min(.55, p.sink*0.6).toFixed(3)})`;
+      rr(p.x, top, p.w, 5, 3); ctx.fill();
+    }
   }
 
   // 人物（在跳就不画脚下的影子）
@@ -466,9 +550,63 @@ $('start').addEventListener('click', ()=>{ A.init(); A.resume(); reset(); });
 $('oAgain').addEventListener('click', ()=>{ A.init(); A.resume(); reset(); });
 addEventListener('resize', resize);
 
+/* ---------- 测试钩子 ---------- */
+window.__j = {
+  reset, startCharge, release, nextPlat, sinkOff, reachable, finish,
+  step(sec){                       // 只推进「下沉」这类跟时间有关的逻辑
+    const dt = sec*1000;
+    if((phase === 'idle' || phase === 'charging') && plats[cur]){
+      const p = plats[cur];
+      p.sink += dt/1000 * p.sinkV;
+      if(p.sink >= 1){ p.sink = 1; A.chargeOff(); charging = false; deathWhy = 'sink'; dropOut(player.x, true); }
+      else player.y = GROUND - PLAT_H + sinkOff(p);
+    }
+  },
+  get phase(){ return phase; },
+  get cur(){ return cur; },
+  get salary(){ return score; },
+  get hops(){ return hops; },
+  get perfect(){ return perfect; },
+  get best(){ return best; },
+  get over(){ return phase === 'over'; },
+  get deathWhy(){ return deathWhy; },
+  get curSink(){ return plats[cur] ? plats[cur].sink : 0; },
+  get raw(){ return plats; },
+  get px(){ return player.x; },
+  cfg: {MIN_D, MAX_D},
+  /* 从现在站的位置出发，前方哪几家是这一跳够得到的 */
+  hittable(){
+    const lo = player.x + MIN_D, hi = player.x + MAX_D;
+    const out = [];
+    for(let i = cur+1; i < Math.min(plats.length, cur+4); i++){
+      const p = plats[i];
+      if(p.x <= hi && p.x + p.w >= lo) out.push(i);
+    }
+    return out;
+  },
+  get plats(){ return plats.map(p => ({x:Math.round(p.x), w:Math.round(p.w), room:p.room, offer:p.offer})); },
+  setPower(v){ power = Math.max(0, Math.min(1, v)); },
+  setHops(v){ hops = v; },
+  /* 从当前站的公司出发，前方有没有一家一跳够得着 */
+  hasWayOut(){
+    const from = plats[cur];
+    for(let i = cur+1; i <= Math.min(cur+2, plats.length-1); i++){
+      if(reachable(from, plats[i])) return true;
+    }
+    return false;
+  },
+  bestChargeFor(i){
+    // 让落点正好落在第 i 家公司正中间需要的蓄力
+    const from = player.x;
+    const target = plats[i].x + plats[i].w/2;
+    const d = target - from;
+    return Math.max(0, Math.min(1, (d - MIN_D)/(MAX_D - MIN_D)));
+  }
+};
+
 /* ---------- 启动 ---------- */
 (function boot(){
-  try{ best = parseInt(localStorage.getItem('ut_jump_best')||'0',10) || 0; }catch(e){ best = 0; }
+  try{ best = parseInt(localStorage.getItem('ut_jump_salary')||'0',10) || 0; }catch(e){ best = 0; }
   reset(); resize();
   requestAnimationFrame(loop);
 })();

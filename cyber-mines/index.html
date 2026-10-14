@@ -173,7 +173,7 @@ let els = [];
 let started = false, over = false, won = false, flags = 0, opened = 0;
 let t0 = 0, tickT = null, pausedAt = 0;
 let pressT = null, longPressed = false;
-let lives = 3;
+let lives = 3, gen = 0;
 const LIVES_MAX = 3;
 /* 救火状态：踩雷后 3×3 里所有还没挖开的格子一起烧起来，点一下灭一处 */
 let breach = {active:false, cell:-1, list:[], limit:0, deadline:0, raf:0};
@@ -222,6 +222,7 @@ const A = {
 
 /* ---------- 开新局 ---------- */
 function build(){
+  gen++;                     // 重开一代：上一局排的延时弹窗认这一代才不会糊到新局上
   cells = []; els = []; flags = 0; opened = 0;
   started = false; over = false; won = false; longPressed = false;
   cancelAnimationFrame(breach.raf);
@@ -344,7 +345,9 @@ function boom(i, why){
   A.boom();
   clearInterval(tickT);
   const hit = KINDS[cells[i].kind];
+  const g = gen;
   setTimeout(()=>{
+    if(g !== gen) return;    // 这中间已经重开了
     $('oEmoji').textContent = hit.ic;
     $('oTitle').textContent = '炸了';
     $('oText').innerHTML =
@@ -374,7 +377,9 @@ function checkWin(){
       rec = `本机最好 <b>${old.toFixed(1)}s</b>`;
     }
     A.win();
+    const g = gen;
     setTimeout(()=>{
+      if(g !== gen) return;  // 这中间已经重开了
       $('oEmoji').textContent = '😎';
       $('oTitle').textContent = '今天圆满';
       $('oText').innerHTML = `${lv.name}难度通关，用时 <b>${secs.toFixed(1)}s</b>。<br>${rec}`;
