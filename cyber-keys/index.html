@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>抽象落键 · CYBER KEYS</title>
+<title>多线程 · MULTITHREADED KEYS</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#07080b}
@@ -28,6 +28,13 @@
   .stat.cb .v{color:#ffd36e}
   .stat.acc .v{color:#8ef0c8}
   .stat.gr .v{color:#c86bff;font-size:20px}
+  .stat.vx .v{color:#8ef0c8}
+  /* 五个数字块在窄屏会把标题挤成竖排，让标题自己占一行 */
+  @media (max-width:560px){
+    header{flex-wrap:wrap;gap:9px}
+    .brand{flex:1 1 100%}
+    .stats{flex:1 1 100%;justify-content:space-between}
+  }
 
   .wrap{position:relative;border-radius:16px;padding:8px;
     background:linear-gradient(160deg,#121a26,#0a0e15);
@@ -75,8 +82,8 @@
 
 <header>
   <div class="brand">
-    <div class="t">CYBER KEYS · 4 LANES</div>
-    <h1>抽象落键</h1>
+    <div class="t">MULTITHREAD</div>
+    <h1>多线程</h1>
     <div class="s">四条轨道，跟着曲子把活儿敲完</div>
   </div>
   <div class="stats">
@@ -84,6 +91,7 @@
     <div class="stat cb"><div class="k">连击</div><div class="v" id="combo">0</div></div>
     <div class="stat acc"><div class="k">准确</div><div class="v" id="acc">100%</div></div>
     <div class="stat gr"><div class="k">评级</div><div class="v" id="grade">—</div></div>
+    <div class="stat vx"><div class="k">声部</div><div class="v" id="voices">4</div></div>
   </div>
 </header>
 
@@ -99,7 +107,9 @@
   <span class="hint">D F J K 四键 · 手机上直接点轨道</span>
 </div>
 
-<footer>曲子是现场算出来的 · 谱面也是从曲子里长出来的 · 仓库里没有一个音频文件</footer>
+<footer><b>你打得怎么样，歌就长什么样</b> —— 连击稳就加声部、音也准；一乱就掉声部、开始走音<br>
+曲子是现场算出来的 · 谱面也是从曲子里长出来的 · 仓库里没有一个音频文件<br>
+带「双」的音符是<b>多线程</b>：一个人干两份活，得同时按两个键</footer>
 
 <div class="over show" id="over">
   <div class="box">
@@ -203,14 +213,28 @@ const M = {
   start(song, lead){ this.init(); this.resume(); this.song = song; this.i = 0; this.on = true;
     this.t0 = this.ctx.currentTime + (lead == null ? 3.2 : lead); },
   stop(){ this.on = false; },
+  /* 你打得怎么样，歌就长什么样：手顺就加声部、音也准；手一乱就掉声部、开始走音。
+     这是「音乐是现场算出来的」才做得到的事 —— 谱子固定的游戏没法这么干。 */
+  perf: 0.58,       // 0 一塌糊涂 ～ 1 炉火纯青（按最近的判定平滑变化）
+  voices: 3,        // 现在开着几个声部：开场三个，主旋律得靠自己打进去
+  hype(d){ this.perf = Math.max(0, Math.min(1, this.perf + d)); },
+  retune(){ this.voices = this.perf < 0.20 ? 1 : this.perf < 0.40 ? 2 : this.perf < 0.68 ? 3 : 4; },
+  allow(kind){
+    const v = this.voices;
+    if(v <= 1) return kind === 'kick' || kind === 'bass';
+    if(v <= 2) return kind !== 'pad' && kind !== 'lead';
+    if(v <= 3) return kind !== 'lead';
+    return true;
+  },
   tick(){
     if(!this.on || !this.ctx || !this.song) return;
+    this.retune();
     const ahead = this.ctx.currentTime + 0.18;
     while(this.i < this.song.events.length){
       const ev = this.song.events[this.i];
       const at = this.t0 + ev.t;
       if(at > ahead) break;
-      if(at > this.ctx.currentTime - 0.06) this.play(ev, at);
+      if(at > this.ctx.currentTime - 0.06 && this.allow(ev.kind)) this.play(ev, at);
       this.i++;
     }
   },
@@ -256,7 +280,7 @@ const M = {
     } else if(K === 'lead'){
       const o=c.createOscillator(), o2=c.createOscillator(), lp=c.createBiquadFilter(), g=c.createGain();
       o.type='square'; o2.type='triangle';
-      o.frequency.value = midiHz(ev.midi); o2.frequency.value = midiHz(ev.midi)*1.005;
+      o.frequency.value = midiHz(ev.midi); o2.frequency.value = midiHz(ev.midi)*(1.004 + (1-this.perf)*0.011);
       lp.type='lowpass'; lp.frequency.setValueAtTime(4200, at);
       lp.frequency.exponentialRampToValueAtTime(1400, at+0.24);
       g.gain.setValueAtTime(0.0001, at);
@@ -268,7 +292,8 @@ const M = {
       const d = ev.dur || 1.6;
       for(const det of [-6, 6]){
         const o=c.createOscillator(), lp=c.createBiquadFilter(), g=c.createGain();
-        o.type='sawtooth'; o.frequency.value = midiHz(ev.midi)*Math.pow(2, det/1200);
+        const off = det * (1 + (1-this.perf)*2.2);      // 手一乱，两个锯齿就散开走音
+        o.type='sawtooth'; o.frequency.value = midiHz(ev.midi)*Math.pow(2, off/1200);
         lp.type='lowpass'; lp.frequency.value=1000;
         g.gain.setValueAtTime(0.0001, at);
         g.gain.linearRampToValueAtTime(0.028, at+0.5);
@@ -317,6 +342,13 @@ function buildChart(song, diffKey){
     const prev = out[out.length-1];
     if(prev && prev.lane === lane && ev.t - prev.t < 0.09) lane = (lane + 1 + ((rnd()*2)|0)) % LANES;
     out.push({ t: ev.t, lane, kind: ev.kind, judged:false, result:null });
+    /* 多线程：一个人同时干两份活。曲子过半之后，同一刻会偶尔掉下来两颗，
+       你得同时按两个键。越往后越多。 */
+    const prog = s / Math.max(1, last);
+    if(prog > 0.30 && ev.kind !== 'hat' && rnd() < 0.09 + prog*0.16){
+      const partner = (lane + 1 + ((rnd()*2)|0)) % LANES;
+      out.push({ t: ev.t, lane: partner, kind: ev.kind, multi:true, judged:false, result:null });
+    }
   }
   return out;
 }
@@ -368,6 +400,7 @@ function reset(){
   score = 0; combo = 0; maxCombo = 0; hits = 0;
   judgeCount = {perfect:0,good:0,ok:0,miss:0};
   fx = []; laneFlash = [0,0,0,0]; countBeep = -9;
+  M.perf = 0.58; M.retune();         // 开场三个声部，主旋律得靠自己打进去
   const s = currentSong();
   totalNotes = chart.length;
   M.stop();
@@ -387,6 +420,9 @@ function updateHUD(){
   const acc = (judgeCount.perfect*300 + judgeCount.good*200 + judgeCount.ok*100) / (denom*300);
   $('acc').textContent = totalNotes ? (acc*100).toFixed(1)+'%' : '100%';
   $('grade').textContent = totalNotes ? gradeOf(acc) : '—';
+  const v = M.voices || 4;
+  $('voices').textContent = v + '/4';
+  $('voices').style.color = v >= 4 ? '#8ef0c8' : v === 3 ? '#8fd9ff' : v === 2 ? '#ffd36e' : '#ff7a6b';
 }
 function gradeOf(acc){
   if(acc >= 0.96) return 'S';
@@ -401,12 +437,15 @@ function judgeNote(n, tier){
   n.judged = true; n.result = tier;
   const s = TIER[tier], D = DIFFS[diffKey];
   judgeCount[tier]++;
-  if(tier === 'miss'){ combo = 0; }
+  if(tier === 'miss'){ combo = 0; M.hype(-0.11); }
   else {
     hits++; combo++; if(combo > maxCombo) maxCombo = combo;
     const comboBonus = 1 + Math.min(1, combo/100);
     score += Math.round(s.s * D.mult * comboBonus);
+    // 手顺，歌就越弹越满；漏一拍要三次完美才补得回来
+    M.hype(tier === 'perfect' ? 0.07 : tier === 'good' ? 0.03 : 0.01);
   }
+  M.retune();
   updateHUD();
 }
 function tryHit(lane){
@@ -541,6 +580,13 @@ function draw(st){
     ctx.restore();
     ctx.fillStyle = 'rgba(8,12,18,.55)';
     rr(x+4, y-geo.noteH/2, w-8, 4, 3); ctx.fill();
+    // 多线程的那些音符带个「双」：这一下得同时按两个键
+    if(n.multi){
+      ctx.fillStyle = 'rgba(255,255,255,.85)';
+      ctx.font = '800 11px "PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('双', x + w/2, y + 0.5);
+    }
   }
 
   // 判定键位提示
@@ -700,7 +746,27 @@ function paintBest(){
 /* 供自动化测试 / 演示用 */
 window.__keys = {
   get chart(){ return chart; }, get song(){ return song; }, get state(){ return { playing, paused, finished, score, combo, maxCombo, judgeCount, totalNotes }; },
-  setAuto(v){ autoPlay = !!v; }, hit: tryHit, play, finish
+  setAuto(v){ autoPlay = !!v; }, hit: tryHit, play, finish,
+  /* 音乐跟手感联动的那部分，方便自动化验 */
+  M,
+  get perf(){ return M.perf; },
+  get voices(){ return M.voices; },
+  get voicesShown(){ return $('voices').textContent; },
+  setPerf(v){ M.perf = v; M.retune(); updateHUD(); },
+  judgeForTest(tier){ judgeNote({ lane:0, judged:false }, tier); },
+  allowForTest(kind){ return M.allow(kind); },
+  chordStats(){
+    const byT = new Map();
+    for(const n of chart) byT.set(n.t, (byT.get(n.t)||0)+1);
+    let multi = 0, dupLane = 0;
+    for(const n of chart) if(n.multi) multi++;
+    for(const [t, k] of byT){
+      if(k < 2) continue;
+      const lanes = chart.filter(n => n.t === t).map(n => n.lane);
+      if(new Set(lanes).size !== lanes.length) dupLane++;
+    }
+    return { multi, chordSlots: [...byT.values()].filter(k=>k>1).length, dupLane };
+  }
 };
 </script>
 </body>
