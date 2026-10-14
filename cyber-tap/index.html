@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>抽象点音 · CYBER TAP</title>
+<title>画饼 · EMPTY PROMISES</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#08070c}
@@ -28,6 +28,13 @@
   .stat.cb .v{color:#c86bff}
   .stat.acc .v{color:#8ef0c8}
   .stat.gr .v{color:#5fd8ff;font-size:20px}
+  .stat.vx .v{color:#8ef0c8}
+  /* 五个数字块在窄屏会把标题挤成竖排，让标题自己占一行 */
+  @media (max-width:560px){
+    header{flex-wrap:wrap;gap:9px}
+    .brand{flex:1 1 100%}
+    .stats{flex:1 1 100%;justify-content:space-between}
+  }
 
   .wrap{position:relative;border-radius:16px;padding:8px;
     background:linear-gradient(160deg,#1c1428,#0d0a13);
@@ -75,15 +82,16 @@
 
 <header>
   <div class="brand">
-    <div class="t">CYBER TAP · RHYTHM CIRCLES</div>
-    <h1>抽象点音</h1>
-    <div class="s">圈缩到刚好时点它，早一秒晚一秒都不算</div>
+    <div class="t">EMPTY PROMISES</div>
+    <h1>画饼</h1>
+    <div class="s">圈缩到刚好时点它 —— 但有些圈是画的，别碰</div>
   </div>
   <div class="stats">
     <div class="stat"><div class="k">分数</div><div class="v" id="score">0</div></div>
     <div class="stat cb"><div class="k">连击</div><div class="v" id="combo">0</div></div>
     <div class="stat acc"><div class="k">准确</div><div class="v" id="acc">100%</div></div>
     <div class="stat gr"><div class="k">评级</div><div class="v" id="grade">—</div></div>
+    <div class="stat vx"><div class="k">声部</div><div class="v" id="voices">3</div></div>
   </div>
 </header>
 
@@ -96,10 +104,12 @@
     <button class="b on" data-spd="1">中</button>
     <button class="b" data-spd="1.4">快</button>
   </div>
-  <span class="hint">鼠标 / 手指点圈 · 点空不扣分</span>
+  <span class="hint" id="hint">鼠标 / 手指点圈 · 点空不扣分 · <b style="color:#ff9db4">虚线圈是画的饼，别点</b></span>
 </div>
 
-<footer>圈出现的位置也是从曲子里算出来的 · 每首曲子的圈位固定</footer>
+<footer><b>你打得怎么样，歌就长什么样</b> —— 连击稳就加声部、音也准；一乱就掉声部、开始走音<br>
+<b style="color:#ff9db4">画的饼</b>：虚线的那些圈是领导画的，缩得跟真的一样，点下去只有空气 —— 不点才是对的<br>
+圈出现的位置也是从曲子里算出来的 · 每首曲子的圈位固定</footer>
 
 <div class="over show" id="over">
   <div class="box">
@@ -202,14 +212,28 @@ const M = {
   start(song, lead){ this.init(); this.resume(); this.song = song; this.i = 0; this.on = true;
     this.t0 = this.ctx.currentTime + (lead == null ? 3.2 : lead); },
   stop(){ this.on = false; },
+  /* 你打得怎么样，歌就长什么样：手顺就加声部、音也准；手一乱就掉声部、开始走音。
+     这是「音乐是现场算出来的」才做得到的事 —— 谱子固定的游戏没法这么干。 */
+  perf: 0.58,       // 0 一塌糊涂 ～ 1 炉火纯青（按最近的判定平滑变化）
+  voices: 3,        // 现在开着几个声部：开场三个，主旋律得靠自己打进去
+  hype(d){ this.perf = Math.max(0, Math.min(1, this.perf + d)); },
+  retune(){ this.voices = this.perf < 0.20 ? 1 : this.perf < 0.40 ? 2 : this.perf < 0.68 ? 3 : 4; },
+  allow(kind){
+    const v = this.voices;
+    if(v <= 1) return kind === 'kick' || kind === 'bass';
+    if(v <= 2) return kind !== 'pad' && kind !== 'lead';
+    if(v <= 3) return kind !== 'lead';
+    return true;
+  },
   tick(){
     if(!this.on || !this.ctx || !this.song) return;
+    this.retune();
     const ahead = this.ctx.currentTime + 0.18;
     while(this.i < this.song.events.length){
       const ev = this.song.events[this.i];
       const at = this.t0 + ev.t;
       if(at > ahead) break;
-      if(at > this.ctx.currentTime - 0.06) this.play(ev, at);
+      if(at > this.ctx.currentTime - 0.06 && this.allow(ev.kind)) this.play(ev, at);
       this.i++;
     }
   },
@@ -255,7 +279,7 @@ const M = {
     } else if(K === 'lead'){
       const o=c.createOscillator(), o2=c.createOscillator(), lp=c.createBiquadFilter(), g=c.createGain();
       o.type='square'; o2.type='triangle';
-      o.frequency.value = midiHz(ev.midi); o2.frequency.value = midiHz(ev.midi)*1.005;
+      o.frequency.value = midiHz(ev.midi); o2.frequency.value = midiHz(ev.midi)*(1.004 + (1-this.perf)*0.011);
       lp.type='lowpass'; lp.frequency.setValueAtTime(4200, at);
       lp.frequency.exponentialRampToValueAtTime(1400, at+0.24);
       g.gain.setValueAtTime(0.0001, at);
@@ -267,7 +291,8 @@ const M = {
       const d = ev.dur || 1.6;
       for(const det of [-6, 6]){
         const o=c.createOscillator(), lp=c.createBiquadFilter(), g=c.createGain();
-        o.type='sawtooth'; o.frequency.value = midiHz(ev.midi)*Math.pow(2, det/1200);
+        const off = det * (1 + (1-this.perf)*2.2);      // 手一乱，两个锯齿就散开走音
+        o.type='sawtooth'; o.frequency.value = midiHz(ev.midi)*Math.pow(2, off/1200);
         lp.type='lowpass'; lp.frequency.value=1000;
         g.gain.setValueAtTime(0.0001, at);
         g.gain.linearRampToValueAtTime(0.028, at+0.5);
@@ -310,7 +335,12 @@ function buildChart(song, diffKey, size){
       if(tries > 60) break;
     } while(anchors.slice(-2).some(a => Math.hypot(a.x-x, a.y-y) < MIN_DIST));
     anchors.push({x, y});
-    out.push({ t: ev.t, x, y, kind: ev.kind, judged:false, result:null, pop:0 });
+    /* 画饼：有些圈是领导画的，缩得跟真的一样，但你点下去只有空气。
+       不点它才是对的（飘走算你识破）。曲子过四分之一才开始有，且不连着来。 */
+    const prog = s / Math.max(1, last);
+    const prevOut = out[out.length-1];
+    const fake = prog > 0.25 && !(prevOut && prevOut.fake) && rnd() < FAKE_P;
+    out.push({ t: ev.t, x, y, kind: ev.kind, fake, judged:false, result:null, pop:0 });
   }
   return out;
 }
@@ -327,6 +357,8 @@ let song=null, chart=[], playing=false, paused=false, finished=false;
 let score=0, combo=0, maxCombo=0, hits=0, totalNotes=0, speed=1, songIdx=0, diffKey='normal';
 let judgeCount={perfect:0,good:0,ok:0,miss:0};
 let parts=[], ripples=[], last=0, countBeep=-9;
+const FAKE_P = 0.17;              // 多少比例的圈是「画的饼」
+let texts=[];                     // 浮字（那是画的饼 / 没上钩）
 let best={}, autoPlay=false, scale=1;
 
 function resize(){
@@ -348,8 +380,10 @@ function reset(){
   playing=false; paused=false; finished=false;
   score=0; combo=0; maxCombo=0; hits=0;
   judgeCount={perfect:0,good:0,ok:0,miss:0};
-  parts=[]; ripples=[]; countBeep=-9;
-  currentSong(); totalNotes = chart.length;
+  parts=[]; ripples=[]; texts=[]; countBeep=-9;
+  currentSong();
+  totalNotes = chart.filter(n => !n.fake).length;   // 饼不算音符，不进退准的分母
+  M.perf = 0.58; M.retune();         // 开场三个声部，主旋律得靠自己打进去
   M.stop(); updateHUD();
 }
 function play(){ reset(); M.start(song, 3.2); playing = true; $('over').classList.remove('show'); }
@@ -360,6 +394,9 @@ function updateHUD(){
   const acc = (judgeCount.perfect*300+judgeCount.good*200+judgeCount.ok*100)/(denom*300);
   $('acc').textContent = totalNotes ? (acc*100).toFixed(1)+'%' : '100%';
   $('grade').textContent = totalNotes ? gradeOf(acc) : '—';
+  const v = M.voices || 3;
+  $('voices').textContent = v + '/4';
+  $('voices').style.color = v >= 4 ? '#8ef0c8' : v === 3 ? '#8fd9ff' : v === 2 ? '#ffd36e' : '#ff7a6b';
 }
 function gradeOf(a){ return a>=.96?'S':a>=.90?'A':a>=.80?'B':a>=.65?'C':'D'; }
 
@@ -367,10 +404,12 @@ function judgeNote(n, tier){
   n.judged=true; n.result=tier;
   const s=TIER[tier], D=DIFFS[diffKey];
   judgeCount[tier]++;
-  if(tier==='miss'){ combo=0; }
+  if(tier==='miss'){ combo=0; M.hype(-0.11); }
   else{
     hits++; combo++; if(combo>maxCombo) maxCombo=combo;
     score += Math.round(s.s * D.mult * (1 + Math.min(1, combo/100)));
+    // 手顺，歌就越弹越满；漏一拍要三次完美才补得回来
+    M.hype(tier==='perfect' ? 0.07 : tier==='good' ? 0.03 : 0.01);
     n.pop = 1;
     for(let i=0;i<12;i++){
       const a = (i/12)*Math.PI*2 + Math.random()*0.4;
@@ -379,6 +418,7 @@ function judgeNote(n, tier){
     }
   }
   ripples.push({ x:n.x, y:n.y, life:1, c:tier==='miss'?TIER.miss.c:s.c });
+  M.retune();
   updateHUD();
 }
 function tryTap(px, py){
@@ -394,6 +434,17 @@ function tryTap(px, py){
     if(d < bd){ bd = d; bn = n; }
   }
   if(!bn) return;
+  // 点到画的饼：钱没拿到，字还签了
+  if(bn.fake){
+    bn.judged = true; bn.result = 'miss';
+    combo = 0; judgeCount.miss++;
+    score = Math.max(0, score - 30);
+    texts.push({ x:bn.x, y:bn.y-46, text:'那是画的饼', c:'#ff7a6b', life:1.6 });
+    ripples.push({ x:bn.x, y:bn.y, life:1, c:'#ff7a6b' });
+    M.hype(-0.11); M.retune();
+    updateHUD();
+    return;
+  }
   const tier = bd<=WIN.perfect?'perfect':bd<=WIN.good?'good':'ok';
   judgeNote(bn, tier);
 }
@@ -402,8 +453,20 @@ function update(st){
   M.tick();
   for(const n of chart){
     if(n.judged) continue;
+    // 画的饼：不点才是对的，飘走了算你识破
+    if(n.fake){
+      if(st > n.t + WIN.ok){
+        n.judged = true; n.result = 'skip';
+        texts.push({ x:n.x, y:n.y-46, text:'没上钩', c:'#8ef0c8', life:1.2 });
+      }
+      continue;
+    }
     if(autoPlay && st >= n.t){ judgeNote(n,'perfect'); continue; }
     if(st > n.t + WIN.ok) judgeNote(n,'miss');
+  }
+  for(let i=texts.length-1;i>=0;i--){
+    const t2 = texts[i]; t2.life -= 0.014; t2.y -= 0.5;
+    if(t2.life <= 0) texts.splice(i,1);
   }
   for(let i=parts.length-1;i>=0;i--){
     const p=parts[i];
@@ -475,22 +538,32 @@ function draw(st){
     if(dt < -WIN.ok - 0.1) continue;
     const k = Math.max(0, Math.min(1, dt/preempt));      // 1 → 0
     const ringR = R * (1 + 0.85*k);
-    const col = HUES[n.kind] || '#c86bff';
+    const col = n.fake ? '#8b8f9a' : (HUES[n.kind] || '#c86bff');
     const fade = n.result === 'miss' ? 0.20 : 1;
 
     ctx.save();
     ctx.globalAlpha = fade;
-    // 缩圈
+    // 缩圈（画的饼画成虚线，一眼就觉得悬）
     ctx.strokeStyle = col; ctx.lineWidth = 4;
     ctx.globalAlpha = fade * (0.25 + 0.75*(1-k));
+    if(n.fake) ctx.setLineDash([7,6]);
     ctx.beginPath(); ctx.arc(n.x, n.y, ringR, 0, 7); ctx.stroke();
     // 圈本体
     ctx.globalAlpha = fade;
-    ctx.fillStyle = 'rgba(12,9,18,.82)';
+    ctx.fillStyle = n.fake ? 'rgba(18,18,22,.5)' : 'rgba(12,9,18,.82)';
     ctx.beginPath(); ctx.arc(n.x, n.y, R, 0, 7); ctx.fill();
-    ctx.shadowColor = col; ctx.shadowBlur = 14;
+    ctx.setLineDash(n.fake ? [7,6] : []);
+    ctx.shadowColor = col; ctx.shadowBlur = n.fake ? 0 : 14;
     ctx.strokeStyle = col; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(n.x, n.y, R, 0, 7); ctx.stroke();
+    ctx.setLineDash([]);
+    if(n.fake){
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(200,205,215,.82)';
+      ctx.font = '800 26px "PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('饼', n.x, n.y+1);
+    }
     ctx.restore();
   }
 
@@ -499,6 +572,14 @@ function draw(st){
     ctx.globalAlpha = Math.max(0, r.life)*0.8;
     ctx.strokeStyle = r.c; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(r.x, r.y, R + (1-r.life)*70, 0, 7); ctx.stroke();
+  }
+  // 浮字
+  for(const t2 of texts){
+    ctx.globalAlpha = Math.max(0, Math.min(1, t2.life));
+    ctx.fillStyle = t2.c;
+    ctx.font = '800 15px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(t2.text, t2.x, t2.y);
   }
   ctx.globalAlpha = 1;
 
@@ -625,7 +706,16 @@ function paintBest(){
 window.__tap = {
   get chart(){ return chart; }, get song(){ return song; },
   get state(){ return { playing, paused, finished, score, combo, maxCombo, judgeCount, totalNotes }; },
-  setAuto(v){ autoPlay = !!v; }, tap: tryTap, play, finish
+  setAuto(v){ autoPlay = !!v; }, tap: tryTap, play, finish,
+  M,
+  get perf(){ return M.perf; }, get voices(){ return M.voices; },
+  get voicesShown(){ return $('voices').textContent; },
+  setPerf(v){ M.perf = v; M.retune(); updateHUD(); },
+  setDiff(d){ diffKey = d; },
+  judgeForTest(tier){ judgeNote({ x:0, y:0, judged:false }, tier); },
+  get fakes(){ return chart.filter(n => n.fake).length; },
+  get fakesJudged(){ return chart.filter(n => n.fake && n.judged).map(n => n.result); },
+  get texts(){ return texts.map(t => t.text); }
 };
 </script>
 </body>

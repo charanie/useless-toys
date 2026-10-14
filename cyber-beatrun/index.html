@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>抽象节奏跑 · BEAT RUN</title>
+<title>朝令夕改 · SHIFTING SPECS</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#07090b}
@@ -28,6 +28,13 @@
   .stat.cb .v{color:#4fe0b8}
   .stat.hp .v{color:#ff7a6b;letter-spacing:2px;font-size:15px}
   .stat.acc .v{color:#5fd8ff}
+  .stat.vx .v{color:#8ef0c8}
+  /* 五个数字块在窄屏会把标题挤成竖排，让标题自己占一行 */
+  @media (max-width:560px){
+    header{flex-wrap:wrap;gap:9px}
+    .brand{flex:1 1 100%}
+    .stats{flex:1 1 100%;justify-content:space-between}
+  }
 
   .wrap{position:relative;border-radius:16px;padding:8px;
     background:linear-gradient(160deg,#101e22,#080d10);
@@ -76,15 +83,16 @@
 
 <header>
   <div class="brand">
-    <div class="t">BEAT RUN · ENDLESS</div>
-    <h1>抽象节奏跑</h1>
-    <div class="s">踩着拍子跳箱子、躲横幅，踩准了分才高</div>
+    <div class="t">SHIFTING SPECS</div>
+    <h1>朝令夕改</h1>
+    <div class="s">踩着拍子跳箱子、躲横幅 —— 它们跑到一半还会改</div>
   </div>
   <div class="stats">
     <div class="stat"><div class="k">分数</div><div class="v" id="score">0</div></div>
     <div class="stat cb"><div class="k">连击</div><div class="v" id="combo">0</div></div>
     <div class="stat hp"><div class="k">体力</div><div class="v" id="hp">♥♥♥</div></div>
     <div class="stat acc"><div class="k">距离</div><div class="v" id="dist">0m</div></div>
+    <div class="stat vx"><div class="k">声部</div><div class="v" id="voices">3</div></div>
   </div>
 </header>
 
@@ -97,10 +105,12 @@
     <button class="b on" data-diff="normal">通勤</button>
     <button class="b" data-diff="hard">狂奔</button>
   </div>
-  <span class="hint">↑ / W 跳箱子 · ↓ / S 滑铲躲横幅 · 空格暂停</span>
+  <span class="hint" id="hint">↑ / W 跳箱子 · ↓ / S 滑铲躲横幅 · 空格暂停<br><b style="color:#ffd36e">虚线金圈＝它刚改了主意，得当场换个动作</b></span>
 </div>
 
-<footer><b>站在拍子上</b>按才有效 · 连续踩准十六次进入「节奏狂热」，分数翻倍</footer>
+<footer><b>你打得怎么样，歌就长什么样</b> —— 连击稳就加声部、音也准；一乱就掉声部、开始走音<br>
+<b style="color:#ffd36e">朝令夕改</b>：眼看着是个箱子，跑到一半可能变成横幅（或者反过来）—— 你按准备好的那个键就扑空了<br>
+<b>站在拍子上</b>按才有效 · 连续踩准十六次进入「节奏狂热」，分数翻倍</footer>
 
 <div class="over show" id="over">
   <div class="box">
@@ -203,14 +213,28 @@ const M = {
   start(song, lead){ this.init(); this.resume(); this.song = song; this.i = 0; this.on = true;
     this.t0 = this.ctx.currentTime + (lead == null ? 3.2 : lead); },
   stop(){ this.on = false; },
+  /* 你打得怎么样，歌就长什么样：手顺就加声部、音也准；手一乱就掉声部、开始走音。
+     这是「音乐是现场算出来的」才做得到的事 —— 谱子固定的游戏没法这么干。 */
+  perf: 0.58,       // 0 一塌糊涂 ～ 1 炉火纯青（按最近的判定平滑变化）
+  voices: 3,        // 现在开着几个声部：开场三个，主旋律得靠自己打进去
+  hype(d){ this.perf = Math.max(0, Math.min(1, this.perf + d)); },
+  retune(){ this.voices = this.perf < 0.20 ? 1 : this.perf < 0.40 ? 2 : this.perf < 0.68 ? 3 : 4; },
+  allow(kind){
+    const v = this.voices;
+    if(v <= 1) return kind === 'kick' || kind === 'bass';
+    if(v <= 2) return kind !== 'pad' && kind !== 'lead';
+    if(v <= 3) return kind !== 'lead';
+    return true;
+  },
   tick(){
     if(!this.on || !this.ctx || !this.song) return;
+    this.retune();
     const ahead = this.ctx.currentTime + 0.18;
     while(this.i < this.song.events.length){
       const ev = this.song.events[this.i];
       const at = this.t0 + ev.t;
       if(at > ahead) break;
-      if(at > this.ctx.currentTime - 0.06) this.play(ev, at);
+      if(at > this.ctx.currentTime - 0.06 && this.allow(ev.kind)) this.play(ev, at);
       this.i++;
     }
   },
@@ -256,7 +280,7 @@ const M = {
     } else if(K === 'lead'){
       const o=c.createOscillator(), o2=c.createOscillator(), lp=c.createBiquadFilter(), g=c.createGain();
       o.type='square'; o2.type='triangle';
-      o.frequency.value = midiHz(ev.midi); o2.frequency.value = midiHz(ev.midi)*1.005;
+      o.frequency.value = midiHz(ev.midi); o2.frequency.value = midiHz(ev.midi)*(1.004 + (1-this.perf)*0.011);
       lp.type='lowpass'; lp.frequency.setValueAtTime(4200, at);
       lp.frequency.exponentialRampToValueAtTime(1400, at+0.24);
       g.gain.setValueAtTime(0.0001, at);
@@ -268,7 +292,8 @@ const M = {
       const d = ev.dur || 1.6;
       for(const det of [-6, 6]){
         const o=c.createOscillator(), lp=c.createBiquadFilter(), g=c.createGain();
-        o.type='sawtooth'; o.frequency.value = midiHz(ev.midi)*Math.pow(2, det/1200);
+        const off = det * (1 + (1-this.perf)*2.2);      // 手一乱，两个锯齿就散开走音
+        o.type='sawtooth'; o.frequency.value = midiHz(ev.midi)*Math.pow(2, off/1200);
         lp.type='lowpass'; lp.frequency.value=1000;
         g.gain.setValueAtTime(0.0001, at);
         g.gain.linearRampToValueAtTime(0.028, at+0.5);
@@ -326,6 +351,10 @@ const cvs = $('c'), ctx = cvs.getContext('2d');
 let song=null, chart=[], playing=false, paused=false, finished=false;
 let score=0, combo=0, maxCombo=0, hp=3, dist=0, distance=0;
 let songIdx=0, diffKey='normal', best={}, autoPlay=false;
+/* 朝令夕改：障碍跑到一半改类型，你准备好的那个动作就白准备了 */
+const FLIP_P = 0.30;        // 有多少比例的障碍会改
+const FLIP_LEAD = 1.7;      // 距撞上还有这么久才改，留足反应时间
+let texts=[], flipTold=false, flips=0;
 let judgeCount={perfect:0,good:0,ok:0,miss:0};
 let act='run', actT=0, shake=0, invuln=0, fever=0, feverT=0;
 let fx=[], last=0, countBeep=-9, scrollPhase=0, flash=0;
@@ -357,7 +386,9 @@ function reset(){
   judgeCount={perfect:0,good:0,ok:0,miss:0};
   act='run'; actT=0; shake=0; invuln=0; fever=0; feverT=0;
   fx=[]; countBeep=-9; scrollPhase=0; flash=0;
+  texts=[]; flipTold=false; flips=0;
   currentSong();
+  M.perf = 0.58; M.retune();         // 开场三个声部，主旋律得靠自己打进去
   M.stop(); updateHUD();
 }
 function play(){ reset(); M.start(song, 3.2); playing = true; $('over').classList.remove('show'); }
@@ -366,6 +397,9 @@ function updateHUD(){
   $('combo').textContent = combo;
   $('hp').textContent = hp > 0 ? '♥'.repeat(hp) : '—';
   $('dist').textContent = Math.floor(distance) + 'm';
+  const v = M.voices || 3;
+  $('voices').textContent = v + '/4';
+  $('voices').style.color = v >= 4 ? '#8ef0c8' : v === 3 ? '#8fd9ff' : v === 2 ? '#ffd36e' : '#ff7a6b';
 }
 function gradeOf(a){ return a>=.96?'S':a>=.90?'A':a>=.80?'B':a>=.65?'C':'D'; }
 
@@ -374,7 +408,7 @@ function judgeObs(o, tier){
   const s = TIER[tier], D = DIFFS[diffKey];
   judgeCount[tier]++;
   if(tier === 'miss'){
-    combo = 0; fever = 0;
+    combo = 0; fever = 0; M.hype(-0.11);
     if(invuln <= 0){ hp--; invuln = 0.9; shake = 1; }
     if(hp <= 0) finish();
   } else {
@@ -382,9 +416,12 @@ function judgeObs(o, tier){
     if(combo >= 16 && fever <= 0){ fever = 1; feverT = 0; }
     const f = fever > 0 ? 2 : 1;
     score += Math.round(s.s * D.mult * (1 + Math.min(1, combo/100)) * f);
+    // 手顺，歌就越弹越满；撞一次要三次完美才补得回来
+    M.hype(tier === 'perfect' ? 0.07 : tier === 'good' ? 0.03 : 0.01);
   }
   fx.push({ x: CHAR_X, y: GROUND - 110, text: TIER[tier].n, color: s.c, life: 1 });
   if(tier === 'perfect') flash = 1;
+  M.retune();
   updateHUD();
 }
 function doAct(kind){
@@ -410,12 +447,29 @@ function update(st, dt){
   M.tick();
   for(const o of chart){
     if(o.judged) continue;
+    // 朝令夕改：还差 1.7 秒撞上时决定要不要改主意
+    if(!o.flipChecked && st > 0 && st >= o.t - FLIP_LEAD){
+      o.flipChecked = true;
+      if(Math.random() < FLIP_P){
+        o.type = o.type === 'box' ? 'bar' : 'box';
+        o.changed = 1; flips++;
+        if(!flipTold){
+          flipTold = true;
+          texts.push({x:W*0.66, y:H*0.18, text:'朝令夕改', c:'#ffd36e', life:2.4});
+        }
+      }
+    }
     if(autoPlay && st >= o.t){
       judgeObs(o, 'perfect');
-      act = o.type === 'box' ? 'jump' : 'slide'; actT = 0;
+      act = o.type === 'box' ? 'jump' : 'slide'; actT = 0;   // 自动打按改完之后的类型来
       continue;
     }
     if(st > o.t + WIN.ok) judgeObs(o, 'miss');
+  }
+  for(const o of chart) if(o.changed > 0) o.changed = Math.max(0, o.changed - dt*1.1);
+  for(let i=texts.length-1;i>=0;i--){
+    const t2 = texts[i]; t2.life -= dt*0.9;
+    if(t2.life <= 0) texts.splice(i,1);
   }
   actT += dt;
   if(act === 'jump' && actT > JUMP_T) act = 'run';
@@ -552,8 +606,32 @@ function draw(st){
       ctx.beginPath(); ctx.moveTo(x+bw/2, by); ctx.lineTo(x+bw/2, by-64); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(x-bw/2, by-64); ctx.lineTo(x+bw/2, by-64); ctx.stroke();
     }
+    // 刚改过主意的，套一圈金虚线 + 顶上一个「变了」
+    if(o.changed > 0){
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, o.changed);
+      ctx.setLineDash([7,5]);
+      ctx.strokeStyle = '#ffd36e'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, GROUND-46, 54 + (1-o.changed)*14, 0, 7); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#ffd36e';
+      ctx.font = '800 13px "PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('变了', x, GROUND-118);
+      ctx.restore();
+    }
     ctx.globalAlpha = 1;
   }
+
+  // 浮字
+  for(const t2 of texts){
+    ctx.globalAlpha = Math.max(0, Math.min(1, t2.life));
+    ctx.fillStyle = t2.c;
+    ctx.font = '800 22px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(t2.text, t2.x, t2.y);
+  }
+  ctx.globalAlpha = 1;
 
   // 人物
   drawRunner();
@@ -734,7 +812,18 @@ function paintBest(){
 window.__run = {
   get chart(){ return chart; }, get song(){ return song; },
   get state(){ return { playing, paused, finished, score, combo, maxCombo, hp, distance, judgeCount, act }; },
-  setAuto(v){ autoPlay = !!v; }, act: doAct, play, finish
+  setAuto(v){ autoPlay = !!v; }, act: doAct, play, finish,
+  M,
+  get perf(){ return M.perf; }, get voices(){ return M.voices; },
+  get voicesShown(){ return $('voices').textContent; },
+  setPerf(v){ M.perf = v; M.retune(); updateHUD(); },
+  setDiff(d){ diffKey = d; },
+  get flips(){ return flips; },
+  get changedTypes(){ return chart.filter(o => o.changed > 0).map(o => o.type); },
+  get typesBefore(){ return this._t; },
+  snapTypes(){ this._t = chart.map(o => o.type); return this._t; },
+  forceFlipAll(){ for(const o of chart){ if(!o.flipChecked){ o.flipChecked = true; o.type = o.type === 'box' ? 'bar' : 'box'; o.changed = 1; flips++; } } },
+  texts: () => texts.map(t => t.text)
 };
 </script>
 </body>

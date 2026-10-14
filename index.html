@@ -412,6 +412,12 @@
     margin:-31px 0 0 -31px;border-radius:50%;border:2px solid currentColor;
     animation:tapring 1.6s ease-in infinite}
   @keyframes tapring{from{transform:scale(1.55);opacity:0}35%{opacity:.55}to{transform:scale(1);opacity:.95}}
+  /* 画的饼：灰的、虚线的，点下去只有空气 */
+  .tmp-tap i.fake{border:3px dashed #8b8f9a;box-shadow:none;background:rgba(18,18,22,.5);
+    color:#8b8f9a;position:absolute}
+  .tmp-tap i.fake::before{content:'饼';position:absolute;left:0;right:0;top:5px;text-align:center;
+    font:800 12px/1 "PingFang SC","Microsoft YaHei",sans-serif;color:rgba(200,205,215,.85)}
+  .tmp-tap i.fake::after{display:none}
 
   /* 抽象节奏跑 */
   .tmp-run{position:relative;width:120px;height:78px}
@@ -779,7 +785,7 @@
     </a>
   </div>
 
-  <div class="shelf"><span class="label"><b>VOL.8</b> · 音游四件（重做中）</span><span class="rule"></span></div>
+  <div class="shelf"><span class="label"><b>VOL.8</b> · 你弹成什么样，歌就长什么样</span><span class="rule"></span></div>
   <div class="grid">
     <a class="card" href="cyber-keys/">
       <span class="go">进入 →</span>
@@ -797,10 +803,11 @@
         <div class="tr"></div><div class="dm"></div>
         <i></i><i class="s"></i><i class="s2"></i>
       </div></div>
-      <h2>抽象太鼓</h2>
-      <p>只有两个键：<b>红的是咚、蓝的是咔</b>，音符从右往左滚过来，撞到鼓上就敲它。
-         上手五秒，但节奏一密就手忙脚乱。四首曲子三档难度。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">两个键</span><span class="tag">上手快</span></div>
+      <h2>复议</h2>
+      <p>只有两个键：红的是咚、蓝的是咔，音符从右往左滚过来，撞到鼓上就敲它。
+         但<b>曲子过半，它会说一句「换了个说法」——红蓝的含义当场对调</b>，字还是那两个字，
+         意思换了。底下的键位提示会跟着换。一局只换一次，不然就成耍人了。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">中途换说法</span><span class="tag">两个键</span></div>
     </a>
     <a class="card" href="cyber-tap/">
       <span class="go">进入 →</span>
@@ -808,21 +815,25 @@
         <i style="left:30px;top:30px;color:#c86bff"></i>
         <i style="left:84px;top:56px;color:#5fd8ff"></i>
         <i style="left:40px;top:86px;color:#8ef0c8;animation-delay:.8s"></i>
+        <i class="fake" style="left:88px;top:24px"></i>
       </div></div>
-      <h2>抽象点音</h2>
-      <p>圈一个个冒出来，缩到刚好时点它 —— <b>早一秒晚一秒都不算</b>。
-         点空不扣分，手机上最好玩的一个。圈出现的位置也是从曲子里算出来的，每首歌固定。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">手机友好</span><span class="tag">好看</span></div>
+      <h2>画饼</h2>
+      <p>圈一个个冒出来，缩到刚好时点它 —— 早一秒晚一秒都不算。
+         但有些圈是<b>画的饼</b>：灰的、虚线的，缩得跟真的一样，点下去只有空气，还倒扣分。
+         不点它才是对的，飘走了算你识破。位置也是从曲子里算出来的，每首歌固定。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">虚线圈别碰</span><span class="tag">手机友好</span></div>
     </a>
     <a class="card" href="cyber-beatrun/">
       <span class="go">进入 →</span>
       <div class="thumb"><div class="tmp-run">
         <div class="g"></div><div class="bx"></div><div class="br"></div><div class="ch"></div>
       </div></div>
-      <h2>抽象节奏跑</h2>
-      <p>人自动往前跑，你得<b>踩着拍子跳箱子、滑铲躲横幅</b>。踩得越准分越高，
-         连续踩准十六次进「节奏狂热」分数翻倍。撞三次就摔。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">无限跑</span><span class="tag">有狂热</span></div>
+      <h2>朝令夕改</h2>
+      <p>人自动往前跑，你得踩着拍子跳箱子、滑铲躲横幅。踩得越准分越高，
+         连续踩准十六次进「节奏狂热」分数翻倍。
+         <b>但眼看着是个箱子，跑到一半可能变成横幅</b>（或者反过来）——你按准备好的那个键就扑空了。
+         改的时候还差 1.7 秒撞上，金虚线圈套住它，来得及换动作。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">障碍会变</span><span class="tag">有狂热</span></div>
     </a>
   </div>
 

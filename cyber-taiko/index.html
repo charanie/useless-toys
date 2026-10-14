@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>抽象太鼓 · CYBER TAIKO</title>
+<title>复议 · COUNTER-MOTION</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#0b0708}
@@ -28,6 +28,13 @@
   .stat.cb .v{color:#ff8a6b}
   .stat.acc .v{color:#8ef0c8}
   .stat.gr .v{color:#c86bff;font-size:20px}
+  .stat.vx .v{color:#8ef0c8}
+  /* 五个数字块在窄屏会把标题挤成竖排，让标题自己占一行 */
+  @media (max-width:560px){
+    header{flex-wrap:wrap;gap:9px}
+    .brand{flex:1 1 100%}
+    .stats{flex:1 1 100%;justify-content:space-between}
+  }
 
   .wrap{position:relative;border-radius:16px;padding:8px;
     background:linear-gradient(160deg,#221614,#120b0b);
@@ -46,6 +53,7 @@
   .grp{display:flex;gap:5px;align-items:center}
   .grp .lb{font-size:10px;letter-spacing:.2em;color:#8c7776;margin-right:2px}
   .hint{flex:1;text-align:right;font-size:11px;color:#7a6664;letter-spacing:.06em;line-height:1.6}
+  .hint.flip{color:#ffd36e}
   footer{font-size:11px;color:#6b5654;letter-spacing:.14em;text-align:center;line-height:1.9}
   footer b{color:#ff8a6b}
 
@@ -76,15 +84,16 @@
 
 <header>
   <div class="brand">
-    <div class="t">CYBER TAIKO · 2 KEYS</div>
-    <h1>抽象太鼓</h1>
-    <div class="s">只有两个键：红的是咚，蓝的是咔</div>
+    <div class="t">COUNTER-MOTION</div>
+    <h1>复议</h1>
+    <div class="s">红的是咚，蓝的是咔 —— 直到它说「换了个说法」</div>
   </div>
   <div class="stats">
     <div class="stat"><div class="k">分数</div><div class="v" id="score">0</div></div>
     <div class="stat cb"><div class="k">连击</div><div class="v" id="combo">0</div></div>
     <div class="stat acc"><div class="k">准确</div><div class="v" id="acc">100%</div></div>
     <div class="stat gr"><div class="k">评级</div><div class="v" id="grade">—</div></div>
+    <div class="stat vx"><div class="k">声部</div><div class="v" id="voices">3</div></div>
   </div>
 </header>
 
@@ -97,10 +106,12 @@
     <button class="b on" data-spd="1">中</button>
     <button class="b" data-spd="1.35">快</button>
   </div>
-  <span class="hint">F = 咚（红） · J = 咔（蓝） · 也可点画布左右半边</span>
+  <span class="hint" id="hint">F = 咚（红） · J = 咔（蓝） · 也可点画布左右半边</span>
 </div>
 
-<footer>音符从右往左滚，撞到鼓上就敲它 · 曲子照样是现场算出来的</footer>
+<footer><b>你打得怎么样，歌就长什么样</b> —— 连击稳就加声部、音也准；一乱就掉声部、开始走音<br>
+<b style="color:#ffd36e">复议</b>：曲子过半，红蓝的含义会对调一次 —— 字还是那两个字，意思换了，底下的键位提示会跟着换<br>
+音符从右往左滚，撞到鼓上就敲它 · 曲子照样是现场算出来的</footer>
 
 <div class="over show" id="over">
   <div class="box">
@@ -204,14 +215,28 @@ const M = {
   start(song, lead){ this.init(); this.resume(); this.song = song; this.i = 0; this.on = true;
     this.t0 = this.ctx.currentTime + (lead == null ? 3.2 : lead); },
   stop(){ this.on = false; },
+  /* 你打得怎么样，歌就长什么样：手顺就加声部、音也准；手一乱就掉声部、开始走音。
+     这是「音乐是现场算出来的」才做得到的事 —— 谱子固定的游戏没法这么干。 */
+  perf: 0.58,       // 0 一塌糊涂 ～ 1 炉火纯青（按最近的判定平滑变化）
+  voices: 3,        // 现在开着几个声部：开场三个，主旋律得靠自己打进去
+  hype(d){ this.perf = Math.max(0, Math.min(1, this.perf + d)); },
+  retune(){ this.voices = this.perf < 0.20 ? 1 : this.perf < 0.40 ? 2 : this.perf < 0.68 ? 3 : 4; },
+  allow(kind){
+    const v = this.voices;
+    if(v <= 1) return kind === 'kick' || kind === 'bass';
+    if(v <= 2) return kind !== 'pad' && kind !== 'lead';
+    if(v <= 3) return kind !== 'lead';
+    return true;
+  },
   tick(){
     if(!this.on || !this.ctx || !this.song) return;
+    this.retune();
     const ahead = this.ctx.currentTime + 0.18;
     while(this.i < this.song.events.length){
       const ev = this.song.events[this.i];
       const at = this.t0 + ev.t;
       if(at > ahead) break;
-      if(at > this.ctx.currentTime - 0.06) this.play(ev, at);
+      if(at > this.ctx.currentTime - 0.06 && this.allow(ev.kind)) this.play(ev, at);
       this.i++;
     }
   },
@@ -257,7 +282,7 @@ const M = {
     } else if(K === 'lead'){
       const o=c.createOscillator(), o2=c.createOscillator(), lp=c.createBiquadFilter(), g=c.createGain();
       o.type='square'; o2.type='triangle';
-      o.frequency.value = midiHz(ev.midi); o2.frequency.value = midiHz(ev.midi)*1.005;
+      o.frequency.value = midiHz(ev.midi); o2.frequency.value = midiHz(ev.midi)*(1.004 + (1-this.perf)*0.011);
       lp.type='lowpass'; lp.frequency.setValueAtTime(4200, at);
       lp.frequency.exponentialRampToValueAtTime(1400, at+0.24);
       g.gain.setValueAtTime(0.0001, at);
@@ -269,7 +294,8 @@ const M = {
       const d = ev.dur || 1.6;
       for(const det of [-6, 6]){
         const o=c.createOscillator(), lp=c.createBiquadFilter(), g=c.createGain();
-        o.type='sawtooth'; o.frequency.value = midiHz(ev.midi)*Math.pow(2, det/1200);
+        const off = det * (1 + (1-this.perf)*2.2);      // 手一乱，两个锯齿就散开走音
+        o.type='sawtooth'; o.frequency.value = midiHz(ev.midi)*Math.pow(2, off/1200);
         lp.type='lowpass'; lp.frequency.value=1000;
         g.gain.setValueAtTime(0.0001, at);
         g.gain.linearRampToValueAtTime(0.028, at+0.5);
@@ -327,6 +353,10 @@ let score=0, combo=0, maxCombo=0, hits=0, totalNotes=0, speed=1, songIdx=0, diff
 let judgeCount={perfect:0,good:0,ok:0,miss:0};
 let fx=[], drumFlash=0, drumColor='#ff8a6b', last=0, countBeep=-9;
 let best={}, autoPlay=false, trackY=0;
+/* 复议：曲子过半，红蓝的含义会对调 —— 「换了个说法」，字还是那两个字 */
+let flipped=false, flipAt=0, flipUntil=0;
+const HINT_N = 'F = 咚（红） · J = 咔（蓝） · 也可点画布左右半边';
+const HINT_F = '⚠ 复议生效：F = 咔（蓝） · J = 咚（红） —— 说法换了，红蓝跟着换';
 
 function resize(){
   const availW = Math.min(window.innerWidth - 46, 680);   // 46 = body 与 wrap 的内边距
@@ -345,12 +375,25 @@ function currentSong(){
   chart = buildChart(full, diffKey);
   song = full; return full;
 }
+/* 复议：曲子过半的时候对调一次，一次就好，不然就成耍人了 */
+function doFlip(st){
+  if(flipped) return;
+  flipped = true; flipUntil = st + 2.4;
+  $('hint').textContent = HINT_F;
+  $('hint').classList.add('flip');
+}
+const hitDon = () => tryHit(flipped ? 'ka' : 'don');
+const hitKa  = () => tryHit(flipped ? 'don' : 'ka');
 function reset(){
   playing=false; paused=false; finished=false;
   score=0; combo=0; maxCombo=0; hits=0;
   judgeCount={perfect:0,good:0,ok:0,miss:0};
   fx=[]; drumFlash=0; countBeep=-9;
+  flipped=false; flipAt=0; flipUntil=0;
+  $('hint').textContent = HINT_N; $('hint').classList.remove('flip');
   currentSong(); totalNotes = chart.length;
+  flipAt = song.dur * 0.52;
+  M.perf = 0.58; M.retune();         // 开场三个声部，主旋律得靠自己打进去
   M.stop(); updateHUD();
 }
 function play(){ reset(); M.start(song, 3.2); playing = true; $('over').classList.remove('show'); }
@@ -361,6 +404,9 @@ function updateHUD(){
   const acc = (judgeCount.perfect*300 + judgeCount.good*200 + judgeCount.ok*100)/(denom*300);
   $('acc').textContent = totalNotes ? (acc*100).toFixed(1)+'%' : '100%';
   $('grade').textContent = totalNotes ? gradeOf(acc) : '—';
+  const v = M.voices || 3;
+  $('voices').textContent = v + '/4';
+  $('voices').style.color = v >= 4 ? '#8ef0c8' : v === 3 ? '#8fd9ff' : v === 2 ? '#ffd36e' : '#ff7a6b';
 }
 function gradeOf(a){ return a>=.96?'S':a>=.90?'A':a>=.80?'B':a>=.65?'C':'D'; }
 
@@ -368,11 +414,14 @@ function judgeNote(n, tier){
   n.judged=true; n.result=tier;
   const s=TIER[tier], D=DIFFS[diffKey];
   judgeCount[tier]++;
-  if(tier==='miss') combo=0;
+  if(tier==='miss'){ combo=0; M.hype(-0.11); }
   else{
     hits++; combo++; if(combo>maxCombo) maxCombo=combo;
     score += Math.round(s.s * D.mult * (1 + Math.min(1, combo/100)));
+    // 手顺，歌就越弹越满；漏一拍要三次完美才补得回来
+    M.hype(tier==='perfect' ? 0.07 : tier==='good' ? 0.03 : 0.01);
   }
+  M.retune();
   updateHUD();
 }
 function tryHit(type){
@@ -392,6 +441,7 @@ function tryHit(type){
 }
 function update(st){
   if(!playing || paused) return;
+  if(!flipped && st >= flipAt) doFlip(st);   // 曲子过半，红蓝对调
   M.tick();
   for(const n of chart){
     if(n.judged) continue;
@@ -518,11 +568,29 @@ function draw(st){
     ctx.globalAlpha = 1;
   }
 
-  // 键位
+  // 键位（复议之后红蓝对调，这里的提示必须跟着换，不然就是耍人）
   ctx.font = '800 12px ui-monospace,Consolas,monospace';
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillStyle = 'rgba(255,138,107,.7)'; ctx.fillText('F 咚', HIT_X, trackY+62);
-  ctx.fillStyle = 'rgba(95,216,255,.7)';  ctx.fillText('J 咔', HIT_X, trackY+82);
+  const kDon = flipped ? 'J' : 'F', kKa = flipped ? 'F' : 'J';
+  ctx.fillStyle = flipped ? '#ffd36e' : 'rgba(255,138,107,.7)';
+  ctx.fillText(kDon + ' 咚', HIT_X, trackY+62);
+  ctx.fillStyle = flipped ? '#ffd36e' : 'rgba(95,216,255,.7)';
+  ctx.fillText(kKa + ' 咔', HIT_X, trackY+82);
+
+  // 换说法的那一下，屏幕正中给个提示
+  if(st < flipUntil){
+    const a = Math.min(1, (flipUntil - st)/2.4 * 1.6);
+    ctx.globalAlpha = a * 0.9;
+    ctx.fillStyle = 'rgba(12,7,6,.6)'; ctx.fillRect(0, H*0.13, W, 62);
+    ctx.fillStyle = '#ffd36e';
+    ctx.font = '800 26px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('换了个说法', W/2, H*0.13+24);
+    ctx.font = '600 12px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.fillText('红现在是 ' + kDon + '，蓝现在是 ' + kKa, W/2, H*0.13+46);
+    ctx.globalAlpha = 1;
+  }
 
   if(playing && !paused && st < 0){
     ctx.fillStyle = 'rgba(14,9,8,.6)'; ctx.fillRect(0,0,W,H);
@@ -581,16 +649,16 @@ addEventListener('keydown', e=>{
     return;
   }
   if(e.repeat) return;
-  if(e.key==='f'||e.key==='F'){ e.preventDefault(); tryHit('don'); }
-  if(e.key==='j'||e.key==='J'){ e.preventDefault(); tryHit('ka'); }
-  if(e.key==='ArrowLeft'){ e.preventDefault(); tryHit('don'); }
-  if(e.key==='ArrowRight'){ e.preventDefault(); tryHit('ka'); }
+  if(e.key==='f'||e.key==='F'){ e.preventDefault(); hitDon(); }
+  if(e.key==='j'||e.key==='J'){ e.preventDefault(); hitKa(); }
+  if(e.key==='ArrowLeft'){ e.preventDefault(); hitDon(); }
+  if(e.key==='ArrowRight'){ e.preventDefault(); hitKa(); }
 });
 cvs.addEventListener('pointerdown', e=>{
   if(!playing) return;
   const r = cvs.getBoundingClientRect();
   const x = (e.clientX - r.left) / r.width;
-  tryHit(x < 0.5 ? 'don' : 'ka');
+  (x < 0.5 ? hitDon : hitKa)();
 });
 $('start').addEventListener('click', ()=>{ M.init(); M.resume(); play(); });
 $('oStart').addEventListener('click', ()=>{ M.init(); M.resume(); play(); });
@@ -645,7 +713,19 @@ function paintBest(){
 window.__taiko = {
   get chart(){ return chart; }, get song(){ return song; },
   get state(){ return { playing, paused, finished, score, combo, maxCombo, judgeCount, totalNotes }; },
-  setAuto(v){ autoPlay = !!v; }, hit: tryHit, play, finish
+  setAuto(v){ autoPlay = !!v; }, hit: tryHit, play, finish,
+  M,
+  get perf(){ return M.perf; },
+  get voices(){ return M.voices; },
+  get voicesShown(){ return $('voices').textContent; },
+  setPerf(v){ M.perf = v; M.retune(); updateHUD(); },
+  judgeForTest(tier){ judgeNote({ type:'don', judged:false }, tier); },
+  /* 复议那部分 */
+  get flipped(){ return flipped; },
+  get flipAt(){ return flipAt; },
+  get hint(){ return $('hint').textContent; },
+  hitDon, hitKa,
+  forceFlip(st){ doFlip(st == null ? M.now() : st); draw(M.now()); }
 };
 </script>
 </body>
