@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>抽象扫雷 · ABSTRACT MINES</title>
+<title>救火 · FIRE DRILL</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#07080c}
@@ -66,6 +66,26 @@
   .n1{color:#7fc4ff}.n2{color:#8ef0c8}.n3{color:#ff8a9c}.n4{color:#c86bff}
   .n5{color:#ffb26b}.n6{color:#6ef0b8}.n7{color:#e8ecf2}.n8{color:#9aa6b6}
 
+  /* 救火：踩到雷不是直接死，是一片全着火，你得赶在会议结束前把火点灭 */
+  .panel{position:relative}
+  .panel.burning{border-color:rgba(255,110,60,.55);
+    box-shadow:0 0 0 1px rgba(255,110,60,.28), 0 0 46px rgba(255,90,40,.3), 0 30px 66px rgba(0,0,0,.72)}
+  /* 烧焦的痕迹：灭完火会留在原地，提醒你这片有雷（翻开了就自动消失） */
+  .c.fired{background:repeating-linear-gradient(135deg,#2a1c17 0 5px,#241813 5px 10px);
+    box-shadow:inset 0 0 0 1px rgba(255,150,80,.22)}
+  .c.fire,.c.fire:hover{background:linear-gradient(180deg,#ff8a3d,#b8200a);
+    animation:burn .42s ease-in-out infinite alternate;
+    box-shadow:0 0 15px rgba(255,110,40,.9), inset 0 1px 0 rgba(255,255,255,.2)}
+  .c.fire::after{content:'🔥';font-size:calc(var(--cs) * .58)}
+  @keyframes burn{from{filter:brightness(1)}to{filter:brightness(1.45)}}
+  .fbar{position:absolute;left:12px;right:12px;bottom:5px;height:4px;border-radius:3px;
+    background:rgba(255,255,255,.08);overflow:hidden;pointer-events:none;opacity:0;transition:opacity .18s}
+  .panel.burning .fbar{opacity:1}
+  .fbar i{display:block;height:100%;width:100%;transform-origin:left center;
+    background:linear-gradient(90deg,#ff4d2f,#ffb26b)}
+  .sd.hot .k{color:#ff8a5c}
+  .sd.hot .v{color:#ff7a4d}
+
   .bar{width:min(700px,94vw);display:flex;gap:9px;align-items:center;flex-wrap:wrap}
   button.b{font:inherit;font-size:12.5px;color:#e8ecf2;cursor:pointer;
     background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
@@ -92,28 +112,32 @@
 
 <header>
   <div class="brand">
-    <div class="t">ABSTRACT MINES</div>
-    <h1>抽象扫雷</h1>
+    <div class="t">FIRE DRILL</div>
+    <h1>救火</h1>
     <div class="s">桌上埋着需求、会议、临时加塞和领导找你</div>
   </div>
   <div class="tabs" id="tabs"></div>
 </header>
 
-<div class="panel">
+<div class="panel" id="panel">
   <div class="hud">
     <div class="sd"><span class="k">剩余雷</span><span class="v" id="mineLeft">0</span></div>
     <button id="face" title="重开">🙂</button>
+    <div class="sd" id="lifeBlk"><span class="k" id="hk">命</span><span class="v" id="lives">❤❤❤</span></div>
     <div class="sd time"><span class="k">用时</span><span class="v" id="timer">0.0</span></div>
   </div>
   <div class="scroll"><div class="board" id="board"></div></div>
+  <div class="fbar"><i id="fireBar"></i></div>
 </div>
 
 <div class="bar">
   <button class="b" id="restart">重开一局</button>
-  <span class="legend">左键挖 · 右键插旗「已读不回」<br>手机上长按 = 插旗</span>
+  <span class="legend">左键挖 · 右键插旗「已读不回」<br>手机上长按 = 插旗<br>
+    <b style="color:#ff8a5c">踩到雷 → 周围一片起火，赶在倒计时走完前把火全点灭</b></span>
 </div>
 
-<footer>数字表示周围有几个坑 · 全挖完就算今天圆满</footer>
+<footer>数字表示周围有几个坑 · 全挖完就算今天圆满<br>
+踩到雷只烧掉一条命 —— 火烧完了才真的下班 · 烧过的地方会留焦痕</footer>
 
 <div class="over" id="over">
   <div class="box">
@@ -147,8 +171,12 @@ let lv = LEVELS[0];
 let cells = [];          // {mine, near, open, flag, kind}
 let els = [];
 let started = false, over = false, won = false, flags = 0, opened = 0;
-let t0 = 0, tickT = null;
+let t0 = 0, tickT = null, pausedAt = 0;
 let pressT = null, longPressed = false;
+let lives = 3;
+const LIVES_MAX = 3;
+/* 救火状态：踩雷后 3×3 里所有还没挖开的格子一起烧起来，点一下灭一处 */
+let breach = {active:false, cell:-1, list:[], limit:0, deadline:0, raf:0};
 
 /* ---------- 音效 ---------- */
 const A = {
@@ -186,13 +214,21 @@ const A = {
     s.connect(lp).connect(g).connect(c.destination); s.start(t);
     this.tone(70, .5, 'sawtooth', .18, .5);
   },
-  win(){ [0,4,7,12,16,19,24].forEach((n,i)=> this.tone(523*Math.pow(2,n/12), .42, 'triangle', .075, 1, i*.085)); }
+  win(){ [0,4,7,12,16,19,24].forEach((n,i)=> this.tone(523*Math.pow(2,n/12), .42, 'triangle', .075, 1, i*.085)); },
+  ignite(){ this.tone(96, .34, 'sawtooth', .07, 1.9); this.tone(300, .3, 'square', .03, 2.4, .03); },
+  splash(){ this.tone(760, .09, 'sine', .05, .45); this.tone(200, .14, 'triangle', .035, .5, .02); },
+  out(){ [0,.09,.18].forEach((d,i)=> this.tone(300*Math.pow(1.3,i), .16, 'triangle', .05, 1.2, d)); }
 };
 
 /* ---------- 开新局 ---------- */
 function build(){
   cells = []; els = []; flags = 0; opened = 0;
   started = false; over = false; won = false; longPressed = false;
+  cancelAnimationFrame(breach.raf);
+  breach = {active:false, cell:-1, list:[], limit:0, deadline:0, raf:0};
+  lives = LIVES_MAX;
+  $('panel').classList.remove('burning');
+  $('lifeBlk').classList.remove('hot');
   clearInterval(tickT); tickT = null;
   $('timer').textContent = '0.0';
   $('face').textContent = '🙂';
@@ -246,6 +282,15 @@ function plant(safe){
 /* ---------- HUD ---------- */
 function updateHUD(){
   $('mineLeft').textContent = lv.mines - flags;
+  if(breach.active){
+    $('hk').textContent = '灭火';
+    $('lives').textContent = breach.list.length;
+    $('lifeBlk').classList.add('hot');
+  } else {
+    $('hk').textContent = '命';
+    $('lives').textContent = lives > 0 ? '❤'.repeat(lives) : '—';
+    $('lifeBlk').classList.remove('hot');
+  }
 }
 function paint(i){
   const c = cells[i], e = els[i];
@@ -263,9 +308,9 @@ function paint(i){
 /* ---------- 挖 ---------- */
 function open(i){
   const c = cells[i];
-  if(c.open || c.flag) return;
+  if(over || breach.active || c.open || c.flag) return;
   if(!started) plant(i);
-  if(c.mine){ return boom(i); }
+  if(c.mine){ return startFire(i); }
   const stack = [i];
   while(stack.length){
     const k = stack.pop();
@@ -278,8 +323,11 @@ function open(i){
   A.dig();
   checkWin();
 }
-function boom(i){
+function boom(i, why){
   over = true;
+  cancelAnimationFrame(breach.raf);
+  breach.active = false;
+  $('panel').classList.remove('burning');
   cells[i].open = true;
   for(const c of cells) c.open = true;
   for(let k=0;k<cells.length;k++){
@@ -299,7 +347,11 @@ function boom(i){
   setTimeout(()=>{
     $('oEmoji').textContent = hit.ic;
     $('oTitle').textContent = '炸了';
-    $('oText').innerHTML = `你挖到了「<b>${hit.name}</b>」。<br>今天的班就上到这里。`;
+    $('oText').innerHTML =
+      (why === 'fire' ? '火没灭完，会议室里炸了。' :
+       why === 'lives' ? '最后一条命也烧掉了。' :
+       '你挖到了「<b>' + hit.name + '</b>」。') +
+      `<br>今天的班就上到这里。`;
     $('over').classList.add('show');
   }, 520);
 }
@@ -331,6 +383,84 @@ function checkWin(){
   }
 }
 
+/* ---------- 救火 ---------- */
+/* 踩到雷 → 引爆点周围一片全烧起来。烧的是「还没挖开的格子」，不区分是不是雷，
+   所以你既得不到免费情报，也没法靠踩雷开图。全点灭就只是烧掉一条命。 */
+function startFire(i){
+  const r = Math.floor(i/lv.cols), c = i%lv.cols, list = [];
+  for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+    const nr = r+dr, nc = c+dc;
+    if(nr<0 || nr>=lv.rows || nc<0 || nc>=lv.cols) continue;
+    const k = nr*lv.cols + nc;
+    if(cells[k].open || cells[k].flag) continue;
+    list.push(k);
+  }
+  breach.active = true;
+  breach.cell = i;
+  breach.list = list;
+  breach.limit = 2.6 + 0.85*list.length;
+  breach.deadline = performance.now() + breach.limit*1000;
+  for(const k of list){ els[k].classList.remove('fired'); els[k].classList.add('fire'); }
+  // 计时器先停：被拉进会议室的时候不该继续算你的用时
+  if(tickT){ clearInterval(tickT); tickT = null; pausedAt = performance.now(); }
+  $('panel').classList.add('burning');
+  $('face').textContent = '🔥';
+  A.resume(); A.ignite();
+  updateHUD();
+  breach.raf = requestAnimationFrame(fireTick);
+}
+function fireTick(){
+  if(!breach.active) return;
+  const left = (breach.deadline - performance.now())/1000;
+  $('fireBar').style.transform = 'scaleX(' + Math.max(0, left/breach.limit).toFixed(3) + ')';
+  if(left <= 0){ fireFail(); return; }
+  breach.raf = requestAnimationFrame(fireTick);
+}
+function extinguish(k){
+  if(!breach.active) return;
+  const at = breach.list.indexOf(k);
+  if(at < 0) return;
+  breach.list.splice(at,1);
+  els[k].classList.remove('fire');
+  els[k].classList.add('fired');
+  A.resume(); A.splash();
+  updateHUD();
+  if(!breach.list.length) fireDone();
+}
+function endFire(){
+  breach.active = false;
+  cancelAnimationFrame(breach.raf);
+  // 只熄火，焦痕留着 —— 下次你会记得这片烧过
+  for(const k of breach.list) els[k].classList.remove('fire');
+  breach.list = [];
+  $('panel').classList.remove('burning');
+  $('fireBar').style.transform = 'scaleX(1)';
+}
+function fireDone(){
+  const cell = breach.cell;
+  endFire();
+  lives--;
+  A.out();
+  updateHUD();
+  if(lives <= 0){
+    $('face').textContent = '💀';
+    return boom(cell, 'lives');
+  }
+  $('face').textContent = '😅';
+  setTimeout(()=>{ if(!over) $('face').textContent = '🙂'; }, 1100);
+  // 计时接着走
+  if(started && !over){
+    t0 += performance.now() - pausedAt;
+    tickT = setInterval(()=>{ if(!over && !breach.active) $('timer').textContent = ((performance.now()-t0)/1000).toFixed(1); }, 100);
+  }
+}
+function fireFail(){
+  const cell = breach.cell;
+  endFire();
+  $('face').textContent = '💀';
+  boom(cell, 'fire');
+}
+
 /* ---------- 交互 ---------- */
 const board = $('board');
 board.addEventListener('contextmenu', e=> e.preventDefault());
@@ -350,6 +480,7 @@ board.addEventListener('pointerup', e=>{
   if(e.button === 2) return;
   if(longPressed) return;
   const i = +b.dataset.i;
+  if(breach.active){ extinguish(i); return; }   // 救火期间点格子 = 灭火
   const c = cells[i];
   if(over) return;
   if(c.open){
@@ -359,7 +490,7 @@ board.addEventListener('pointerup', e=>{
       if(nb.filter(j=>cells[j].flag).length === c.near){
         let bad = false;
         for(const j of nb) if(!cells[j].flag && !cells[j].open){ if(cells[j].mine) bad = true; }
-        if(bad){ const m = nb.find(j=>!cells[j].flag && !cells[j].open && cells[j].mine); return boom(m); }
+        if(bad){ const m = nb.find(j=>!cells[j].flag && !cells[j].open && cells[j].mine); return startFire(m); }
         for(const j of nb) if(!cells[j].flag) open(j);
       }
     }
@@ -371,7 +502,7 @@ board.addEventListener('pointerleave', ()=> clearTimeout(pressT));
 board.addEventListener('pointercancel', ()=> clearTimeout(pressT));
 board.addEventListener('mousedown', e=>{ if(e.button === 2){ e.preventDefault(); const b = e.target.closest('.c'); if(b) toggleFlag(+b.dataset.i); } });
 function toggleFlag(i){
-  if(over) return;
+  if(over || breach.active) return;
   const c = cells[i];
   if(c.open) return;
   if(!c.flag && flags >= lv.mines) return;
@@ -401,6 +532,23 @@ function toggleFlag(i){
 $('restart').addEventListener('click', ()=>{ A.init(); A.resume(); build(); });
 $('face').addEventListener('click', ()=>{ A.init(); A.resume(); build(); });
 $('oAgain').addEventListener('click', ()=>{ A.init(); A.resume(); build(); });
+
+/* ---------- 测试钩子 ---------- */
+window.__m = {
+  build, open, toggleFlag, extinguish, startFire, neighbors,
+  get breach(){ return breach.active ? {active:true, n:breach.list.length, limit:breach.limit, cell:breach.cell, list:breach.list.slice()} : {active:false}; },
+  get lives(){ return lives; },
+  get opened(){ return opened; },
+  get over(){ return over; },
+  get won(){ return won; },
+  get flags(){ return flags; },
+  get cols(){ return lv.cols; },
+  get rows(){ return lv.rows; },
+  mineIdx(){ return cells.map((c,i)=> c.mine ? i : -1).filter(i => i >= 0); },
+  cell(i){ const c = cells[i]; return {mine:c.mine, near:c.near, open:c.open, flag:c.flag}; },
+  setLv(k){ lv = LEVELS.find(L => L.key === k) || LEVELS[0]; build(); },
+  timeout(){ if(breach.active) fireFail(); }
+};
 
 /* ---------- 启动 ---------- */
 build();

@@ -246,6 +246,11 @@
   .tmp-2048 i{width:22px;height:22px;border-radius:5px;background:rgba(255,255,255,.05);
     border:1px solid rgba(255,255,255,.05);animation:t2idle 3s ease-in-out infinite}
   .tmp-2048 i:nth-child(1){background:linear-gradient(160deg,#3a2b1e,#6b4a2a)}
+  /* 空降的领导：不能合、只挡路 */
+  .tmp-2048 i:nth-child(2){position:relative;background:linear-gradient(160deg,#5c1f2b,#2a0d14);
+    box-shadow:0 0 8px rgba(255,70,70,.4)}
+  .tmp-2048 i:nth-child(2)::after{content:'领导';position:absolute;inset:0;display:flex;align-items:center;
+    justify-content:center;font:800 8px/1 "PingFang SC","Microsoft YaHei",sans-serif;color:#ffb4b4}
   .tmp-2048 i:nth-child(6){background:linear-gradient(160deg,#e8bd8b,#a8743c);animation:t2merge 2.4s ease-in-out infinite}
   .tmp-2048 i:nth-child(7){background:linear-gradient(160deg,#e8bd8b,#a8743c);animation:t2merge 2.4s ease-in-out infinite 1.2s}
   .tmp-2048 i:nth-child(11){background:linear-gradient(160deg,#f2a6da,#93356f)}
@@ -268,7 +273,7 @@
   .tmp-snake i:nth-child(5){animation-delay:.4s}
   .tmp-snake .f{position:relative;width:17px;height:17px;border-radius:5px;background:#ffb26b;
     box-shadow:0 0 12px rgba(255,178,107,.85);animation:foodb 1.4s ease-in-out infinite}
-  .tmp-snake .f::after{content:'KPI';position:absolute;inset:0;font:800 6px/17px ui-monospace,Consolas,monospace;
+  .tmp-snake .f::after{content:'报';position:absolute;inset:0;font:800 10px/17px "PingFang SC","Microsoft YaHei",sans-serif;
     color:#3a2408;text-align:center;letter-spacing:-.04em}
   @keyframes slither{0%,100%{transform:translateX(-4px)}50%{transform:translateX(4px)}}
   @keyframes segpulse{0%,100%{transform:scale(1)}50%{transform:scale(.82)}}
@@ -282,6 +287,13 @@
   .tmp-breakout .bs i:nth-child(4n){background:linear-gradient(180deg,#8fd9ff,#2f78a8)}
   .tmp-breakout .pd{position:absolute;bottom:3px;left:34px;width:44px;height:6px;border-radius:4px;
     background:linear-gradient(90deg,#ff8a5c,#ffd36e,#ff8a5c);box-shadow:0 0 12px rgba(255,138,92,.8)}
+  .tmp-breakout .pt{position:absolute;top:36px;left:80px;width:17px;height:13px;border-radius:4px;
+    background:linear-gradient(180deg,#c0392b,#7a1c12);box-shadow:0 0 9px rgba(255,86,86,.65);
+    animation:potfall 2s linear infinite}
+  .tmp-breakout .pt::after{content:'锅';position:absolute;inset:0;text-align:center;
+    font:800 7px/13px "PingFang SC","Microsoft YaHei",sans-serif;color:#ffdfd8}
+  @keyframes potfall{from{transform:translateY(-6px);opacity:0}
+    20%{opacity:1}to{transform:translateY(26px);opacity:1}}
   .tmp-breakout .bl{position:absolute;width:8px;height:8px;border-radius:50%;background:#fff4e0;
     box-shadow:0 0 10px rgba(255,255,255,.9);animation:bkball 2.4s ease-in-out infinite}
   @keyframes bkball{
@@ -292,6 +304,10 @@
   .tmp-mines{display:grid;grid-template-columns:repeat(5,19px);gap:3px}
   .tmp-mines i{display:block;width:19px;height:19px;border-radius:4px;
     background:linear-gradient(180deg,#2d3748,#222a38);box-shadow:inset 0 1px 0 rgba(255,255,255,.13)}
+  .tmp-mines i.fire{background:linear-gradient(180deg,#ff8a3d,#b8200a);
+    box-shadow:0 0 10px rgba(255,110,40,.75);animation:tfire .5s ease-in-out infinite alternate}
+  .tmp-mines i.fire::after{content:'🔥';display:block;font-size:10px;line-height:19px;text-align:center}
+  @keyframes tfire{from{filter:brightness(1)}to{filter:brightness(1.5)}}
   .tmp-mines i:nth-child(3){background:#111722;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
   .tmp-mines i:nth-child(3)::after{content:'2';display:block;font:800 11px/19px ui-monospace,Consolas,monospace;
     color:#8ef0c8;text-align:center}
@@ -660,42 +676,42 @@
     </a>
   </div>
 
-  <div class="shelf"><span class="label"><b>VOL.6</b> · 能玩的</span><span class="rule"></span></div>
+  <div class="shelf"><span class="label"><b>VOL.6</b> · 规则就是笑点</span><span class="rule"></span></div>
   <div class="grid">
     <a class="card" href="cyber-2048/">
       <span class="go">进入 →</span>
       <div class="thumb"><div class="tmp-2048"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
-      <h2>抽象 2048</h2>
-      <p>四方格里合出打工人生的七个阶段：摸鱼 → 搬砖 → 加班 → 发薪 → 放假 → 财富自由 → 提前退休。
-         合成最高的那块会弹一句「提前退休」，然后你可以选择接着合。方向键、WASD、手机滑动都能玩。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">会合并</span><span class="tag">有最高分</span></div>
+      <h2>向上管理</h2>
+      <p>四方格里合出打工人生的七个阶段。但<b>每上一个新台阶，棋盘就空降一位「领导」</b>——它不参与合并，
+         只挡路。唯一的办法是把两位领导推到贴在一起，让他们互相甩锅、一起消失。你越强，领导越多。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">领导会挡路</span><span class="tag">有最高分</span></div>
     </a>
     <a class="card" href="cyber-snake/">
       <span class="go">进入 →</span>
       <div class="thumb"><div class="tmp-snake"><i></i><i></i><i></i><i></i><i></i><div class="f"></div></div></div>
-      <h2>KPI 贪吃蛇</h2>
-      <p>吃 KPI 变长，越吃越快。撞墙＝主动离职，咬到自己＝内耗。
-         <b>蛇身每一节都是一个汉字，整条蛇从左往右读出来是一句话</b>——而且越长越离谱。死的时候会把那句话裱给你看。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">会念句子</span><span class="tag">音效</span></div>
+      <h2>今日汇报</h2>
+      <p>屏幕上给出一句要汇报的话。<b>你得按顺序吃掉正确的字</b>，一个字一个字把它念出来。
+         吃错的那个字会留在你身上当错别字——既占地方、又让你更长更快。整句话不差一个字念完，今天就能早点走。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">按顺序念</span><span class="tag">错别字长在身上</span></div>
     </a>
     <a class="card" href="cyber-breakout/">
       <span class="go">进入 →</span>
       <div class="thumb"><div class="tmp-breakout">
         <div class="bs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-        <div class="bl"></div><div class="pd"></div>
+        <div class="bl"></div><div class="pt"></div><div class="pd"></div>
       </div></div>
-      <h2>抽象打砖块</h2>
-      <p>本铺吉祥物当主角。砖块上写着早会、周报、需求变更、已读不回，一块一块砸穿。
-         三种掉落道具：多球、加长挡板、慢速。砸完一面进下一关，砖越来越多，球越来越快。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">三种道具</span><span class="tag">手感爽</span></div>
+      <h2>擦屁股</h2>
+      <p>砖块上写着早会、周报、需求变更、已读不回。但<b>砸碎一块砖，就掉下来一口「锅」</b>——
+         接住＝擦干净了，没接住的就堆在脚边，堆满六口扣一条命。一块挡板要同时干两件事：接球，和接锅。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">打完自己收拾</span><span class="tag">三种道具</span></div>
     </a>
     <a class="card" href="cyber-mines/">
       <span class="go">进入 →</span>
-      <div class="thumb"><div class="tmp-mines"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
-      <h2>抽象扫雷</h2>
-      <p>经典扫雷的底子，格子底下埋的是需求、会议、临时加塞和领导找你。
-         数字表示周围有几个坑，插旗就是「已读不回」。三档难度，各自记最快通关时间。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">三档难度</span><span class="tag">记纪录</span></div>
+      <div class="thumb"><div class="tmp-mines"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="fire"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+      <h2>救火</h2>
+      <p>格子底下埋着需求、会议、临时加塞和领导找你。<b>踩到雷不会立刻死</b>——引爆点周围一片全烧起来，
+         你得赶在倒计时走完前把火一个个点灭。灭完只烧掉一条命，火没灭完才是真的下班。烧过的地方会留焦痕。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">踩雷进救火</span><span class="tag">三档难度</span></div>
     </a>
   </div>
 

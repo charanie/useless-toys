@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>KPI 贪吃蛇 · KPI SNAKE</title>
+<title>今日汇报 · DAILY REPORT</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#07080b}
@@ -39,9 +39,11 @@
   .said{flex:1;min-width:0;background:rgba(18,26,24,.82);border:1px solid rgba(255,255,255,.09);
     border-radius:12px;padding:9px 14px}
   .said .k{font-size:9.5px;letter-spacing:.24em;color:#6f7d79}
-  .said .v{margin-top:4px;font-size:13.5px;letter-spacing:.12em;color:#c8f2e0;min-height:19px;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .said .v i{color:#6ef0b8;font-style:normal}
+  .said .v{margin-top:5px;font-size:13.5px;letter-spacing:.1em;color:#c8f2e0;min-height:19px;
+    line-height:1.8;word-break:break-all}
+  .said .v u{color:#6ef0b8;text-decoration:none}
+  .said .v i{color:#0d1a16;background:#ffb26b;font-style:normal;border-radius:3px;padding:0 3px;font-weight:800}
+  .said .v s{color:#5b6a66;text-decoration:none}
 
   .bar{width:min(520px,90vw);display:flex;gap:9px;align-items:center}
   button{font:inherit;font-size:12.5px;color:#e6ece9;cursor:pointer;
@@ -72,13 +74,13 @@
 
 <header>
   <div class="brand">
-    <div class="t">KPI SNAKE</div>
-    <h1>KPI 贪吃蛇</h1>
-    <div class="s">吃 KPI 变长，蛇身会拼出一句话</div>
+    <div class="t">DAILY REPORT</div>
+    <h1>今日汇报</h1>
+    <div class="s">照着那句话，一个字一个字念出来</div>
   </div>
   <div class="stats">
-    <div class="stat"><div class="k">KPI</div><div class="v" id="score">0</div></div>
-    <div class="stat len"><div class="k">长度</div><div class="v" id="len">3</div></div>
+    <div class="stat"><div class="k">念到</div><div class="v" id="prog">0/0</div></div>
+    <div class="stat len"><div class="k">错别字</div><div class="v" id="wrong">0</div></div>
     <div class="stat best"><div class="k">最佳</div><div class="v" id="best">0</div></div>
   </div>
 </header>
@@ -89,7 +91,7 @@
 
 <div class="readout">
   <div class="said">
-    <div class="k">本局产出的一句话</div>
+    <div class="k">今天要汇报的一句话</div>
     <div class="v" id="said"></div>
   </div>
 </div>
@@ -100,7 +102,7 @@
   <span class="hint">方向键 / WASD / 手指滑动 · 空格暂停</span>
 </div>
 
-<footer>撞墙 ＝ 主动离职 · 咬到自己 ＝ 内耗</footer>
+<footer>照着上面那句话，按顺序吃掉正确的字 —— 吃错的会留在你身上当错别字<br>撞墙 ＝ 主动离职 · 咬到自己 ＝ 内耗</footer>
 
 <div class="over" id="over">
   <div class="box">
@@ -115,9 +117,10 @@
 
 <script>
 "use strict";
-/* ========= KPI 贪吃蛇 ========= */
+/* ========= 今日汇报 ========= */
 const $ = id => document.getElementById(id);
-const COLS = 20, ROWS = 20;
+const COLS = 16, ROWS = 16;      // 格子做大一点，字才看得清
+const PELLETS = 3;               // 场上永远 1 个正确字 + 2 个干扰字
 
 const SENTENCES = [
   '今天的会议纪要写的是明天还要开会',
@@ -161,9 +164,10 @@ const SAYINGS = [
 const cvs = $('c'), ctx = cvs.getContext('2d');
 let cell = 24;
 let snake = [], dir = {r:0,c:1}, queue = [];
-let food = null, text = '', eaten = 0, score = 0, best = 0;
-let running = false, paused = false, dead = false, dying = 0;
-let stepMs = 165, acc = 0, last = 0, flash = 0;
+/* spoken = 你这一局真正吐出来的字（含错别字），蛇身就是它 */
+let foods = [], text = '', spoken = [], correct = 0, wrong = 0, best = 0;
+let running = false, paused = false, dead = false;
+let stepMs = 172, acc = 0, last = 0, flash = 0;
 let touchStart = null;
 
 /* ---------- 音效 ---------- */
@@ -184,7 +188,9 @@ const A = {
     o.connect(g).connect(c.destination);
     o.start(t0); o.stop(t0+dur+0.04);
   },
-  eat(){ const n = 8 + eaten; this.tone(300*Math.pow(1.03, eaten), .13, 'square', .06, 1.6); this.tone(600*Math.pow(1.03, eaten), .1, 'sine', .03, 1.4, .04); },
+  eat(){ this.tone(300*Math.pow(1.03, Math.min(24, correct)), .13, 'square', .06, 1.6); this.tone(600*Math.pow(1.03, Math.min(24, correct)), .1, 'sine', .03, 1.4, .04); },
+  wrong(){ this.tone(152, .17, 'sawtooth', .052, .6); this.tone(97, .21, 'square', .04, .72, .05); },
+  done(){ [0,4,7,12,16].forEach((n,i)=> this.tone(392*Math.pow(2,n/12), .36, 'triangle', .075, 1, i*.085)); },
   turn(){ this.tone(160, .035, 'sine', .022, 1); },
   crash(){ [0,.1,.22,.36].forEach((d,i)=> this.tone(260*Math.pow(.75,i), .34, 'sawtooth', .07, .5, d)); }
 };
@@ -202,42 +208,69 @@ function resize(){
   draw();
 }
 
-/* ---------- 文本流 ---------- */
-function ensureText(n){
-  while(text.length < n + 10){
-    text += SENTENCES[(Math.random()*SENTENCES.length)|0];
-  }
-}
+/* ---------- 提词器 ---------- */
 function saidNow(){
-  const s = text.slice(0, snake.length);
-  return s.split('').map((ch,i)=> i===s.length-1 ? `<i>${ch}</i>` : ch).join('');
+  return text.split('').map((ch,i)=>{
+    if(i < correct) return `<u>${ch}</u>`;        // 已经念出来的
+    if(i === correct) return `<i>${ch}</i>`;      // 下一个要念的
+    return `<s>${ch}</s>`;                        // 还没念到
+  }).join('');
+}
+/* 干扰字：从别的句子里抽，但绝不能长得跟「下一个正确字」一样 */
+function decoyChar(){
+  const need = text[correct];
+  for(let i=0;i<60;i++){
+    const s = SENTENCES[(Math.random()*SENTENCES.length)|0];
+    const ch = s[(Math.random()*s.length)|0];
+    if(ch !== need) return ch;
+  }
+  return need === '吧' ? '呢' : '吧';
+}
+function freeCell(){
+  const free = [];
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    if(snake.some(s=>s.r===r&&s.c===c)) continue;
+    if(foods.some(f=>f.r===r&&f.c===c)) continue;
+    free.push({r,c});
+  }
+  return free.length ? free[(Math.random()*free.length)|0] : null;
+}
+function placeFoods(){
+  foods = foods.filter(f => !snake.some(s => s.r===f.r && s.c===f.c));
+  const need = text[correct];
+  if(need === undefined){ foods = []; return; }
+  // 场上必须正好有一个「正确字」——上一个被吃掉后就补一个
+  if(!foods.some(f => f.ch === need)){
+    if(foods.length >= PELLETS) foods.pop();
+    const p = freeCell();
+    if(p) foods.push({r:p.r, c:p.c, ch:need});
+  }
+  while(foods.length < PELLETS){
+    const p = freeCell();
+    if(!p) break;
+    foods.push({r:p.r, c:p.c, ch:decoyChar()});
+  }
 }
 
 /* ---------- 开局 ---------- */
 function reset(){
   text = SENTENCES[(Math.random()*SENTENCES.length)|0];
-  snake = [{r:10,c:8},{r:10,c:7},{r:10,c:6}];
-  ensureText(snake.length);
+  const mr = Math.floor(ROWS/2), mc = Math.floor(COLS/2);
+  snake = [{r:mr,c:mc},{r:mr,c:mc-1},{r:mr,c:mc-2}];
   dir = {r:0,c:1}; queue = [];
-  eaten = 0; score = 0; stepMs = 165; acc = 0; dead = false; dying = 0; flash = 0;
+  spoken = []; correct = 0; wrong = 0; foods = [];
+  stepMs = 172; acc = 0; dead = false; flash = 0;
   paused = false; running = false;
   $('over').classList.remove('show');
   $('pause').textContent = '暂停';
-  placeFood();
+  placeFoods();
   updateHUD();
   draw();
 }
-function placeFood(){
-  const free = [];
-  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
-    if(!snake.some(s=>s.r===r && s.c===c)) free.push({r,c});
-  }
-  food = free.length ? free[(Math.random()*free.length)|0] : null;
-}
 function updateHUD(){
-  $('score').textContent = eaten;
-  $('len').textContent = snake.length;
-  if(eaten > best){ best = eaten; try{ localStorage.setItem('ut_snake_best', String(best)); }catch(e){} }
+  $('prog').textContent = correct + '/' + text.length;
+  $('wrong').textContent = wrong;
+  if(correct > best){ best = correct; try{ localStorage.setItem('ut_snake_best', String(best)); }catch(e){} }
   $('best').textContent = best;
   $('said').innerHTML = saidNow();
 }
@@ -257,41 +290,56 @@ function tick(){
   }
 
   snake.unshift(head);
-  if(food && head.r===food.r && head.c===food.c){
-    eaten++; score = eaten;
-    ensureText(snake.length);
-    stepMs = Math.max(72, 165 - eaten*3);
-    A.resume(); A.eat();
-    placeFood();
-    if(!food) return win();
-    updateHUD();
+  const hit = foods.findIndex(f => f.r===head.r && f.c===head.c);
+  if(hit >= 0){
+    const f = foods[hit];
+    foods.splice(hit, 1);
+    if(f.ch === text[correct]){
+      spoken.push({ch:f.ch, ok:true});
+      correct++;
+      A.resume(); A.eat();
+      if(correct >= text.length){ updateHUD(); return win(); }
+    } else {
+      // 错别字：念错的字也一样长在你身上，既占地方又让你更长更快
+      spoken.push({ch:f.ch, ok:false});
+      wrong++;
+      A.resume(); A.wrong();
+    }
+    stepMs = Math.max(76, 172 - spoken.length*3);
   } else {
     snake.pop();
   }
-  // 文本流不够长时继续续写
-  ensureText(snake.length + 4);
+  // 每一格都重摆一次：身体爬过去会把字压在底下，压在底下就既看不见也吃不到
+  placeFoods();
+  if(hit >= 0) updateHUD();
 }
 function die(what, emoji, title){
   running = false; dead = true; flash = 1;
   A.crash();
-  const full = text.slice(0, snake.length);
+  const spokenLine = spoken.map(e => e.ch).join('') || '（一个字都没来得及说）';
   setTimeout(()=>{
     $('oEmoji').textContent = emoji;
     $('oTitle').textContent = title;
     $('oText').innerHTML =
       (what==='墙' ? '你撞墙了，相当于主动离职。' : '你咬到了自己 —— 典型的资源内耗。') +
-      `<span class="saidline">${full}</span>` +
-      `${SAYINGS[(Math.random()*SAYINGS.length)|0]}<br>本局吃了 <b>${eaten}</b> 个 KPI · 最佳 <b>${best}</b>`;
+      `<br>汇报才念到「<b>${text.slice(0, correct) || '…'}</b>」，后面没说完。` +
+      `<span class="saidline">${spokenLine}</span>` +
+      `${SAYINGS[(Math.random()*SAYINGS.length)|0]}<br>念对 <b>${correct}</b> 个字 · 错别字 <b>${wrong}</b> 个 · 最佳 <b>${best}</b>`;
     $('over').classList.add('show');
   }, 240);
   updateHUD();
 }
 function win(){
   running = false; dead = true;
-  $('oEmoji').textContent = '🏆';
-  $('oTitle').textContent = '填满了';
-  $('oText').innerHTML = `整个办公室都被你的 KPI 塞满了。<span class="saidline">${text.slice(0,snake.length*1)}</span>`;
+  A.resume(); A.done();
+  $('oEmoji').textContent = '✅';
+  $('oTitle').textContent = '汇报完毕';
+  $('oText').innerHTML =
+    `整句话一个字不差地念完了，今天可以早点走。` +
+    `<span class="saidline">${text}</span>` +
+    `错别字 <b>${wrong}</b> 个 · 最佳 <b>${best}</b> 个字`;
   $('over').classList.add('show');
+  updateHUD();
 }
 
 /* ---------- 绘制 ---------- */
@@ -302,6 +350,7 @@ function rr(x,y,w,h,r){
   ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
 }
 function draw(){
+  if(!text) return;                 // boot() 里 resize() 会先打一枪，那时还没发牌
   const W = cell*COLS, H = cell*ROWS;
   ctx.clearRect(0,0,W,H);
 
@@ -316,43 +365,45 @@ function draw(){
   ctx.strokeStyle = 'rgba(110,240,184,.22)'; ctx.lineWidth = 2;
   ctx.strokeRect(1,1,W-2,H-2);
 
-  // KPI 食物
-  if(food){
-    const x = food.c*cell, y = food.r*cell;
+  // 待吃的字（每个都长得一模一样 —— 哪个是对的，只能靠你自己读提词器）
+  for(const f of foods){
+    const x = f.c*cell, y = f.r*cell;
+    // 三个字一起呼吸：错开相位的话，最亮那个会被误当成「这就是答案」
     const pulse = 0.5 + 0.5*Math.sin(performance.now()/260);
     ctx.save();
-    ctx.shadowColor = 'rgba(255,178,107,.9)'; ctx.shadowBlur = 10 + pulse*10;
+    ctx.shadowColor = 'rgba(255,178,107,.85)'; ctx.shadowBlur = 8 + pulse*9;
     ctx.fillStyle = '#ffb26b';
-    rr(x+cell*0.12, y+cell*0.12, cell*0.76, cell*0.76, cell*0.24); ctx.fill();
+    rr(x+cell*0.1, y+cell*0.1, cell*0.8, cell*0.8, cell*0.24); ctx.fill();
     ctx.restore();
     ctx.fillStyle = '#3a2408';
-    ctx.font = `800 ${Math.round(cell*0.34)}px ui-monospace,Consolas,monospace`;
+    ctx.font = `800 ${Math.round(cell*0.46)}px "PingFang SC","Microsoft YaHei",sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('KPI', x+cell/2, y+cell/2+0.5);
+    ctx.fillText(f.ch, x+cell/2, y+cell/2+0.5);
   }
 
-  // 蛇身
+  // 蛇身 —— 每一节都是你真正吐出来的字；头在最后，所以从尾读到头
   const n = snake.length;
   for(let i=n-1;i>=0;i--){
     const s = snake[i];
     const k = n>1 ? i/(n-1) : 0;
-    const hue = 158 + k*72;
+    const e = i < spoken.length ? spoken[spoken.length-1-i] : null;
+    const bad = !!(e && !e.ok);
+    const hue = bad ? 352 : 158 + k*72;
     const x = s.c*cell, y = s.r*cell;
     const shrink = i===0 ? 0.03 : 0.11;
     ctx.save();
-    if(i===0){ ctx.shadowColor = 'rgba(110,240,184,.85)'; ctx.shadowBlur = 14; }
-    ctx.fillStyle = i===0 ? '#9dffd4' : `hsl(${hue},58%,${52-k*10}%)`;
+    if(i===0){ ctx.shadowColor = bad ? 'rgba(255,110,110,.85)' : 'rgba(110,240,184,.85)'; ctx.shadowBlur = 14; }
+    ctx.fillStyle = i===0 ? (bad ? '#ffc2c2' : '#9dffd4') : `hsl(${hue},58%,${52-k*10}%)`;
     rr(x+cell*shrink, y+cell*shrink, cell*(1-shrink*2), cell*(1-shrink*2), cell*0.24);
     ctx.fill();
     ctx.restore();
 
-    // 身上的字
-    const ch = text[n-1-i];
-    if(ch){
-      ctx.fillStyle = i===0 ? '#06231a' : 'rgba(6,20,16,.82)';
+    // 身上的字（错别字是红的）
+    if(e){
+      ctx.fillStyle = e.ok ? (i===0 ? '#06231a' : 'rgba(6,20,16,.82)') : '#5c0f18';
       ctx.font = `800 ${Math.round(cell*(i===0?0.56:0.52))}px "PingFang SC","Microsoft YaHei",sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(ch, x+cell/2, y+cell/2+0.5);
+      ctx.fillText(e.ch, x+cell/2, y+cell/2+0.5);
     }
     // 眼睛
     if(i===0){
@@ -443,6 +494,40 @@ $('pause').addEventListener('click', togglePause);
 $('restart').addEventListener('click', ()=>{ A.init(); A.resume(); reset(); });
 $('oAgain').addEventListener('click', ()=>{ A.init(); A.resume(); reset(); });
 addEventListener('resize', resize);
+
+/* ---------- 测试钩子 ---------- */
+window.__s = {
+  get text(){ return text; },
+  get correct(){ return correct; },
+  get wrong(){ return wrong; },
+  get spoken(){ return spoken.map(e => e.ch + (e.ok ? '' : '✗')); },
+  get snake(){ return snake.length; },
+  get foods(){ return foods.map(f => f.r + ',' + f.c + ':' + f.ch); },
+  get dead(){ return dead; },
+  get running(){ return running; },
+  get cols(){ return COLS; },
+  get rows(){ return ROWS; },
+  need(){ return text[correct]; },
+  cells(){ return snake.map(p => p.r + ',' + p.c); },
+  head(){ return {r:snake[0].r, c:snake[0].c}; },
+  dirNow(){ return {r:dir.r, c:dir.c}; },
+  setText(t){ text = t; correct = 0; spoken = []; wrong = 0; foods = []; placeFoods(); updateHUD(); draw(); },
+  reset, placeFoods, tick,
+  /* 把「下一个正确字」喂到嘴边：只为自动化回归用 */
+  putNextAhead(){
+    const h = snake[0], d = dir;
+    const t = {r: h.r + d.r, c: h.c + d.c};
+    if(t.r<0||t.r>=ROWS||t.c<0||t.c>=COLS) return null;
+    foods = foods.filter(f => !(f.r===t.r && f.c===t.c));
+    const p = freeCell();
+    if(p) foods.push({r:p.r, c:p.c, ch: decoyChar()});
+    foods.push({r:t.r, c:t.c, ch: text[correct]});
+    return t;
+  },
+  putAt(r, c, ch){ foods = foods.filter(f => !(f.r===r && f.c===c)); foods.push({r, c, ch}); },
+  setDir(r, c){ dir = {r, c}; queue = []; },
+  start(){ running = true; }
+};
 
 /* ---------- 启动 ---------- */
 (function boot(){

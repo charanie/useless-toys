@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>抽象打砖块 · ABSTRACT BREAKOUT</title>
+<title>擦屁股 · CLEAN UP</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#08070b}
@@ -65,9 +65,9 @@
 
 <header>
   <div class="brand">
-    <div class="t">ABSTRACT BREAKOUT</div>
-    <h1>抽象打砖块</h1>
-    <div class="s">把今天的破事一块一块砸碎</div>
+    <div class="t">CLEAN UP</div>
+    <h1>擦屁股</h1>
+    <div class="s">砸碎的砖会变成锅掉下来，你得接住</div>
   </div>
   <div class="stats">
     <div class="stat"><div class="k">分数</div><div class="v" id="score">0</div></div>
@@ -82,10 +82,10 @@
 <div class="bar">
   <button id="restart">重开一局</button>
   <span class="pu" id="pu"></span>
-  <span class="hint">鼠标 / 手指拖动挡板 · ← → 也行 · 空格发球</span>
+  <span class="hint">鼠标 / 手指拖动挡板 · ← → 也行 · 空格发球<br>接球是本职，接锅是德行</span>
 </div>
 
-<footer>挡板接不住的东西，明天还得接着干</footer>
+<footer>砸碎一块砖，就掉下来一口锅 —— 接住算你擦干净了 ＋15，没接住的堆在脚边<br>脚边堆满 6 口，就得从命里扣一条</footer>
 
 <div class="over" id="over">
   <div class="box">
@@ -106,6 +106,9 @@ const W = 480, H = 620;
 const COLS = 10, BRICK_GAP = 5, BRICK_H = 26, BRICK_TOP = 56;
 const PAD_Y = 566, PAD_H = 13;
 const R = 7.4;
+const FLOOR_Y = H - 22;            // 脚边：没接住的锅落在这儿堆着
+const POT_MAX = 6;                 // 堆满六口就扣一条命
+const POT_RATE = 0.42;             // 不是每块砖都甩锅，不然接不过来
 
 const LABELS = ['早会','周报','需求变更','已读不回','加班','甩锅','对齐','复盘',
                 '催进度','加需求','走流程','发版','联调','排期','拉群','站会',
@@ -115,9 +118,9 @@ const ROW_HUES = [352, 22, 42, 150, 196, 268, 320, 96];
 const cvs = $('c'), ctx = cvs.getContext('2d');
 const cRect = () => cvs.getBoundingClientRect();
 
-let bricks = [], balls = [], parts = [], drops = [];
+let bricks = [], balls = [], parts = [], drops = [], debris = [];
 let pad = {x:W/2-52, w:104, target:W/2};
-let score = 0, best = 0, level = 1, lives = 3;
+let score = 0, best = 0, level = 1, lives = 3, pots = 0;
 let launched = false, over = false, winPause = 0, slowT = 0;
 let keys = {left:false, right:false};
 let rafLast = 0;
@@ -145,7 +148,9 @@ const A = {
   paddle(){ this.tone(150, .08, 'triangle', .06, 1.5); },
   drop(){ [0,.07,.14].forEach((d,i)=> this.tone(660*Math.pow(1.26,i), .14, 'square', .05, 1, d)); },
   lose(){ [0,.12,.26].forEach((d,i)=> this.tone(300*Math.pow(.72,i), .32, 'sawtooth', .06, .6, d)); },
-  clear(){ [0,4,7,12,16].forEach((n,i)=> this.tone(392*Math.pow(2,n/12), .4, 'triangle', .08, 1, i*.08)); }
+  clear(){ [0,4,7,12,16].forEach((n,i)=> this.tone(392*Math.pow(2,n/12), .4, 'triangle', .08, 1, i*.08)); },
+  wipe(){ this.tone(540, .07, 'triangle', .05, 1.5); this.tone(900, .06, 'sine', .028, 1.4, .03); },
+  pot(){ this.tone(118, .17, 'sawtooth', .05, .55); this.tone(76, .21, 'square', .038, .6, .04); }
 };
 
 /* ---------- 布局 ---------- */
@@ -166,7 +171,7 @@ function toLogical(clientX){
 /* ---------- 关卡 ---------- */
 function brickW(){ return (W - 36 - (COLS-1)*BRICK_GAP) / COLS; }
 function buildLevel(){
-  bricks = []; drops = []; parts = [];
+  bricks = []; drops = []; parts = []; debris = [];
   const rows = Math.min(8, 4 + level);
   const bw = brickW();
   const pool = LABELS.slice();
@@ -245,6 +250,11 @@ function maybeDrop(x, y){
   if(Math.random() > 0.14) return;
   const d = DROPS[(Math.random()*DROPS.length)|0];
   drops.push({x, y, w:26, h:18, ...d, vy:140});
+}
+/* 甩锅：砖碎了掉一口锅下来，慢慢往下坠，等你用挡板接 */
+function spawnPot(x, y){
+  if(Math.random() > POT_RATE) return;
+  debris.push({x, y, w:26, h:18, vy:148 + Math.random()*46, rot:0, spin:(Math.random()-0.5)*2.2});
 }
 function applyDrop(d){
   A.drop();
@@ -329,6 +339,7 @@ function update(dt){
         A.brick(k.row);
         burst(k.x + k.w/2, k.y + k.h/2, k.hue, 12);
         maybeDrop(k.x + k.w/2, k.y + k.h/2);
+        spawnPot(k.x + k.w/2, k.y + k.h/2);
         updateHUD();
         break;
       }
@@ -346,6 +357,33 @@ function update(dt){
     if(d.y + d.h > PAD_Y && d.y < PAD_Y + PAD_H + 6 &&
        d.x + d.w/2 > pad.x && d.x - d.w/2 < pad.x + pad.w){
       applyDrop(d); drops.splice(i,1);
+    }
+  }
+
+  // 锅：接住 = 擦干净了；漏掉 = 堆在脚边
+  for(let i=debris.length-1;i>=0;i--){
+    const d = debris[i];
+    d.y += d.vy*dt;
+    d.rot = (d.rot||0) + d.spin*dt;
+    if(d.y + d.h > PAD_Y && d.y < PAD_Y + PAD_H + 6 &&
+       d.x + d.w/2 > pad.x && d.x - d.w/2 < pad.x + pad.w){
+      debris.splice(i,1);
+      score += 15;
+      A.wipe(); burst(d.x, PAD_Y - 4, 12, 9);
+      updateHUD();
+      continue;
+    }
+    if(d.y + d.h >= FLOOR_Y){
+      debris.splice(i,1);
+      pots++;
+      A.pot();
+      updateHUD();
+      if(pots >= POT_MAX){
+        pots = 0;
+        lives--; A.lose();
+        updateHUD();
+        if(lives <= 0) finish();
+      }
     }
   }
 
@@ -367,8 +405,8 @@ function update(dt){
     }
   }
 
-  // 过关
-  if(!bricks.length && winPause <= 0 && !over){
+  // 过关：砖砸完了不算完，掉下来的锅也得都落地/接住
+  if(!bricks.length && !debris.length && winPause <= 0 && !over){
     winPause = 1.1;
     score += 100*level;
     updateHUD(); A.clear();
@@ -432,6 +470,23 @@ function draw(){
     ctx.fillText(d.ic, d.x, d.y + d.h/2 + .5);
   }
 
+  // 往下掉的锅
+  for(const d of debris){
+    const cy = d.y + d.h/2;
+    ctx.save();
+    ctx.translate(d.x, cy);
+    ctx.rotate(d.rot || 0);
+    ctx.shadowColor = 'rgba(255,86,86,.75)'; ctx.shadowBlur = 11;
+    ctx.fillStyle = '#c0392b';
+    rr(-d.w/2, -d.h/2, d.w, d.h, 6); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ffdfd8';
+    ctx.font = `800 11px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('锅', 0, 0.5);
+    ctx.restore();
+  }
+
   // 挡板
   ctx.save();
   ctx.shadowColor = 'rgba(255,138,92,.85)'; ctx.shadowBlur = 16;
@@ -457,6 +512,29 @@ function draw(){
     ctx.fillRect(p.x-2, p.y-2, 4, 4);
   }
   ctx.globalAlpha = 1;
+
+  // 脚边那一排：堆了几口锅
+  {
+    const slotW = (W - 36) / POT_MAX, trayY = FLOOR_Y + 3;
+    for(let i=0;i<POT_MAX;i++){
+      const x = 18 + i*slotW;
+      rr(x + 3, trayY, slotW - 6, 15, 4);
+      if(i < pots){
+        ctx.fillStyle = 'rgba(192,57,43,.92)'; ctx.fill();
+        ctx.fillStyle = 'rgba(255,223,216,.95)';
+        ctx.font = `800 10px "PingFang SC","Microsoft YaHei",sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('锅', x + slotW/2, trayY + 8);
+      } else {
+        ctx.strokeStyle = `rgba(255,86,86,${i === pots ? .42 : .17})`;
+        ctx.lineWidth = 1; ctx.stroke();
+      }
+    }
+    ctx.fillStyle = 'rgba(255,110,110,.5)';
+    ctx.font = `700 9px "PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText('没接住的锅堆在这儿 — 满 6 口扣一条命', W/2, FLOOR_Y - 2);
+  }
 
   // 提示
   if(!launched && !over && balls.length){
@@ -519,10 +597,32 @@ $('oAgain').addEventListener('click', ()=>{ A.init(); A.resume(); newGame(); });
 addEventListener('resize', resize);
 
 function newGame(){
-  score = 0; level = 1; lives = 3; over = false; winPause = 0; parts = [];
+  score = 0; level = 1; lives = 3; over = false; winPause = 0; parts = []; debris = []; pots = 0;
   $('over').classList.remove('show');
   buildLevel(); updateHUD();
 }
+
+/* ---------- 测试钩子 ---------- */
+window.__b = {
+  update, draw, newGame, buildLevel, resetBall, launch, spawnPot,
+  get bricks(){ return bricks.length; },
+  get debris(){ return debris.length; },
+  get pots(){ return pots; },
+  get lives(){ return lives; },
+  get score(){ return score; },
+  get level(){ return level; },
+  get over(){ return over; },
+  get launched(){ return launched; },
+  get ball(){ return balls[0] ? {x:balls[0].x, y:balls[0].y, stuck:balls[0].stuck} : null; },
+  get potList(){ return debris.map(d => ({x:d.x, y:d.y})); },
+  setPad(x){ pad.x = x - pad.w/2; pad.target = x; },
+  addPot(x, y, vy){ debris.push({x, y, w:26, h:18, vy: vy===undefined?150:vy, rot:0, spin:0}); },
+  breakAll(x){
+    const n = bricks.length;
+    for(const k of bricks) debris.push({x: x===undefined ? k.x+k.w/2 : x, y: k.y+k.h/2, w:26, h:18, vy:200, rot:0, spin:0});
+    bricks = []; return n;
+  }
+};
 
 /* ---------- 启动 ---------- */
 (function boot(){
