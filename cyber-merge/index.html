@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>抽象合成 · CYBER MERGE</title>
+<title>重组 · REORG</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#08070b}
@@ -62,9 +62,9 @@
 
 <header>
   <div class="brand">
-    <div class="t">CYBER MERGE · PHYSICS</div>
-    <h1>抽象合成</h1>
-    <div class="s">两个一样的撞在一起，就合成更高级的</div>
+    <div class="t">REORG · PHYSICS</div>
+    <h1>重组</h1>
+    <div class="s">两个一样的撞在一起就升级 —— 但重力会跟着战略走</div>
   </div>
   <div class="stats">
     <div class="stat"><div class="k">分数</div><div class="v" id="score">0</div></div>
@@ -77,10 +77,12 @@
 
 <div class="bar">
   <button class="b primary" id="start">开始 (空格)</button>
-  <span class="hint">左右移动鼠标瞄准 · 点一下 / 空格 落子</span>
+  <span class="hint">左右移动鼠标瞄准 · 点一下 / 空格 落子<br><b style="color:#ffd36e">战略一变，重力就歪，球全往一边堆</b></span>
 </div>
 
-<footer>和 2048 是<b>同一套词</b>，但玩法完全不同 · 堆过线超过一秒半就结束</footer>
+<footer><b>重组</b>：公司战略每隔十几秒变一次 —— 变成「向左倾」或「向右倾」之后，<br>
+重力就多了一个横向分量，整罐球会慢慢滑到一边去堆着，你得跟着改落点<br>
+和 2048 是<b>同一套词</b>，但玩法完全不同 · 堆过线超过一秒半就结束</footer>
 
 <div class="over" id="over">
   <div class="box">
@@ -101,6 +103,18 @@ const $ = id => document.getElementById(id);
 const W = 520, H = 660;
 const WALL = 8, FLOOR = H - 52, DANGER = 156, DROP_Y = 66;
 const G = 2100;
+/* 重组：公司战略每隔十几秒变一次，重力就多一个横向分量，球全往一边堆 */
+const TILT_G = 1150;
+let tiltX = 0, tiltTarget = 0, tiltT = 9, tiltName = '按兵不动';
+function shiftStrategy(){
+  const roll = Math.random();
+  const v = roll < 0.37 ? -1 : roll < 0.74 ? 1 : 0;
+  tiltTarget = v * TILT_G;
+  tiltT = 11 + Math.random()*7;
+  tiltName = v < 0 ? '向左倾' : v > 0 ? '向右倾' : '按兵不动';
+  fx.push({ x: W/2, y: 172, text: '公司战略：' + tiltName, color: '#ffd36e', life: 1.9 });
+  tone(300, .22, .05, 'sawtooth', .8);
+}
 
 const LV = [
   { n:'摸鱼',     r:15, a:'#8fd9ff', b:'#2f78a8', v:1  },
@@ -154,6 +168,7 @@ function resize(){
 function reset(){
   balls = []; parts = []; fx = [];
   score = 0; topLv = -1; dangerT = 0; cooldown = 0; shakeT = 0;
+  tiltX = 0; tiltTarget = 0; tiltT = 9 + Math.random()*4; tiltName = '按兵不动';
   playing = true; over = false;
   curLv = (Math.random()*DROPPABLE)|0;
   nextLv = (Math.random()*DROPPABLE)|0;
@@ -218,7 +233,7 @@ function solve(iters){
 function physics(dt){
   const SUB = 3, h = dt/SUB;
   for(let s=0;s<SUB;s++){
-    for(const b of balls){ b.vy += G*h; b.x += b.vx*h; b.y += b.vy*h; }
+    for(const b of balls){ b.vy += G*h; b.vx += tiltX*h; b.x += b.vx*h; b.y += b.vy*h; }
     solve(4);
     // 合并（只在松弛之后判定一次）
     const merges = [];
@@ -273,6 +288,10 @@ function physics(dt){
 function step(dt){
   if(playing && !over){
     if(cooldown > 0) cooldown = Math.max(0, cooldown - dt);
+    // 战略倾斜：向目标缓缓靠过去，靠的过程里整罐球会慢慢滑
+    tiltX += (tiltTarget - tiltX) * Math.min(1, dt*1.5);
+    tiltT -= dt;
+    if(tiltT <= 0) shiftStrategy();
     physics(dt);
     // 危险判定
     const risky = balls.some(b => b.y - b.r < DANGER && Math.hypot(b.vx, b.vy) < 80);
@@ -319,6 +338,22 @@ function draw(){
   // 罐子
   ctx.fillStyle = 'rgba(255,255,255,.025)';
   rr(WALL, 0, W-WALL*2, FLOOR, 12); ctx.fill();
+  // 战略倾斜：往哪边倒，就给哪边上一层暖色
+  if(Math.abs(tiltX) > 40){
+    const k = Math.min(1, Math.abs(tiltX) / TILT_G);
+    ctx.save();
+    rr(WALL, 0, W-WALL*2, FLOOR, 12); ctx.clip();
+    const gg = tiltX < 0 ? ctx.createLinearGradient(0,0,W*0.62,0) : ctx.createLinearGradient(W,0,W*0.38,0);
+    gg.addColorStop(0, `rgba(255,180,90,${(0.22*k).toFixed(3)})`);
+    gg.addColorStop(1, 'rgba(255,180,90,0)');
+    ctx.fillStyle = gg; ctx.fillRect(0, 0, W, FLOOR);
+    ctx.restore();
+    // 战略标签
+    ctx.fillStyle = 'rgba(255,211,110,.85)';
+    ctx.font = '800 13px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('战略：' + tiltName + (tiltX < 0 ? '  ←' : '  →'), W/2, 128);
+  }
   ctx.strokeStyle = 'rgba(255,157,226,.16)'; ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(WALL+1, 0); ctx.lineTo(WALL+1, FLOOR);
@@ -456,6 +491,14 @@ addEventListener('resize', resize);
 })();
 
 window.__merge = {
+  shiftStrategy, physics, step,
+  get tilt(){ return { x: +tiltX.toFixed(1), target: tiltTarget, name: tiltName,
+                       left: +tiltT.toFixed(1) }; },
+  setTilt(v){ tiltX = v; tiltTarget = v;
+              tiltName = v < -40 ? '向左倾' : v > 40 ? '向右倾' : '按兵不动'; },
+  setStrategyTimer(t){ tiltT = t; },
+  canDrop(){ return playing && !over && cooldown <= 0; },
+  dropAt(x){ if(!playing || over || cooldown > 0) return false; dropperX = x; drop(); return true; },
   get state(){ return { playing, over, score, best, topLv, balls: balls.length,
                         dangerT: +dangerT.toFixed(2), curLv, nextLv, cooldown: +cooldown.toFixed(2) }; },
   reset, drop, tick: step,

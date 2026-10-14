@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>抽象华容道 · SLIDE PUZZLE</title>
+<title>拼脸 · FACE PUZZLE</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#08070b}
@@ -41,9 +41,18 @@
     box-shadow:inset 0 1px 0 rgba(255,255,255,.14), 0 3px 8px rgba(0,0,0,.5);
     transition:left .13s cubic-bezier(.3,.9,.4,1), top .13s cubic-bezier(.3,.9,.4,1), background .2s;
     color:#f3e6cd;cursor:pointer}
-  .tile.ok{background:linear-gradient(160deg,#2a6b52,#174435);color:#d8fff0;
-    border-color:rgba(142,240,200,.5)}
+  .tile.ok{border-color:rgba(142,240,200,.6);
+    box-shadow:inset 0 0 0 2px rgba(142,240,200,.45), 0 3px 8px rgba(0,0,0,.5)}
   .tile:active{transform:scale(.96)}
+  /* 领导工位：钉死在中间，谁都推不动它 */
+  .tile.boss{background-image:none !important;background:linear-gradient(160deg,#5c1f2b,#2a0d14) !important;
+    color:#ffb4b4 !important;border-color:rgba(255,110,110,.5) !important;cursor:not-allowed;
+    font:800 clamp(11px,2.6vw,17px)/1 "PingFang SC","Microsoft YaHei",sans-serif !important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 0 16px rgba(255,70,70,.3)}
+  .tile .nn{position:absolute;left:4px;top:3px;border-radius:4px;padding:1px 4px;
+    font:800 10px/1 ui-monospace,Consolas,monospace;color:#0b1420;background:rgba(255,255,255,.8)}
+  @keyframes bump{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+  .tile.bump{animation:bump .22s ease-out}
 
   .bar{width:min(520px,94vw);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   button.b{font:inherit;font-size:12.5px;color:#f0eae0;cursor:pointer;
@@ -75,9 +84,9 @@
 
 <header>
   <div class="brand">
-    <div class="t">SLIDE PUZZLE</div>
-    <h1>抽象华容道</h1>
-    <div class="s">把工位号按顺序排回去</div>
+    <div class="t">FACE PUZZLE</div>
+    <h1>拼脸</h1>
+    <div class="s">把散落的自个儿拼回去 —— 但中间那块是领导工位</div>
   </div>
   <div class="stats">
     <div class="stat"><div class="k">步数</div><div class="v" id="moves">0</div></div>
@@ -95,10 +104,13 @@
     <button class="b on" data-n="4">4×4</button>
     <button class="b" data-n="5">5×5</button>
   </div>
-  <span class="hint">点空格旁边的块 · 方向键也行</span>
+  <button class="b" id="num">编号</button>
+  <span class="hint">点空格旁边的块 · 方向键也行<br><b style="color:#ffb4b4">中间那块「领导工位」钉死了，推不动</b></span>
 </div>
 
-<footer><b>绿色的</b>表示这块已经归位了 · 打乱是从还原态倒着走出来的，所以一定有解</footer>
+<footer>拼的是一张打工人表情包 —— 不看数字，看眉毛看嘴看工牌<br>
+<b>领导工位</b>在正中间，谁都推不动它，所以这一局和数字华容道不是一道题<br>
+打乱依旧是从拼好的状态倒着走出来的（走法里从来不动那块领导），所以一定有解</footer>
 
 <div class="over" id="over">
   <div class="box">
@@ -117,7 +129,50 @@ const $ = id => document.getElementById(id);
 let N = 4, tiles = [], blank = 0, moves = 0;
 let started = false, t0 = 0, timer = null, solved = false;
 let best = {}, cell = 80, gap = 8;
+let fixedVal = 0, showNum = false, faceURL = null;
 
+/* 拼图块显示的是「那张脸在它原始位置上长什么样」的那一小块。
+   所以只要每块都归位，整张脸就拼齐了 —— 和数字华容道的判据完全一样，
+   但没法靠数字推理，得看眉毛看嘴看工牌。 */
+function faceDataURL(){
+  if(faceURL) return faceURL;
+  const S = 512;
+  const c = document.createElement('canvas'); c.width = S; c.height = S;
+  const x = c.getContext('2d');
+  const bg = x.createLinearGradient(0,0,S,S);
+  bg.addColorStop(0,'#20304a'); bg.addColorStop(1,'#0e1520');
+  x.fillStyle = bg; x.fillRect(0,0,S,S);
+  x.strokeStyle = 'rgba(140,200,255,.10)'; x.lineWidth = 2;
+  for(let i=1;i<6;i++){
+    x.beginPath(); x.moveTo(S*i/6,0); x.lineTo(S*i/6,S); x.stroke();
+    x.beginPath(); x.moveTo(0,S*i/6); x.lineTo(S,S*i/6); x.stroke();
+  }
+  x.fillStyle = '#2a2016';
+  x.beginPath(); x.ellipse(S*0.5, S*0.33, S*0.30, S*0.19, 0, Math.PI, 0); x.fill();
+  x.fillRect(S*0.20, S*0.29, S*0.60, S*0.09);
+  x.fillStyle = '#f0c9a4';
+  x.beginPath(); x.ellipse(S*0.5, S*0.50, S*0.27, S*0.31, 0, 0, 7); x.fill();
+  x.fillStyle = '#fff';
+  x.beginPath(); x.ellipse(S*0.40, S*0.46, S*0.070, S*0.052, 0, 0, 7); x.fill();
+  x.beginPath(); x.ellipse(S*0.60, S*0.46, S*0.070, S*0.052, 0, 0, 7); x.fill();
+  x.fillStyle = '#161616';
+  x.beginPath(); x.ellipse(S*0.40, S*0.478, S*0.030, S*0.030, 0, 0, 7); x.fill();
+  x.beginPath(); x.ellipse(S*0.60, S*0.478, S*0.030, S*0.030, 0, 0, 7); x.fill();
+  x.strokeStyle = 'rgba(96,62,62,.5)'; x.lineWidth = 5;
+  x.beginPath(); x.arc(S*0.40, S*0.505, S*0.088, 0.2, Math.PI-0.2); x.stroke();
+  x.beginPath(); x.arc(S*0.60, S*0.505, S*0.088, 0.2, Math.PI-0.2); x.stroke();
+  x.strokeStyle = '#8a5a4a'; x.lineWidth = 6; x.lineCap = 'round';
+  x.beginPath(); x.moveTo(S*0.42, S*0.69); x.lineTo(S*0.58, S*0.69); x.stroke();
+  x.strokeStyle = '#c86bff'; x.lineWidth = 11;
+  x.beginPath(); x.moveTo(S*0.38, S*0.80); x.lineTo(S*0.5, S*0.95); x.stroke();
+  x.beginPath(); x.moveTo(S*0.62, S*0.80); x.lineTo(S*0.5, S*0.95); x.stroke();
+  x.fillStyle = 'rgba(160,210,255,.55)';
+  x.font = `800 ${Math.round(S*0.058)}px "PingFang SC","Microsoft YaHei",sans-serif`;
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText('打 工 中', S*0.5, S*0.125);
+  faceURL = c.toDataURL();
+  return faceURL;
+}
 function build(shuffle){
   clearInterval(timer); timer = null; started = false; solved = false;
   moves = 0; $('time').textContent = '0.0'; $('over').classList.remove('show');
@@ -125,6 +180,8 @@ function build(shuffle){
   const total = N*N;
   for(let i=0;i<total;i++) tiles.push(i);       // 值是「格子里放的号」，最后一个是空
   blank = total - 1;                             // 空格所在的下标
+  const half = (N/2)|0;
+  fixedVal = N*half + half;                      // 正中间那块 = 领导工位，钉死
   if(shuffle) scramble();
   render(); updateHUD();
 }
@@ -142,7 +199,9 @@ function scramble(){
   scramblePicks = [];
   let prev = -1;
   for(let k=0;k<N*N*26;k++){
-    const nb = neighbours(blank).filter(x => x !== prev);
+    // 走法里永远不动那块「领导工位」—— 所以打乱出来的局面一定解得回去，而且解得回去的解里也不动它
+    const nb = neighbours(blank).filter(x => x !== prev && tiles[x] !== fixedVal);
+    if(!nb.length) continue;
     const pick = nb[(Math.random()*nb.length)|0];
     swap(pick); prev = blank; blank = pick;
     scramblePicks.push(pick);
@@ -156,6 +215,11 @@ function swap(idx){
 function move(idx){
   if(solved) return;
   if(!neighbours(blank).includes(idx)) return;
+  if(tiles[idx] === fixedVal){                 // 领导工位：推不动
+    beep(150, 0.09, 0.03, 0.75);
+    el_bump(idx);
+    return;
+  }
   if(!started){ started = true; t0 = performance.now();
     timer = setInterval(()=>{ $('time').textContent = ((performance.now()-t0)/1000).toFixed(1); }, 100); }
   swap(idx); blank = idx; moves++;
@@ -197,20 +261,40 @@ function sizeBoard(){
   board.style.width = side + 'px';
   board.style.height = side + 'px';
 }
+function el_bump(idx){
+  const el = document.querySelector(`.tile[data-i="${idx}"]`);
+  if(!el) return;
+  el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+}
 function render(){
   const board = $('board');
   board.innerHTML = '';
+  const url = faceDataURL();
   for(let i=0;i<N*N;i++){
     const v = tiles[i];
     if(v === N*N - 1) continue;                  // 空的那块不画
     const r = (i/N)|0, c = i%N;
     const el = document.createElement('div');
-    el.className = 'tile' + (v === i ? ' ok' : '');
-    el.textContent = v + 1;
+    el.className = 'tile' + (v === i ? ' ok' : '') + (v === fixedVal ? ' boss' : '');
+    el.dataset.i = i;
     el.style.width = cell + 'px';
     el.style.height = cell + 'px';
     el.style.left = (gap + c*(cell+gap)) + 'px';
     el.style.top  = (gap + r*(cell+gap)) + 'px';
+    if(v === fixedVal){
+      el.textContent = '领导';
+    } else {
+      // 这块画的是「原始位置 v 上」那一小块脸；全部归位时就拼成了整张脸
+      const r0 = (v/N)|0, c0 = v%N;
+      el.style.backgroundImage = `url(${url})`;
+      el.style.backgroundSize = `${N*100}% ${N*100}%`;
+      el.style.backgroundPosition = `${N>1 ? (c0/(N-1)*100) : 0}% ${N>1 ? (r0/(N-1)*100) : 0}%`;
+      if(showNum){
+        const nn = document.createElement('span');
+        nn.className = 'nn'; nn.textContent = v + 1;
+        el.appendChild(nn);
+      }
+    }
     el.addEventListener('click', ()=> move(i));
     board.appendChild(el);
   }
@@ -251,6 +335,11 @@ document.querySelectorAll('[data-n]').forEach(b=>{
     sizeBoard(); build(true);
   });
 });
+$('num').addEventListener('click', ()=>{
+  showNum = !showNum;
+  $('num').classList.toggle('on', showNum);
+  render();
+});
 $('restart').addEventListener('click', ()=>{ sizeBoard(); build(true); });
 $('oAgain').addEventListener('click', ()=>{ sizeBoard(); build(true); });
 addEventListener('resize', ()=>{ sizeBoard(); render(); });
@@ -263,8 +352,13 @@ addEventListener('resize', ()=>{ sizeBoard(); render(); });
 window.__slide = {
   get N(){ return N; }, get tiles(){ return tiles.slice(); }, get blank(){ return blank; },
   get picks(){ return scramblePicks.slice(); },
-  get state(){ return { N, moves, blank, solved, timerOn: !!timer,
+  get fixedVal(){ return fixedVal; },
+  get state(){ return { N, moves, blank, solved, fixedVal, showNum, timerOn: !!timer,
                         over: document.getElementById('over').classList.contains('show') }; },
+  board(){ return [...document.querySelectorAll('.tile')].map(e => ({ i:+e.dataset.i, boss:e.classList.contains('boss'),
+             num:e.querySelector('.nn') ? e.querySelector('.nn').textContent : null,
+             hasFace: /url\(/.test(e.style.backgroundImage || '') })); },
+  toggleNum(){ $('num').click(); },
   move, isSolved, build
 };
 </script>

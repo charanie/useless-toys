@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>抽象记忆 · CYBER MEMORY</title>
+<title>需求变更 · SCOPE CREEP</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#08070c}
@@ -27,6 +27,17 @@
   .stat .v{font:800 18px/1.3 ui-monospace,Consolas,monospace;color:#6ec8ff;font-variant-numeric:tabular-nums}
   .stat.mv .v{color:#ffd36e}
   .stat.best .v{color:#8ef0c8;font-size:15px}
+  .stat.ch .v{color:#ff9d6b}
+  /* 需求变更：整块板子抖一下，顶上飘一句 */
+  @keyframes reqshake{0%,100%{transform:translateX(0)}18%{transform:translateX(-7px)}
+    38%{transform:translateX(7px)}58%{transform:translateX(-5px)}78%{transform:translateX(5px)}}
+  .board.shake{animation:reqshake .42s ease-out}
+  .toast{position:fixed;left:50%;top:21%;transform:translateX(-50%);z-index:6;
+    padding:9px 20px;border-radius:999px;pointer-events:none;opacity:0;transition:opacity .22s;
+    background:linear-gradient(120deg,rgba(255,116,90,.95),rgba(255,186,86,.95));
+    color:#2a1200;font:800 13px/1 "PingFang SC","Microsoft YaHei",sans-serif;letter-spacing:.1em;
+    box-shadow:0 12px 30px rgba(0,0,0,.5)}
+  .toast.show{opacity:1}
 
   .board{display:grid;gap:8px;touch-action:manipulation}
   .card{perspective:700px;cursor:pointer;background:none;border:none;padding:0}
@@ -73,18 +84,20 @@
 
 <header>
   <div class="brand">
-    <div class="t">CYBER MEMORY</div>
-    <h1>抽象记忆</h1>
-    <div class="s">把成对的打工人黑话翻出来</div>
+    <div class="t">SCOPE CREEP</div>
+    <h1>需求变更</h1>
+    <div class="s">把成对的打工人黑话翻出来 —— 但你记住的会不算数</div>
   </div>
   <div class="stats">
     <div class="stat mv"><div class="k">步数</div><div class="v" id="moves">0</div></div>
+    <div class="stat ch"><div class="k">变更</div><div class="v" id="changes">0</div></div>
     <div class="stat"><div class="k">用时</div><div class="v" id="time">0.0</div></div>
     <div class="stat best"><div class="k">最好</div><div class="v" id="best">—</div></div>
   </div>
 </header>
 
 <div class="board" id="board"></div>
+<div class="toast" id="toast">需求变更</div>
 
 <div class="bar">
   <button class="b primary" id="restart">重开一局</button>
@@ -93,10 +106,11 @@
     <button class="b on" data-lv="6">4×6</button>
     <button class="b" data-lv="8">6×6</button>
   </div>
-  <span class="hint">翻两张，成对就消掉</span>
+  <span class="hint">翻两张，成对就消掉<br><b style="color:#ff9d6b">每消掉一对，剩下的牌全部重新洗牌</b></span>
 </div>
 
-<footer>全部消完就算今天没白来 · 步数越少越好</footer>
+<footer><b>需求变更</b>：每配对成功一对，还没消掉的牌就整体重排一次 —— 你刚背下来的位置，立刻作废<br>
+全部消完就算今天没白来 · 步数越少越好，但这一关考的不是记性，是心态</footer>
 
 <div class="over" id="over">
   <div class="box">
@@ -125,6 +139,7 @@ const LEVELS = { 4:{cols:4, rows:4, name:'4×4'}, 6:{cols:4, rows:6, name:'4×6'
 let lv = LEVELS[6];
 let deck = [], first = null, lock = false, moves = 0, left = 0;
 let t0 = 0, timer = null, started = false, best = {};
+let els = [], changes = 0, toastT = null;
 
 function build(){
   const total = lv.cols * lv.rows;
@@ -136,7 +151,8 @@ function build(){
   for(let i=0;i<pairs;i++){ deck.push(pool[i]); deck.push(pool[i]); }
   for(let i=deck.length-1;i>0;i--){ const j = (Math.random()*(i+1))|0; [deck[i],deck[j]] = [deck[j],deck[i]]; }
 
-  first = null; lock = false; moves = 0; left = pairs;
+  first = null; lock = false; moves = 0; left = pairs; changes = 0;
+  els = [];
   started = false; clearInterval(timer); timer = null;
   $('time').textContent = '0.0';
   $('over').classList.remove('show');
@@ -159,10 +175,44 @@ function build(){
       </div>`;
     b.addEventListener('click', ()=> flip(i, b));
     board.appendChild(b);
+    els.push(b);
   });
+}
+/* 把还没消掉的牌整体重排一遍：成对关系不变，位置全变。
+   这就是「需求变更」—— 你刚背下来的东西，一秒后就不算数了。 */
+function reshuffle(){
+  const slots = [];
+  for(let i=0;i<deck.length;i++) if(!els[i].classList.contains('gone')) slots.push(i);
+  if(slots.length < 4) return false;
+  const before = slots.map(i => deck[i].join(''));
+  const faces = slots.map(i => deck[i]);
+  for(let i=faces.length-1;i>0;i--){ const j = (Math.random()*(i+1))|0; [faces[i],faces[j]] = [faces[j],faces[i]]; }
+  slots.forEach((slot, k)=>{ deck[slot] = faces[k]; paintFront(slot); });
+  changes++;
+  // 还开着的牌（理论上这时候没有）收回去，别让人白记
+  for(const i of slots){
+    if(first && first.i === i){ first = null; }
+    els[i].classList.remove('open');
+  }
+  const board = $('board');
+  board.classList.remove('shake'); void board.offsetWidth; board.classList.add('shake');
+  const tt = $('toast');
+  tt.textContent = '需求变更 · 位置全变了';
+  tt.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(()=> tt.classList.remove('show'), 1100);
+  beep(300, 0.16, 0.04, 1.6);
+  updateHUD();
+  return before.join('') !== slots.map(i => deck[i].join('')).join('');
+}
+function paintFront(i){
+  const f = deck[i];
+  const front = els[i].querySelector('.front');
+  if(front) front.innerHTML = `<span class="e">${f[0]}</span><span class="w">${f[1]}</span>`;
 }
 function updateHUD(){
   $('moves').textContent = moves;
+  $('changes').textContent = changes;
   const key = lv.name;
   const rec = best[key];
   $('best').textContent = rec ? rec.moves + ' 步' : '—';
@@ -182,11 +232,14 @@ function flip(i, el){
   const a = first; first = null;
   if(deck[a.i] === deck[i]){
     // 配对成功
+    lock = true;                     // 洗牌期间别让人翻牌
     setTimeout(()=>{
       a.el.classList.add('gone'); el.classList.add('gone');
       beep(880, 0.14, 0.05, 1.4);
       left--;
-      if(left === 0) win();
+      if(left === 0){ lock = false; win(); return; }
+      lock = false;
+      reshuffle();                   // 消掉一对，剩下的全重排
     }, 260);
   } else {
     lock = true;
@@ -207,7 +260,8 @@ function win(){
   updateHUD();
   $('oEmoji').textContent = isBest ? '🏆' : '🎉';
   $('oTitle').textContent = isBest ? '最少步数' : '全消完了';
-  $('oText').innerHTML = `${lv.name} 用时 <b>${secs.toFixed(1)}s</b> · 共 <b>${moves}</b> 步（理论最少 ${lv.cols*lv.rows/2} 步）` +
+  $('oText').innerHTML = `${lv.name} 用时 <b>${secs.toFixed(1)}s</b> · 共 <b>${moves}</b> 步 · 被变更 <b>${changes}</b> 次` +
+    `<br>（要是没人改需求，理论最少 ${lv.cols*lv.rows/2} 步）` +
     (isBest ? '<br>🎊 新纪录' : (rec ? `<br>本机最好 <b>${rec.moves}</b> 步` : ''));
   $('over').classList.add('show');
 }
@@ -253,10 +307,16 @@ addEventListener('resize', ()=>{
 
 window.__memory = {
   get deck(){ return deck; },
-  get state(){ return { moves, left, lv: lv.name, lock, open: document.querySelectorAll('.card.open').length,
+  get state(){ return { moves, left, lv: lv.name, lock, changes,
+                        open: document.querySelectorAll('.card.open').length,
                         gone: document.querySelectorAll('.card.gone').length }; },
   get finished(){ return document.getElementById('over').classList.contains('show'); },
+  get changes(){ return changes; },
+  reshuffle,
   click(i){ const el = document.querySelector(`.card[data-i="${i}"]`); if(el) flip(i, el); },
+  /* 每个位置现在是什么（测试用） */
+  faces(){ return deck.map(f => f[1]); },
+  alive(){ const o = []; for(let i=0;i<els.length;i++) if(!els[i].classList.contains('gone')) o.push(i); return o; },
   build
 };
 </script>

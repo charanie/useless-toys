@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>抽象叠塔 · CYBER STACK</title>
+<title>架构 · REORG</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#08070c}
@@ -62,9 +62,9 @@
 
 <header>
   <div class="brand">
-    <div class="t">CYBER STACK</div>
-    <h1>抽象叠塔</h1>
-    <div class="s">一块一块往上叠，歪出去的部分会被削掉</div>
+    <div class="t">REORG</div>
+    <h1>架构</h1>
+    <div class="s">往上叠，歪出去的部分削掉 —— 而且地基自己会晃</div>
   </div>
   <div class="stats">
     <div class="stat"><div class="k">层数</div><div class="v" id="score">0</div></div>
@@ -77,10 +77,12 @@
 
 <div class="bar">
   <button class="b primary" id="start">开始 (空格)</button>
-  <span class="hint">点一下 / 空格 就是放下去</span>
+  <span class="hint">点一下 / 空格 就是放下去<br><b style="color:#ffd36e">整座塔在左右漂，对虚线的难度一直在变</b></span>
 </div>
 
-<footer>落在<b>正中间</b>不算窄，还额外加一层 · 叠得越高滑得越快</footer>
+<footer><b>组织架构调整</b>：整座塔会一直慢慢左右漂 —— 那条金色虚线就是「完美」的位置，它也在漂<br>
+方块自己不跟着漂，所以你俩的相对位置一直在变 · 叠得越高，晃得越厉害、块也滑得越快<br>
+落在<b>正中间</b>不算窄，还额外加一层</footer>
 
 <div class="over" id="over">
   <div class="box">
@@ -108,6 +110,10 @@ let score = 0, perfect = 0, streak = 0, best = 0;
 let phase = 'idle';            // idle | moving | over
 let camY = 0, camTarget = 0, shake = 0, flash = 0, fx = [];
 let last = 0, t = 0;
+/* 组织架构调整：整座塔会慢慢左右漂 —— 地基在动，你要对准的那条线也跟着动 */
+let towerOff = 0, driftT = 0;
+function driftAmp(){ return Math.min(28, 9 + floors.length * 1.25); }   // 叠得越高晃得越厉害
+function driftRate(){ return 0.60 + Math.min(0.90, floors.length * 0.06); }
 
 /* ---------- 音效 ---------- */
 let actx = null;
@@ -143,7 +149,7 @@ function resize(){
 function speed(){ return 150 + Math.min(340, floors.length * 11); }
 function reset(){
   floors = [{ x: (W-BASE_W)/2, w: BASE_W, hue: HUES[0] }];
-  score = 0; perfect = 0; streak = 0;
+  score = 0; perfect = 0; streak = 0; towerOff = 0; driftT = 0;
   debris = []; fx = []; shake = 0; flash = 0; t = 0;
   camY = TOP_Y + BH; camTarget = camY;
   spawn(); phase = 'moving';
@@ -219,6 +225,15 @@ function update(dt){
     if(block.x <= 22){ block.x = 22; block.dir = 1; }
     if(block.x + block.w >= W - 22){ block.x = W - 22 - block.w; block.dir = -1; }
   }
+  // 整座塔一起漂，形状不变、但你要瞄的那条线在动。方块本身不跟着漂 ——
+  // 正因为不跟着，它和顶层之间的相对位置才一直在变
+  if(phase !== 'over'){
+    driftT += dt;
+    const want = Math.sin(driftT * driftRate()) * driftAmp();
+    const d = want - towerOff;
+    if(d !== 0) for(const f of floors) f.x += d;
+    towerOff = want;
+  }
   camY += (camTarget - camY) * Math.min(1, dt*7);
   for(let i=debris.length-1;i>=0;i--){
     const d = debris[i];
@@ -272,6 +287,14 @@ function draw(){
     const sy = -(i+1)*BH + camY;
     if(sy > H + 40 || sy < -80) continue;
     drawFloor(f.x, f.w, sy, f.hue, i === floors.length-1);
+    // 顶层的中心线（也就是「完美」的那条线）—— 它会跟着塔一起漂
+    if(i === floors.length-1){
+      ctx.save();
+      ctx.setLineDash([5,5]);
+      ctx.strokeStyle = 'rgba(255,211,110,.7)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(f.x + f.w/2, sy - 16); ctx.lineTo(f.x + f.w/2, sy + BH); ctx.stroke();
+      ctx.restore();
+    }
   }
   // 正在滑动的那块
   if(phase === 'moving' && block){
@@ -371,7 +394,15 @@ window.__stack = {
   get state(){ return { phase, floors: floors.length, score: floors.length-1, perfect, streak, best,
                         blockX: block ? +block.x.toFixed(1) : null, blockW: block ? +block.w.toFixed(1) : null,
                         topX: +floors[floors.length-1].x.toFixed(1), topW: +floors[floors.length-1].w.toFixed(1) }; },
-  reset, drop, tap,
+  reset, drop, tap, update,
+  get drift(){ return { off: +towerOff.toFixed(2), amp: +driftAmp().toFixed(2), rate: +driftRate().toFixed(3) }; },
+  setHeight(n){                                   // 直接堆到第 n 层，方便测「越高越晃」
+    for(let k = floors.length; k <= n; k++){
+      const top = floors[floors.length-1];
+      floors.push({ x: top.x, w: top.w, hue: HUES[k % HUES.length] });
+    }
+    camTarget = TOP_Y + floors.length*BH;
+  },
   setBlock(x, w){ if(block){ block.x = x; if(w != null) block.w = w; } }
 };
 </script>

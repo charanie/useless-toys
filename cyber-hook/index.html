@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>抽象挖矿 · GOLD HOOK</title>
+<title>返工 · REWORK</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#0a0806}
@@ -63,9 +63,9 @@
 
 <header>
   <div class="brand">
-    <div class="t">GOLD HOOK</div>
-    <h1>抽象挖矿</h1>
-    <div class="s">钩子来回晃，看准了放下去抓</div>
+    <div class="t">REWORK</div>
+    <h1>返工</h1>
+    <div class="s">挂上了不算数 —— 拉回一半它可能说「做不了」</div>
   </div>
   <div class="stats">
     <div class="stat lv"><div class="k">第几关</div><div class="v" id="lv">1</div></div>
@@ -79,10 +79,12 @@
 
 <div class="bar">
   <button class="b primary" id="start">开始 (空格)</button>
-  <span class="hint">下键 / 空格 = 放钩子</span>
+  <span class="hint">下键 / 空格 = 放钩子<br><b style="color:#ff7a6b">拉回一半它可能反悔 —— 这时候再按一下能按住</b></span>
 </div>
 
-<footer><b>炸弹别碰</b> · 钩住的越重，拉回来越慢</footer>
+<footer><b>返工</b>：拉到一多半的时候，东西可能突然说一句「这个需求我做不了」然后脱钩掉回去<br>
+<b>越重的越容易反悔</b> —— 而值钱的都轻、不值钱的都沉，所以这题是真的要选<br>
+反悔之后有 <b>0.7 秒</b>抢救时间（这段时间收线会变慢，像在拔河），这时候再按一下就能按住它 · <b>炸弹别碰</b></footer>
 
 <div class="over" id="over">
   <div class="box">
@@ -115,6 +117,18 @@ let ang = 0, angDir = 1, angSpeed = 1.35;
 let score = 0, target = 0, level = 1, timeLeft = 60;
 let playing = false, over = true, got = [];
 let fx = [], shake = 0, last = 0, carried = null, best = 0;
+let sink = [];                     // 反悔脱钩、正往下掉的货
+let reneges = 0;                   // 一共反悔了几次
+let renegeForce = null;            // 只给自动化测试用：强制这次一定反悔 / 一定不反悔
+let holds = 0;                     // 按住了几次
+/* 收线速度：越重越慢 */
+function retractSpeed(wt){ return 760 / (1 + wt*0.28) * 2; }
+/* 越重越容易反悔。炸弹无所谓、自己的时间没人抢 */
+function renegeP(it){
+  if(it.bomb) return 0;
+  if(it.time) return 0.08;
+  return Math.min(0.62, 0.12 + (it.wt - 10) * 0.016);
+}
 
 /* ---------- 音效 ---------- */
 let actx = null;
@@ -177,7 +191,7 @@ function reset(fresh){
   timeLeft = timeOf(level);
   rope = { angle: 0, len: MIN_LEN, state: 'swing' };
   ang = 0; angDir = 1; angSpeed = 1.2 + level*0.13;
-  carried = null; got = []; fx = []; shake = 0;
+  carried = null; got = []; fx = []; shake = 0; sink = []; reneges = 0; holds = 0;
   scatter();
   playing = false; over = true;
   $('over').classList.remove('show');
@@ -221,6 +235,7 @@ function update(dt){
     }
     if(hit){
       carried = hit; items = items.filter(o => o !== hit);
+      carried.lenAtGrab = rope.len; carried.renege = null;   // null = 还没到反悔那一刻
       rope.state = 'back';
       tone(hit.bomb ? 120 : 700, .14, .05, hit.bomb ? 'sawtooth':'triangle', hit.bomb ? .5 : 1.4);
       if(hit.bomb) shake = 1;
@@ -230,8 +245,39 @@ function update(dt){
     }
   } else if(rope.state === 'back'){
     const wt = carried ? carried.wt : 4;
-    rope.len -= (760 / (1 + wt*0.28)) * dt * 2;
+    // 反悔期间收线变慢 —— 拉锯嘛。不然轻的东西收得太快，窗口只有零点几秒，
+    // 根本来不及按，那就成耍人了
+    const slow = (carried && carried.renege > 0) ? 0.35 : 1;
+    rope.len -= retractSpeed(wt) * slow * dt;
     if(carried){ carried.x = tip().x; carried.y = tip().y; }
+    /* 返工：拉到一多半的时候，它可能突然说「这个需求我做不了」。
+       越重的东西越容易反悔 —— 值钱的都轻，不值钱的都沉，所以这是个真实的取舍。
+       反悔之后有 0.7 秒的抢救时间（期间收线会变慢，像在拔河），这时候再按一下就能按住它。 */
+    if(carried){
+      // 按「从挂上到收杆这段行程过半」来触发。要是按「绳长剩多少」算，
+      // 离得近的东西绳长本来就没多长，永远够不到那个点 —— 永远不会反悔。
+      // 而且太近的干脆不反悔（还没等它反悔就已经上来了）。
+      const travel = carried.lenAtGrab - MIN_LEN;
+      if(carried.renege === null && travel > 24 && rope.len <= carried.lenAtGrab - travel * 0.45){
+        carried.renege = 0;
+        const roll = renegeForce !== null ? renegeForce : Math.random() < renegeP(carried);
+        renegeForce = null;
+        if(roll){
+          carried.renege = 0.7; reneges++;
+          fx.push({ x: carried.x, y: carried.y - carried.r - 10, text:'这个需求我做不了', color:'#ff7a6b', life:1.7 });
+          tone(180, .16, .045, 'sawtooth', .7);
+        }
+      }
+      if(carried.renege > 0){
+        carried.renege -= dt;
+        if(carried.renege <= 0){
+          sink.push({ x: carried.x, y: carried.y, e: carried.e, r: carried.r, vy: -50, rot: 0 });
+          fx.push({ x: carried.x, y: carried.y, text:'掉回去了', color:'#ff7a6b', life:1.3 });
+          tone(120, .26, .05, 'sawtooth', .5);
+          carried = null;
+        }
+      }
+    }
     if(rope.len <= MIN_LEN){
       rope.len = MIN_LEN; rope.state = 'swing';
       if(carried){
@@ -246,6 +292,11 @@ function update(dt){
         if(score >= target){ nextLevel(); return; }
       }
     }
+  }
+  for(let i=sink.length-1;i>=0;i--){
+    const d = sink[i];
+    d.vy += 900*dt; d.y += d.vy*dt; d.rot += dt*2.4;
+    if(d.y > H + 60) sink.splice(i,1);
   }
   for(let i=fx.length-1;i>=0;i--){
     const f = fx[i]; f.life -= dt*1.2; f.y -= dt*44;
@@ -324,9 +375,29 @@ function draw(){
   }
   // 抓着的那个
   if(carried){
+    const sh = carried.renege > 0 ? Math.sin(performance.now()/26) * 5 : 0;   // 反悔的时候直哆嗦
+    ctx.save();
+    if(carried.renege > 0){ ctx.shadowColor = 'rgba(255,90,90,.95)'; ctx.shadowBlur = 24; }
     ctx.font = `${carried.r*1.5}px "PingFang SC","Apple Color Emoji","Segoe UI Emoji",sans-serif`;
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(carried.e, carried.x, carried.y+1);
+    ctx.fillText(carried.e, carried.x + sh, carried.y + 1);
+    ctx.restore();
+    if(carried.renege > 0){
+      ctx.fillStyle = '#ff7a6b';
+      ctx.font = '800 12px "PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('再按一下！', carried.x, carried.y + carried.r + 16);
+    }
+  }
+  // 反悔脱钩、正在往下掉的货
+  for(const d of sink){
+    ctx.save();
+    ctx.globalAlpha = 0.75;
+    ctx.translate(d.x, d.y); ctx.rotate(d.rot);
+    ctx.font = `${d.r*1.4}px "PingFang SC","Apple Color Emoji","Segoe UI Emoji",sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(d.e, 0, 0);
+    ctx.restore();
   }
 
   // 绳子与钩子
@@ -386,6 +457,13 @@ function loop(ts){
 function tap(){
   A();
   if(over && !playing){ begin(); return; }
+  // 半路反悔了：赶紧按住它
+  if(carried && carried.renege > 0){
+    carried.renege = 0; holds++;
+    fx.push({ x: carried.x, y: carried.y - carried.r - 12, text:'按住了', color:'#8ef0c8', life:1.3 });
+    tone(780, .12, .05, 'triangle', 1.4);
+    return;
+  }
   launch();
 }
 cvs.addEventListener('pointerdown', e=>{ e.preventDefault(); tap(); });
@@ -409,7 +487,15 @@ window.__hook = {
   setLen(l){ rope.len = l; },
   addTime(t){ timeLeft += t; },
   put(o){ items.push(Object.assign({ x: W/2, y: 400, r: 24, e:'🪨', n:'石头', v:20, wt:26 }, o)); },
-  clear(){ items = []; }
+  clear(){ items = []; },
+  update,
+  get stats(){ return { reneges, holds, sink: sink.length,
+                        carried: carried ? carried.n : null,
+                        renege: (carried && carried.renege != null) ? +carried.renege.toFixed(2) : null }; },
+  renegeP,
+  forceRenege(){ if(carried){ carried.renege = 0.85; reneges++; } },
+  setRenegeForce(v){ renegeForce = v; },
+  tap
 };
 </script>
 </body>

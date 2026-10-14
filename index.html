@@ -447,10 +447,21 @@
   .tmp-slide i{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;
     font:800 12px ui-monospace,Consolas,monospace;color:#f3e6cd;
     background:linear-gradient(160deg,#3a3122,#241d12);box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
-  .tmp-slide i.ok{background:linear-gradient(160deg,#2a6b52,#174435);color:#d8fff0;
-    box-shadow:inset 0 0 0 1px rgba(142,240,200,.5);animation:slok 2.4s ease-in-out infinite}
+  .tmp-slide i.ok{box-shadow:inset 0 0 0 2px rgba(142,240,200,.55);animation:slok 2.4s ease-in-out infinite}
   .tmp-slide i.gap{background:transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
   @keyframes slok{0%,100%{transform:scale(1)}50%{transform:scale(.88)}}
+  /* 拼的是脸：皮肤色块 + 眼睛 + 嘴，正中间那块是推不动的「领导工位」 */
+  .tmp-slide i.sk{background:linear-gradient(160deg,#f0c9a4,#c99a72);position:relative}
+  .tmp-slide i.sk.eye::after{content:'';position:absolute;left:50%;top:50%;width:9px;height:9px;
+    border-radius:50%;background:#fff;transform:translate(-50%,-50%)}
+  .tmp-slide i.sk.eye::before{content:'';position:absolute;left:50%;top:50%;width:4px;height:4px;
+    border-radius:50%;background:#161616;transform:translate(-50%,-50%);z-index:1}
+  .tmp-slide i.sk.mouth::after{content:'';position:absolute;left:50%;top:58%;width:14px;height:2px;
+    background:#8a5a4a;transform:translateX(-50%)}
+  .tmp-slide i.boss{background:linear-gradient(160deg,#5c1f2b,#2a0d14);position:relative;
+    box-shadow:inset 0 0 0 1px rgba(255,110,110,.45)}
+  .tmp-slide i.boss::after{content:'领导';position:absolute;inset:0;display:flex;align-items:center;
+    justify-content:center;font:800 9px/1 "PingFang SC","Microsoft YaHei",sans-serif;color:#ffb4b4}
 
   /* 抽象接住 */
   .tmp-catch{position:relative;width:112px;height:98px;overflow:hidden}
@@ -473,7 +484,10 @@
   @keyframes fishrip{0%{transform:scale(.35);opacity:.9}100%{transform:scale(1.6);opacity:0}}
 
   /* 抽象叠塔 */
-  .tmp-stk{display:flex;flex-direction:column-reverse;align-items:center;gap:2px;width:114px}
+  .tmp-stk{display:flex;flex-direction:column-reverse;align-items:center;gap:2px;width:114px;
+    animation:stkdrift 4.6s ease-in-out infinite}
+  /* 地基在漂：整座塔左右晃，顶块自己还在来回滑 */
+  @keyframes stkdrift{0%,100%{transform:translateX(-9px)}50%{transform:translateX(9px)}}
   .tmp-stk i{display:block;height:9px;border-radius:3px}
   .tmp-stk i:nth-child(1){width:88px;background:hsl(262,58%,58%)}
   .tmp-stk i:nth-child(2){width:78px;background:hsl(232,58%,60%)}
@@ -837,51 +851,56 @@
     </a>
   </div>
 
-  <div class="shelf"><span class="label"><b>VOL.9</b> · 凑满四十</span><span class="rule"></span></div>
+  <div class="shelf"><span class="label"><b>VOL.9</b> · 打工后遗症</span><span class="rule"></span></div>
   <div class="grid">
     <a class="card" href="cyber-memory/">
       <span class="go">进入 →</span>
       <div class="thumb"><div class="tmp-mem"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
-      <h2>抽象记忆</h2>
-      <p>翻牌配对。牌面是打工人黑话：摸鱼、搬砖、续命、加班、发薪、放假……
-         三档尺寸（4×4 / 4×6 / 6×6），<b>比谁步数少</b>，成绩存在本机。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">三档</span><span class="tag">记最少步数</span></div>
+      <h2>需求变更</h2>
+      <p>翻牌配对，牌面是打工人黑话。<b>但每配对成功一对，还没消掉的牌就整体重排一次</b>——
+         你刚背下来的位置，一秒后就不作数了。扣完才发现：这一关考的不是记性，是心态。
+         三档尺寸（4×4 / 4×6 / 6×6）。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">消一对洗一次牌</span><span class="tag">三档</span></div>
     </a>
     <a class="card" href="cyber-slide/">
       <span class="go">进入 →</span>
       <div class="thumb"><div class="tmp-slide">
-        <i class="ok">1</i><i class="ok">2</i><i>6</i>
-        <i class="ok">4</i><i>7</i><i>3</i>
-        <i>5</i><i class="gap"></i><i class="ok">8</i>
+        <i class="sk"></i><i class="sk eye"></i><i class="ok sk"></i>
+        <i class="ok sk"></i><i class="boss"></i><i class="sk mouth"></i>
+        <i></i><i class="gap"></i><i class="ok"></i>
       </div></div>
-      <h2>抽象华容道</h2>
-      <p>数字滑块，把工位号排回去。3×3 / 4×4 / 5×5 三档。
-         打乱是<b>从还原态倒着走出来的</b>——所以每一局都一定有解，不会遇到死局。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">保证有解</span><span class="tag">记最少步数</span></div>
+      <h2>拼脸</h2>
+      <p>拼的是一张打工人表情包 —— 不看数字，看眉毛看嘴看工牌。
+         <b>正中间那块是「领导工位」，钉死了谁也推不动</b>，所以这一局和数字华容道不是一道题。
+         3×3 / 4×4 / 5×5，打乱从拼好的状态倒着走（走法里从来不动那块领导），一定有解。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">领导工位推不动</span><span class="tag">保证有解</span></div>
     </a>
     <a class="card" href="cyber-catch/">
       <span class="go">进入 →</span>
       <div class="thumb"><div class="tmp-catch"><i></i><i class="bad"></i><i class="b2"></i><div class="bk"></div></div></div>
-      <h2>抽象接住</h2>
-      <p>接外卖、接工资、接奖金，<b>别接需求</b>。红色的那几样（需求 / 加塞 / 领导 / 加班）
-         接到掉一条命，漏掉绿的不掉命但会断连击。越接越快。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">三条命</span><span class="tag">越接越快</span></div>
+      <h2>甩锅</h2>
+      <p>接外卖接工资 —— 但<b>锅会横着往你的筐那儿凑，光躲是躲不掉的</b>。
+         点一下锅就把它甩给隔壁组（＋分、算连击）；真接到筐里就成你自己背了，掉一条命。
+         底下那个筐上写着「你自己」。越接越快。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">锅会追你</span><span class="tag">点一下甩掉</span></div>
     </a>
     <a class="card" href="cyber-fish/">
       <span class="go">进入 →</span>
       <div class="thumb"><div class="tmp-angl"><div class="wt"></div><div class="rp"></div><div class="fl"></div></div></div>
-      <h2>抽象钓鱼</h2>
-      <p>抛竿、等咬钩、在它沉下去的那一下提竿。<b>提早了鱼会跑，慢一秒它连钩子一起叼走。</b>
-         六种渔获从破鞋到大鱼，还能翻鱼篓看今天的收获。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">拼时机</span><span class="tag">有鱼篓</span></div>
+      <h2>抢功</h2>
+      <p>抛竿、等咬钩、提竿 —— <b>但钓上来只是开始</b>：池子里还有个同事拉着同一根线，
+         你得连点把鱼抢回来。松手两秒，它就当着你的面把功劳领走，屏幕上弹「XXX 抢了你的功劳」。
+         提早提竿鱼会跑，慢一秒它连钩子一起叼走。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">提上来还得抢</span><span class="tag">拼时机</span></div>
     </a>
     <a class="card" href="cyber-stack/">
       <span class="go">进入 →</span>
       <div class="thumb"><div class="tmp-stk"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
-      <h2>抽象叠塔</h2>
-      <p>一块来回滑，点一下放下去，<b>歪出去的部分会被削掉</b>。
-         落在正中间不算窄还额外加一层；叠得越高滑得越快。削到没宽度就结束。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">一个键</span><span class="tag">有完美判定</span></div>
+      <h2>架构</h2>
+      <p>一块来回滑，点一下放下去，歪出去的部分会被削掉。
+         <b>而整座塔会一直慢慢左右漂</b>（组织架构调整）—— 那条金色虚线就是「完美」的位置，
+         它也在漂。方块自己不跟着漂，所以你俩的相对位置一直在变，叠得越高晃得越厉害。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">地基会晃</span><span class="tag">有完美判定</span></div>
     </a>
     <a class="card" href="cyber-hook/">
       <span class="go">进入 →</span>
@@ -889,19 +908,21 @@
         <div class="pv"></div><div class="gm"></div>
         <div class="grp"><div class="rp"></div><div class="cl"></div></div>
       </div></div>
-      <h2>抽象挖矿</h2>
-      <p>钩子来回晃，看准了放下去抓。石头、金币、钻石、加时间的时钟，
-         还有<b>不能碰的炸弹</b>。钩住的越重拉回来越慢，有限时间内凑够目标就进下一关。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">有炸弹</span><span class="tag">关卡制</span></div>
+      <h2>返工</h2>
+      <p>钩子来回晃，看准了放下去抓。石头、金币、钻石、加时间的时钟，还有不能碰的炸弹。
+         <b>但拉到一多半的时候它会突然反悔</b>——「这个需求我做不了」，然后脱钩掉回去。
+         越重越容易反悔，而值钱的都轻、不值钱的都沉，所以这题是真的要选。
+         反悔后有 0.7 秒抢救时间，再按一下能按住。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">半路会反悔</span><span class="tag">关卡制</span></div>
     </a>
     <a class="card" href="cyber-merge/">
       <span class="go">进入 →</span>
       <div class="thumb"><div class="tmp-mg"><i></i><i></i><i></i><i></i><i></i></div></div>
-      <h2>抽象合成</h2>
-      <p>物理堆叠：两个一样的撞在一起就合成更高级的。词汇跟 2048 是<b>同一套</b>——
-         摸鱼一路合到「提前退休」，但玩法完全不同（那个是格子，这个是物理）。
-         堆过线超过一秒半就结束。</p>
-      <div class="tags"><span class="tag">可玩</span><span class="tag">有物理</span><span class="tag">合到退休</span></div>
+      <h2>重组</h2>
+      <p>两个一样的撞在一起就升级。词汇跟 2048 是同一套 —— 摸鱼一路合到「提前退休」。
+         <b>但公司战略每隔十几秒变一次</b>：变成「向左倾」或「向右倾」之后，重力就多一个横向分量，
+         整罐球会慢慢滑到一边去堆着，你得跟着改落点。堆过线超过一秒半就结束。</p>
+      <div class="tags"><span class="tag">可玩</span><span class="tag">重力跟着战略歪</span><span class="tag">有物理</span></div>
     </a>
   </div>
 

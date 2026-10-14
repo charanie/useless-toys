@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>抽象接住 · CATCH IT</title>
+<title>甩锅 · PASS THE BLAME</title>
 <style>
   *{box-sizing:border-box}
   html,body{min-height:100%;margin:0;background:#08080b}
@@ -26,8 +26,15 @@
   .stat .k{font-size:9.5px;letter-spacing:.22em;color:#6f8c7e}
   .stat .v{font:800 18px/1.3 ui-monospace,Consolas,monospace;color:#ffd36e;font-variant-numeric:tabular-nums}
   .stat.cb .v{color:#4fe0a8}
+  .stat.fl .v{color:#ffd36e}
   .stat.hp .v{color:#ff7a6b;letter-spacing:2px;font-size:15px}
   .stat.best .v{color:#6ec8ff;font-size:15px}
+  /* 五个数字块在窄屏会把标题挤成竖排，让标题自己占一行 */
+  @media (max-width:560px){
+    header{flex-wrap:wrap;gap:9px}
+    .brand{flex:1 1 100%}
+    .stats{flex:1 1 100%;justify-content:space-between}
+  }
 
   .wrap{position:relative;border-radius:16px;padding:8px;
     background:linear-gradient(160deg,#12211b,#080f0c);
@@ -63,13 +70,14 @@
 
 <header>
   <div class="brand">
-    <div class="t">CATCH IT · ENDLESS</div>
-    <h1>抽象接住</h1>
-    <div class="s">接外卖接工资，别接需求</div>
+    <div class="t">PASS THE BLAME</div>
+    <h1>甩锅</h1>
+    <div class="s">接外卖接工资 —— 但锅会追着你跑，得甩出去</div>
   </div>
   <div class="stats">
     <div class="stat"><div class="k">分数</div><div class="v" id="score">0</div></div>
     <div class="stat cb"><div class="k">连击</div><div class="v" id="combo">0</div></div>
+    <div class="stat fl"><div class="k">甩掉</div><div class="v" id="flings">0</div></div>
     <div class="stat hp"><div class="k">体力</div><div class="v" id="hp">♥♥♥</div></div>
     <div class="stat best"><div class="k">最佳</div><div class="v" id="best">0</div></div>
   </div>
@@ -79,10 +87,11 @@
 
 <div class="bar">
   <button class="b primary" id="start">开始 (空格)</button>
-  <span class="hint">鼠标 / 手指拖动 · ← → 键也行</span>
+  <span class="hint">鼠标 / 手指拖动接东西 · ← → 键也行<br><b style="color:#ff9d6b">锅会追着筐跑，点一下锅就甩出去</b></span>
 </div>
 
-<footer><b>红色那几样别接</b> —— 需求、加塞、领导、加班，接到掉一条命</footer>
+<footer><b>锅从上面掉下来，而且会横着往你的筐那儿凑</b> —— 光躲是躲不掉的<br>
+点一下锅就把它<b style="color:#ffd36e">甩给隔壁组</b>（＋分、算连击）；真接到筐里就成你自己背了，掉一条命</footer>
 
 <div class="over" id="over">
   <div class="box">
@@ -105,10 +114,13 @@ const GOOD = [
   { e:'💰', n:'工资', v:30 },
   { e:'🎁', n:'奖金', v:50 }
 ];
-const BAD = [
-  { e:'📋', n:'需求' }, { e:'⚡', n:'加塞' },
-  { e:'👔', n:'领导' }, { e:'🔥', n:'加班' }
+/* 接住的那批还叫好东西；掉下来这批现在统一是「锅」，而且会追着你跑 */
+const LOT = [
+  { e:'🍳', n:'需求锅' }, { e:'🥘', n:'bug 锅' },
+  { e:'🍲', n:'加班锅' }, { e:'🫕', n:'领导锅' }
 ];
+const FLING_TO = ['老张','隔壁组','实习生','产品经理','测试组','甲方'];
+const BAD = LOT;      // 老名字留着，免得别处引用断了
 
 const cvs = $('c'), ctx = cvs.getContext('2d');
 let items = [], fx = [];
@@ -116,7 +128,7 @@ let score = 0, combo = 0, maxCombo = 0, hp = 3, best = 0;
 let playing = false, over = true, paused = false;
 let basket = { x: W/2, w: 116, h: 26 };
 let targetX = W/2, keys = { l:false, r:false };
-let spawnT = 0, fallT = 0, last = 0, shake = 0, caught = 0, escaped = 0;
+let spawnT = 0, fallT = 0, last = 0, shake = 0, caught = 0, escaped = 0, flings = 0;
 let scale = 1;
 
 /* ---------- 音效 ---------- */
@@ -180,7 +192,7 @@ function reset(){
   items = []; fx = [];
   score = 0; combo = 0; maxCombo = 0; hp = 3;
   playing = false; over = true; paused = false;
-  spawnT = 0; fallT = 0; shake = 0; caught = 0; escaped = 0;
+  spawnT = 0; fallT = 0; shake = 0; caught = 0; escaped = 0; flings = 0;
   basket.x = W/2; targetX = W/2;
   $('over').classList.remove('show');
   updateHUD(); draw();
@@ -189,6 +201,7 @@ function begin(){ reset(); playing = true; over = false; A(); }
 function updateHUD(){
   $('score').textContent = score;
   $('combo').textContent = combo;
+  $('flings').textContent = flings;
   $('hp').textContent = hp > 0 ? '♥'.repeat(hp) : '—';
   if(score > best){ best = score; try{ localStorage.setItem('ut_catch_best', String(best)); }catch(e){} }
   $('best').textContent = best;
@@ -203,8 +216,31 @@ function spawn(){
     x: r + 12 + Math.random()*(W - 2*r - 24),
     y: -r, vy: (170 + t*230) * (0.85 + Math.random()*0.35),
     vx: (Math.random()-0.5) * 40 * t,
-    r, bad: isBad, e: kind.e, n: kind.n, v: kind.v || 0, rot: 0
+    r, bad: isBad, pot: isBad, flung: false, e: kind.e, n: kind.n, v: kind.v || 0, rot: 0
   });
+}
+/* 点一下锅：把它甩给隔壁组。甩掉不计伤害，还加分 */
+function flingAt(x, y){
+  if(!playing || paused) return false;
+  let best = null, bd = 1e9;
+  for(const it of items){
+    if(!it.pot || it.flung) continue;
+    const d = Math.hypot(it.x - x, it.y - y);
+    if(d < it.r*2.3 && d < bd){ bd = d; best = it; }
+  }
+  if(!best) return false;
+  best.flung = true;
+  best.vy = -(250 + Math.random()*150);
+  best.vx = (best.x < W/2 ? -1 : 1) * (250 + Math.random()*190);
+  combo++; flings++;
+  if(combo > maxCombo) maxCombo = combo;
+  const gain = Math.round(25 * (1 + Math.min(1, combo/20)));
+  score += gain;
+  const who = FLING_TO[(Math.random()*FLING_TO.length)|0];
+  fx.push({ x: best.x, y: best.y - 22, text: '甩给' + who + '  +' + gain, color:'#ffd36e', life:1.3 });
+  sfxBad();
+  updateHUD();
+  return true;
 }
 function update(dt){
   if(!playing || paused) return;
@@ -223,7 +259,16 @@ function update(dt){
   const by = H - 74;
   for(let i=items.length-1;i>=0;i--){
     const it = items[i];
+    // 锅会横着往你的筐那儿凑 —— 所以光把筐挪开是躲不掉的，得甩
+    if(it.pot && !it.flung && it.y < by - 60){
+      it.vx += Math.sign(basket.x - it.x) * 620 * dt;
+      it.vx = Math.max(-210, Math.min(210, it.vx));
+    }
     it.y += it.vy*dt; it.x += it.vx*dt; it.rot += dt*2;
+    if(it.flung){
+      if(it.y + it.r < -90){ items.splice(i,1); }
+      continue;                                    // 甩出去的锅不再伤人
+    }
     if(it.x < it.r+6){ it.x = it.r+6; it.vx = Math.abs(it.vx); }
     if(it.x > W-it.r-6){ it.x = W-it.r-6; it.vx = -Math.abs(it.vx); }
 
@@ -233,7 +278,7 @@ function update(dt){
       items.splice(i,1);
       if(it.bad){
         hp--; combo = 0; shake = 1;
-        fx.push({ x: it.x, y: by, text: it.n + ' −1♥', color:'#ff7a6b', life:1 });
+        fx.push({ x: it.x, y: by, text: it.n + ' 你自己背 −1♥', color:'#ff7a6b', life:1 });
         sfxBad();
         if(hp <= 0){ finish(); return; }
       } else {
@@ -264,14 +309,14 @@ function finish(){
   playing = false; over = true;
   updateHUD();
   const acc = caught + escaped ? Math.round(caught/(caught+escaped)*100) : 0;
-  const chop = score >= 1500 ? '你接到了本月最好的东西。'
-             : score >= 700  ? '还行，手挺稳。'
-             : score >= 250  ? '外卖接到了，工资没接到。'
-             : '今天什么都没接住。';
+  const chop = score >= 1500 ? '这一局你一个锅都没背。'
+             : score >= 700  ? '甩得挺利索，隔壁组已经不理你了。'
+             : score >= 250  ? '甩出去几个，还是有几口自己背了。'
+             : '一锅没甩掉，全自己兜了。';
   setTimeout(()=>{
-    $('oEmoji').textContent = score >= 700 ? '🧺' : '😵';
-    $('oTitle').textContent = '接不动了';
-    $('oText').innerHTML = `${chop}<br>接住 <b>${caught}</b> 个 · 漏掉 <b>${escaped}</b> 个 · 接中率 <b>${acc}%</b>` +
+    $('oEmoji').textContent = score >= 700 ? '🍳' : '😵';
+    $('oTitle').textContent = '背不动了';
+    $('oText').innerHTML = `${chop}<br>接住 <b>${caught}</b> 个 · 甩掉 <b>${flings}</b> 口锅 · 漏掉 <b>${escaped}</b> 个 · 接中率 <b>${acc}%</b>` +
       (maxCombo ? ` · 最高连击 <b>${maxCombo}</b>` : '') + `<br>本局 <b>${score}</b> · 最佳 <b>${best}</b>`;
     $('over').classList.add('show');
   }, 320);
@@ -303,8 +348,9 @@ function draw(){
 
   // 掉落物
   for(const it of items){
-    const col = it.bad ? '#ff7a6b' : '#4fe0a8';
+    const col = it.flung ? '#ffd36e' : (it.bad ? '#ff7a6b' : '#4fe0a8');
     ctx.save();
+    if(it.flung) ctx.globalAlpha = 0.5;          // 甩出去的锅：淡掉、飞走，不再算数
     ctx.shadowColor = col; ctx.shadowBlur = 16;
     ctx.fillStyle = it.bad ? 'rgba(255,122,107,.16)' : 'rgba(79,224,168,.16)';
     ctx.beginPath(); ctx.arc(it.x, it.y, it.r, 0, 7); ctx.fill();
@@ -316,7 +362,8 @@ function draw(){
     ctx.fillText(it.e, it.x, it.y+1);
     ctx.fillStyle = col;
     ctx.font = '700 10px "PingFang SC","Microsoft YaHei",sans-serif';
-    ctx.fillText(it.n, it.x, it.y + it.r + 11);
+    ctx.fillText(it.flung ? '甩出去了' : it.n, it.x, it.y + it.r + 11);
+    if(it.flung) ctx.globalAlpha = 1;
   }
 
   // 筐
@@ -339,7 +386,7 @@ function draw(){
   ctx.fillStyle = 'rgba(255,255,255,.5)';
   ctx.font = '700 11px "PingFang SC","Microsoft YaHei",sans-serif';
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText('工 位', bx, by + bh/2);
+  ctx.fillText('你自己', bx, by + bh/2);
 
   // 飘字
   for(const f of fx){
@@ -388,7 +435,17 @@ function aim(clientX){
   const r = cvs.getBoundingClientRect();
   targetX = (clientX - r.left)/r.width * W;
 }
-cvs.addEventListener('pointerdown', e=>{ A(); if(over) return; aim(e.clientX); cvs.setPointerCapture?.(e.pointerId); });
+function canvasXY(e){
+  const r = cvs.getBoundingClientRect();
+  return { x: (e.clientX - r.left)/r.width * W, y: (e.clientY - r.top)/r.height * H };
+}
+cvs.addEventListener('pointerdown', e=>{
+  A(); if(over) return;
+  aim(e.clientX);
+  const p = canvasXY(e);
+  flingAt(p.x, p.y);                      // 点在锅上就甩出去；点空就只是挪筐
+  cvs.setPointerCapture?.(e.pointerId);
+});
 cvs.addEventListener('pointermove', e=>{ if(e.pointerType === 'mouse' || e.buttons) aim(e.clientX); });
 addEventListener('keydown', e=>{
   if(e.key === ' '){ e.preventDefault();
@@ -411,10 +468,16 @@ addEventListener('resize', resize);
 })();
 
 window.__catch = {
-  get state(){ return { playing, over, score, combo, maxCombo, hp, caught, escaped, items: items.length, basketX: basket.x }; },
-  begin, reset, spawn,
+  get state(){ return { playing, over, score, combo, maxCombo, hp, caught, escaped, flings,
+                        items: items.length, basketX: basket.x,
+                        pots: items.filter(i => i.pot && !i.flung).length,
+                        flying: items.filter(i => i.flung).length }; },
+  get W(){ return W; }, get H(){ return H; },
+  begin, reset, spawn, flingAt, update,
   setBasket(x){ targetX = x; basket.x = x; },
-  push(o){ items.push(Object.assign({ x: W/2, y: 0, vy: 200, vx: 0, r: 25, bad:false, e:'🍜', n:'外卖', v:10, rot:0 }, o)); }
+  push(o){ items.push(Object.assign({ x: W/2, y: 0, vy: 200, vx: 0, r: 25, bad:false, pot:false, flung:false,
+                                      e:'🍜', n:'外卖', v:10, rot:0 }, o)); },
+  at(i){ return items[i]; }
 };
 </script>
 </body>
